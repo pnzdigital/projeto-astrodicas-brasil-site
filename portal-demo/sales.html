@@ -38,6 +38,7 @@
     };
     const selected = {...copy[variant.startsWith('es-') ? 'es-v1' : 'br-v1'], ...(copy[variant] || {})};
     document.documentElement.lang = isEs ? 'es-AR' : 'pt-BR';
+    document.title = isEs ? (variant === 'es-v2' ? 'Plan Luna completo · AstroDicas' : 'Plan Luna · AstroDicas') : (variant === 'br-v2' ? 'Plano Lua completo · AstroDicas' : 'Plano Lua · AstroDicas');
     Object.entries(selected).forEach(([key, value]) => document.querySelectorAll(`[data-copy="${key}"]`).forEach((node) => { node.textContent = value; }));
     document.querySelectorAll('[data-checkout]').forEach((button) => button.addEventListener('click', async () => {
       const config = (await import(isEs ? '/portal-config-ar.js' : '/portal-config.js')).default;
