@@ -1,0 +1,103 @@
+from datetime import date, datetime, time, timezone
+from uuid import uuid4
+
+from sqlalchemy import JSON, Date, DateTime, ForeignKey, Integer, String, Text, Time, UniqueConstraint
+from sqlalchemy.orm import Mapped, mapped_column, relationship
+
+from .db import Base
+
+
+def now_utc() -> datetime:
+    return datetime.now(timezone.utc)
+
+
+class User(Base):
+    __tablename__ = "site_users"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=lambda: str(uuid4()))
+    email: Mapped[str] = mapped_column(String(320), unique=True, index=True)
+    password_hash: Mapped[str] = mapped_column(String(255))
+    name: Mapped[str] = mapped_column(String(160), default="")
+    locale: Mapped[str] = mapped_column(String(10), default="pt-BR")
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now_utc)
+    profile: Mapped["Profile | None"] = relationship(back_populates="user", uselist=False, cascade="all, delete-orphan")
+    entitlements: Mapped[list["Entitlement"]] = relationship(back_populates="user", cascade="all, delete-orphan")
+    readings: Mapped[list["Reading"]] = relationship(back_populates="user", cascade="all, delete-orphan")
+
+
+class Profile(Base):
+    __tablename__ = "site_profiles"
+
+    user_id: Mapped[str] = mapped_column(ForeignKey("site_users.id", ondelete="CASCADE"), primary_key=True)
+    birth_date: Mapped[date | None] = mapped_column(Date, nullable=True)
+    birth_time: Mapped[time | None] = mapped_column(Time, nullable=True)
+    birth_city: Mapped[str] = mapped_column(String(160), default="")
+    birth_country: Mapped[str] = mapped_column(String(2), default="BR")
+    birth_timezone: Mapped[str] = mapped_column(String(64), default="America/Sao_Paulo")
+    birth_latitude: Mapped[str | None] = mapped_column(String(32), nullable=True)
+    birth_longitude: Mapped[str | None] = mapped_column(String(32), nullable=True)
+    partner_name: Mapped[str] = mapped_column(String(160), default="")
+    partner_birth_date: Mapped[date | None] = mapped_column(Date, nullable=True)
+    partner_birth_time: Mapped[time | None] = mapped_column(Time, nullable=True)
+    partner_birth_city: Mapped[str] = mapped_column(String(160), default="")
+    partner_country: Mapped[str] = mapped_column(String(2), default="BR")
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now_utc, onupdate=now_utc)
+    user: Mapped[User] = relationship(back_populates="profile")
+
+
+class Order(Base):
+    __tablename__ = "site_orders"
+    __table_args__ = (UniqueConstraint("provider", "external_id", name="uq_site_order_provider_external"),)
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=lambda: str(uuid4()))
+    user_id: Mapped[str] = mapped_column(ForeignKey("site_users.id", ondelete="CASCADE"), index=True)
+    provider: Mapped[str] = mapped_column(String(40))
+    external_id: Mapped[str] = mapped_column(String(255))
+    product_id: Mapped[str] = mapped_column(String(120), index=True)
+    status: Mapped[str] = mapped_column(String(32), default="paid")
+    amount_minor: Mapped[int] = mapped_column(Integer, default=0)
+    currency: Mapped[str] = mapped_column(String(8), default="BRL")
+    raw_payload: Mapped[dict] = mapped_column(JSON, default=dict)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now_utc)
+
+
+class Entitlement(Base):
+    __tablename__ = "site_entitlements"
+    __table_args__ = (UniqueConstraint("user_id", "product_id", name="uq_site_entitlement_user_product"),)
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=lambda: str(uuid4()))
+    user_id: Mapped[str] = mapped_column(ForeignKey("site_users.id", ondelete="CASCADE"), index=True)
+    product_id: Mapped[str] = mapped_column(String(120), index=True)
+    status: Mapped[str] = mapped_column(String(32), default="available")
+    source: Mapped[str] = mapped_column(String(40), default="site")
+    granted_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now_utc)
+    expires_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    user: Mapped[User] = relationship(back_populates="entitlements")
+
+
+class Reading(Base):
+    __tablename__ = "site_readings"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=lambda: str(uuid4()))
+    user_id: Mapped[str] = mapped_column(ForeignKey("site_users.id", ondelete="CASCADE"), index=True)
+    content_id: Mapped[str] = mapped_column(String(120), index=True)
+    product_id: Mapped[str | None] = mapped_column(String(120), nullable=True)
+    status: Mapped[str] = mapped_column(String(32), default="pending")
+    title: Mapped[str] = mapped_column(String(200), default="")
+    body_html: Mapped[str] = mapped_column(Text, default="")
+    input_snapshot: Mapped[dict] = mapped_column(JSON, default=dict)
+    error_message: Mapped[str] = mapped_column(Text, default="")
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now_utc)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now_utc, onupdate=now_utc)
+    user: Mapped[User] = relationship(back_populates="readings")
+
+
+class WebhookEvent(Base):
+    __tablename__ = "site_webhook_events"
+    __table_args__ = (UniqueConstraint("provider", "event_id", name="uq_site_webhook_provider_event"),)
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=lambda: str(uuid4()))
+    provider: Mapped[str] = mapped_column(String(40))
+    event_id: Mapped[str] = mapped_column(String(255))
+    payload: Mapped[dict] = mapped_column(JSON, default=dict)
+    received_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now_utc)

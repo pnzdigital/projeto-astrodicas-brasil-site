@@ -405,6 +405,27 @@
     .account-detail { display: grid; gap: 10px; margin-top: 17px; }
     .account-detail div { display: flex; justify-content: space-between; gap: 15px; padding-bottom: 9px; border-bottom: 1px solid rgba(244,239,228,.1); color: var(--cream-dim); font-size: 12px; }
     .account-detail strong { color: var(--cream); font-weight: 500; }
+    .auth-tabs { display: flex; gap: 7px; margin: 18px 0 16px; border-bottom: 1px solid rgba(244,239,228,.1); }
+    .auth-tab { padding: 0 0 9px; border: 0; border-bottom: 1px solid transparent; color: var(--cream-faint); background: transparent; cursor: pointer; font-size: 12px; }
+    .auth-tab.active { border-color: var(--gold); color: var(--gold-lit); }
+    .auth-form { display: grid; gap: 12px; }
+    .auth-form[hidden], .account-user[hidden], .profile-form[hidden] { display: none; }
+    .field { display: grid; gap: 5px; }
+    .field label { color: var(--cream-dim); font-size: 11px; }
+    .field input { width: 100%; min-height: 40px; padding: 0 11px; border: 1px solid rgba(244,239,228,.18); border-radius: 5px; color: var(--cream); background: rgba(7,6,26,.45); font: inherit; }
+    .field input:focus { border-color: var(--gold); outline: 2px solid rgba(244,215,154,.22); outline-offset: 1px; }
+    .form-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+    .form-grid .field:first-child { grid-column: 1 / -1; }
+    .form-help, .form-error { margin: 0; font-size: 11px; }
+    .form-help { color: var(--cream-faint); }
+    .form-error { min-height: 16px; color: var(--rose); }
+    .account-user { display: grid; gap: 13px; }
+    .account-user .dialog-actions { margin-top: 5px; }
+    .profile-form { display: grid; gap: 16px; }
+    .profile-form h3 { margin: 4px 0 -4px; color: var(--gold-lit); font: 500 23px/1 var(--display); }
+    .profile-form .dialog-actions { margin-top: 0; }
+    .profile-trigger { color: var(--gold-lit); text-decoration: underline; text-decoration-color: var(--gold-line); text-underline-offset: 3px; }
+    .portal-mode { margin: 12px 0 0; padding: 9px 11px; border: 1px solid var(--gold-line); color: var(--cream-faint); font-size: 11px; }
     @media print {
       body { color: #111; background: #fff; }
       body::before, .sidebar, .topbar, .top-actions, .mobile-nav, .hero-visual, .button, .upsell, .toast { display: none !important; }
@@ -668,14 +689,66 @@
     <div class="dialog-inner">
       <button class="dialog-close" type="button" aria-label="Fechar">×</button>
       <p class="eyebrow">Sua conta · canal web</p>
-      <h2 id="account-title">Marina Alves</h2>
-      <p>Seu acesso é pessoal e fica separado de qualquer compra ou conversa feita pelo Telegram.</p>
-      <div class="account-detail">
-        <div><span>E-mail</span><strong>marina@exemplo.com</strong></div>
-        <div><span>Plano atual</span><strong>Plano Lua · ativo</strong></div>
-        <div><span>Próxima cobrança</span><strong>29 jul 2027</strong></div>
+      <h2 id="account-title">Entrar no AstroDicas</h2>
+      <p id="account-description">Seu acesso é pessoal e fica separado de qualquer compra ou conversa feita pelo Telegram.</p>
+      <div id="account-auth">
+        <div class="auth-tabs" role="tablist" aria-label="Acesso à conta">
+          <button class="auth-tab active" type="button" data-auth-mode="login" role="tab" aria-selected="true">Entrar</button>
+          <button class="auth-tab" type="button" data-auth-mode="register" role="tab" aria-selected="false">Criar conta</button>
+        </div>
+        <form class="auth-form" id="login-form" data-auth-form="login">
+          <div class="field"><label for="login-email">E-mail</label><input id="login-email" name="email" type="email" autocomplete="email" required></div>
+          <div class="field"><label for="login-password">Senha</label><input id="login-password" name="password" type="password" autocomplete="current-password" minlength="8" required></div>
+          <p class="form-error" data-form-error="login" role="alert"></p>
+          <div class="dialog-actions"><button class="button small" type="submit">Entrar →</button></div>
+        </form>
+        <form class="auth-form" id="register-form" data-auth-form="register" hidden>
+          <div class="field"><label for="register-name">Seu nome</label><input id="register-name" name="name" type="text" autocomplete="name" minlength="2" required></div>
+          <div class="field"><label for="register-email">E-mail</label><input id="register-email" name="email" type="email" autocomplete="email" required></div>
+          <div class="field"><label for="register-password">Senha</label><input id="register-password" name="password" type="password" autocomplete="new-password" minlength="8" required></div>
+          <p class="form-help">Use pelo menos 8 caracteres. Você poderá completar seus dados de nascimento depois.</p>
+          <p class="form-error" data-form-error="register" role="alert"></p>
+          <div class="dialog-actions"><button class="button small" type="submit">Criar minha conta →</button></div>
+        </form>
+        <p class="portal-mode" id="portal-mode-note">Modo demonstração: o portal continua navegável sem uma sessão.</p>
       </div>
-      <div class="dialog-actions"><button class="button ghost small dialog-close" type="button">Fechar</button><button class="button small" type="button" data-toast="Um link de acesso foi enviado para seu e-mail.">Enviar link de acesso</button></div>
+      <div class="account-user" id="account-user" hidden>
+        <div class="account-detail">
+          <div><span>E-mail</span><strong data-account-email>—</strong></div>
+          <div><span>Plano e acessos</span><strong data-account-plan>Conta AstroDicas</strong></div>
+          <div><span>Dados de nascimento</span><strong data-account-profile>Ainda não preenchidos</strong></div>
+        </div>
+        <div class="dialog-actions"><button class="button ghost small" type="button" data-dialog="profile-dialog">Editar dados</button><button class="button small" type="button" data-logout>Sair</button></div>
+      </div>
+    </div>
+  </dialog>
+
+  <dialog id="profile-dialog" aria-labelledby="profile-title">
+    <div class="dialog-inner">
+      <button class="dialog-close" type="button" aria-label="Fechar">×</button>
+      <p class="eyebrow">Seu mapa · dados de nascimento</p>
+      <h2 id="profile-title">Conte ao céu de onde você parte.</h2>
+      <p>Esses dados ficam associados à sua conta web e são usados para gerar suas leituras. Os campos do parceiro são opcionais.</p>
+      <form class="profile-form" id="profile-form">
+        <h3>Você</h3>
+        <div class="form-grid">
+          <div class="field"><label for="birth-date">Data de nascimento</label><input id="birth-date" name="birth_date" type="date" required></div>
+          <div class="field"><label for="birth-time">Hora de nascimento</label><input id="birth-time" name="birth_time" type="time"></div>
+          <div class="field"><label for="birth-city">Cidade de nascimento</label><input id="birth-city" name="birth_city" type="text" autocomplete="address-level2" required></div>
+          <div class="field"><label for="birth-country">País</label><input id="birth-country" name="birth_country" type="text" value="BR" maxlength="2" required></div>
+          <div class="field"><label for="birth-timezone">Fuso horário</label><input id="birth-timezone" name="birth_timezone" type="text" value="America/Sao_Paulo"></div>
+        </div>
+        <h3>Parceiro (opcional)</h3>
+        <div class="form-grid">
+          <div class="field"><label for="partner-name">Nome</label><input id="partner-name" name="partner_name" type="text"></div>
+          <div class="field"><label for="partner-birth-date">Data de nascimento</label><input id="partner-birth-date" name="partner_birth_date" type="date"></div>
+          <div class="field"><label for="partner-birth-time">Hora de nascimento</label><input id="partner-birth-time" name="partner_birth_time" type="time"></div>
+          <div class="field"><label for="partner-birth-city">Cidade de nascimento</label><input id="partner-birth-city" name="partner_birth_city" type="text"></div>
+          <div class="field"><label for="partner-country">País</label><input id="partner-country" name="partner_country" type="text" value="BR" maxlength="2"></div>
+        </div>
+        <p class="form-error" data-form-error="profile" role="alert"></p>
+        <div class="dialog-actions"><button class="button ghost small dialog-close" type="button">Agora não</button><button class="button small" type="submit">Salvar dados →</button></div>
+      </form>
     </div>
   </dialog>
 
@@ -793,6 +866,8 @@
     ]; */
 
     const toast = document.querySelector('.toast');
+    const API_BASE = (window.PORTAL_API_URL || document.querySelector('meta[name="portal-api"]')?.content || '').replace(/\/$/, '');
+    const appState = { apiAvailable: false, authenticated: false, user: null, profile: null, entitlements: new Map(), readings: new Map(), pendingContentId: null };
     let toastTimer;
     function showToast(message) {
       toast.textContent = message;
@@ -800,58 +875,137 @@
       clearTimeout(toastTimer);
       toastTimer = setTimeout(() => toast.classList.remove('show'), 3200);
     }
-    function openDialog(id) { document.getElementById(id)?.showModal(); }
+    function openDialog(id) {
+      if (id === 'account-dialog') syncAccountDialog();
+      if (id === 'profile-dialog') fillProfileForm();
+      document.getElementById(id)?.showModal();
+    }
+    function apiError(message, statusCode = 0) { const error = new Error(message); error.status = statusCode; return error; }
+    async function apiRequest(path, options = {}) {
+      if (!API_BASE && !window.location.origin) throw apiError('API indisponível.');
+      let response;
+      try {
+        response = await fetch(`${API_BASE}${path}`, { credentials: 'include', ...options, headers: { 'Content-Type': 'application/json', ...(options.headers || {}) } });
+      } catch (error) { throw apiError('Não foi possível conectar ao portal.'); }
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) throw apiError(data.detail || 'Não foi possível concluir esta ação.', response.status);
+      return data;
+    }
     function checkoutUrl(key) {
       const config = window.PORTAL_CONFIG || {};
       const provider = config.checkout?.defaultProvider || 'cakto';
-      const aliases = {
-        plano_lua: 'site:plano_lua',
-        plano_lua_premium: 'site:oferta_plano_lua_premium',
-        mapa_astral: 'site:mapa_astral',
-        mapa_amor: 'site:mapa_amor_sinastria',
-        mapa_carreira: 'site:mapa_carreira',
-        mapa_prosperidade: 'site:mapa_prosperidade',
-        combo_mapas: 'site:combo_mapa_astral_amor',
-      };
-      const productId = aliases[key] || key;
-      return config.checkout?.providers?.[provider]?.checkoutUrls?.[productId] || '';
+      const aliases = { plano_lua: 'site:plano_lua', plano_lua_premium: 'site:oferta_plano_lua_premium', mapa_astral: 'site:mapa_astral', mapa_amor: 'site:mapa_amor_sinastria', mapa_carreira: 'site:mapa_carreira', mapa_prosperidade: 'site:mapa_prosperidade', combo_mapas: 'site:combo_mapa_astral_amor' };
+      return config.checkout?.providers?.[provider]?.checkoutUrls?.[aliases[key] || key] || '';
     }
     function startCheckout(key, title) {
       const url = checkoutUrl(key);
       if (url) { window.location.href = url; return; }
-      showToast(`Checkout de “${title}” será conectado ao canal web.`);
+      const provider = PORTAL_CONFIG.checkout?.defaultProvider === 'mercado_pago' ? 'Mercado Pago' : 'checkout';
+      showToast(`${provider} de “${title}” será conectado ao canal web.`);
+    }
+    function profileComplete() { return Boolean(appState.profile?.birth_date && appState.profile?.birth_city); }
+    function fallbackState(item) { return DEMO_PAID && item.productId ? ACCESS_STATES.available : (USER_ACCESS[item.id] || ACCESS_STATES.locked); }
+    function stateLabel(value) { return ({ [ACCESS_STATES.available]: 'disponível', [ACCESS_STATES.locked]: 'bloqueado', [ACCESS_STATES.new]: 'novo', [ACCESS_STATES.pending]: 'aguardando acesso', [ACCESS_STATES.inProgress]: 'gerando leitura…' })[value] || value; }
+    function applyRemoteState() {
+      LIBRARY_ITEMS.forEach((item) => {
+        const reading = appState.readings.get(item.id);
+        const entitlement = item.productId && appState.entitlements.get(item.productId);
+        if (reading?.status === 'in_progress') item.state = ACCESS_STATES.inProgress;
+        else if (reading?.status === 'pending') item.state = ACCESS_STATES.pending;
+        else if (reading?.status === 'ready' || !item.productId || entitlement?.status === 'available') item.state = reading?.status === 'ready' ? ACCESS_STATES.available : (item.productId ? ACCESS_STATES.available : ACCESS_STATES.new);
+        else if (entitlement && entitlement.status !== 'available') item.state = ACCESS_STATES.pending;
+        else item.state = fallbackState(item);
+      });
+      renderLibrary();
     }
     function renderLibrary() {
       const grid = document.getElementById('library-grid');
-      grid.innerHTML = LIBRARY_ITEMS.map((item) => `
-        <article class="asset${item.state === ACCESS_STATES.locked ? ' locked' : ''}" data-product="${item.id}" data-state="${item.state}" aria-label="${item.title}, ${item.state}">
-          ${item.state === ACCESS_STATES.locked ? '<span class="lock-label">bloqueado</span>' : ''}
-          <div class="asset-icon" aria-hidden="true">${item.icon}</div>
-          <div class="asset-kicker">${item.kicker}</div>
-          <h3>${item.title}</h3>
-          <p>${item.description}</p>
-          <div class="asset-meta">${item.meta}</div>
-          <div class="asset-actions">
-            <button class="button ${item.state === ACCESS_STATES.locked ? 'ghost' : ''} small" type="button" data-read="${item.id}">${item.state === ACCESS_STATES.locked ? 'Conhecer produto →' : item.state === ACCESS_STATES.new ? 'Começar leitura →' : 'Abrir leitura →'}</button>
-            ${item.state !== ACCESS_STATES.locked && item.downloadable ? (item.downloadUrl ? '<a class="button ghost small" href="'+item.downloadUrl+'" download>Baixar PDF</a>' : '<button class="button ghost small" type="button" data-print="'+item.id+'" aria-label="Imprimir ou salvar '+item.title+'">PDF</button>') : ''}
-          </div>
-        </article>`).join('');
+      grid.innerHTML = LIBRARY_ITEMS.map((item) => {
+        const locked = item.state === ACCESS_STATES.locked;
+        const waiting = item.state === ACCESS_STATES.pending || item.state === ACCESS_STATES.inProgress;
+        const label = locked ? 'Conhecer produto →' : item.state === ACCESS_STATES.new ? 'Começar leitura →' : item.state === ACCESS_STATES.inProgress ? 'Gerando leitura…' : item.state === ACCESS_STATES.pending ? 'Aguardando acesso…' : 'Abrir leitura →';
+        return `<article class="asset${locked ? ' locked' : ''}" data-product="${item.id}" data-state="${item.state}" aria-label="${item.title}, ${stateLabel(item.state)}">
+          ${locked ? '<span class="lock-label">bloqueado</span>' : ''}<div class="asset-icon" aria-hidden="true">${item.icon}</div><div class="asset-kicker">${item.kicker}</div><h3>${item.title}</h3><p>${item.description}</p><div class="state-badge">${stateLabel(item.state)}</div><div class="asset-meta">${item.meta}</div>
+          <div class="asset-actions"><button class="button ${locked ? 'ghost' : ''} small" type="button" data-read="${item.id}"${waiting ? ' aria-busy="true"' : ''}>${label}</button>${!locked && !waiting && item.downloadable ? (item.downloadUrl ? '<a class="button ghost small" href="'+item.downloadUrl+'" download>Baixar PDF</a>' : '<button class="button ghost small" type="button" data-print="'+item.id+'" aria-label="Imprimir ou salvar '+item.title+'">PDF</button>') : ''}</div>
+        </article>`;
+      }).join('');
       const active = LIBRARY_ITEMS.filter((item) => item.state !== ACCESS_STATES.locked).length;
       document.getElementById('active-count').textContent = String(active).padStart(2, '0');
       document.getElementById('total-count').textContent = String(LIBRARY_ITEMS.length).padStart(2, '0');
       document.querySelector('[href="#entregaveis"]').textContent = `${String(active).padStart(2, '0')} conteúdos ativos`;
     }
     function renderOffers() {
-      document.getElementById('offer-grid').innerHTML = OFFERS.map((offer) => `
-        <article class="offer" data-offer="${offer.id}">
-          <div class="offer-kicker">${offer.kicker}</div>
-          <h3>${offer.title}</h3>
-          <p>${offer.description}</p>
-          <span class="offer-price">${offer.price} <small>${offer.cadence}</small></span>
-          <button class="button small" type="button" data-offer-checkout="${offer.checkoutKey}" data-offer-title="${offer.title}">${offer.button} →</button>
-        </article>`).join('');
+      document.getElementById('offer-grid').innerHTML = OFFERS.map((offer) => `<article class="offer" data-offer="${offer.id}"><div class="offer-kicker">${offer.kicker}</div><h3>${offer.title}</h3><p>${offer.description}</p><span class="offer-price">${offer.price} <small>${offer.cadence}</small></span><button class="button small" type="button" data-offer-checkout="${offer.checkoutKey}" data-offer-title="${offer.title}">${offer.button} →</button></article>`).join('');
       const upsell = OFFERS.filter((offer) => offer.id !== 'site:plano-lua').slice(0, 3);
       document.getElementById('upsell-list').innerHTML = upsell.map((offer) => `<div class="upsell-item"><b>✦</b><span>${offer.title}</span></div>`).join('');
+    }
+    function renderUser() {
+      const name = appState.user?.name || 'Marina Alves';
+      const firstName = name.trim().split(/\s+/)[0] || 'Marina';
+      const initials = name.trim().split(/\s+/).slice(0, 2).map((part) => part[0]).join('').toUpperCase() || 'MA';
+      document.querySelector('main h1').textContent = `Bom dia, ${firstName}.`;
+      document.querySelector('.avatar').textContent = initials;
+      document.querySelector('.sign strong').textContent = `${firstName} · Libra`;
+    }
+    function syncAccountDialog() {
+      const auth = document.getElementById('account-auth');
+      const userPanel = document.getElementById('account-user');
+      auth.hidden = appState.authenticated;
+      userPanel.hidden = !appState.authenticated;
+      document.getElementById('account-title').textContent = appState.authenticated ? `Olá, ${(appState.user?.name || 'seu céu').split(/\s+/)[0]}.` : 'Entrar no AstroDicas';
+      document.getElementById('account-description').textContent = appState.authenticated ? 'Seu acesso é pessoal e fica separado de qualquer compra ou conversa feita pelo Telegram.' : 'Entre ou crie sua conta para salvar dados de nascimento e gerar leituras personalizadas.';
+      document.getElementById('portal-mode-note').textContent = appState.apiAvailable ? 'Acesso conectado ao portal web.' : 'Modo demonstração: o portal continua navegável sem uma sessão.';
+      if (appState.authenticated) {
+        document.querySelector('[data-account-email]').textContent = appState.user?.email || '—';
+        document.querySelector('[data-account-profile]').textContent = profileComplete() ? `${appState.profile.birth_date} · ${appState.profile.birth_city}` : 'Ainda não preenchidos';
+      }
+    }
+    function setFormError(name, message = '') { const node = document.querySelector(`[data-form-error="${name}"]`); if (node) node.textContent = message; }
+    function fillProfileForm() {
+      const form = document.getElementById('profile-form');
+      const profile = appState.profile || {};
+      ['birth_date', 'birth_time', 'birth_city', 'birth_country', 'birth_timezone', 'partner_name', 'partner_birth_date', 'partner_birth_time', 'partner_birth_city', 'partner_country'].forEach((key) => { if (form.elements[key]) form.elements[key].value = profile[key] || (key.endsWith('_country') ? (IS_ARGENTINA ? 'AR' : 'BR') : key === 'birth_timezone' ? (IS_ARGENTINA ? 'America/Argentina/Buenos_Aires' : 'America/Sao_Paulo') : ''); });
+      setFormError('profile');
+    }
+    function payloadFromForm(form) {
+      const value = (name) => form.elements[name]?.value?.trim() || null;
+      return { birth_date: value('birth_date'), birth_time: value('birth_time'), birth_city: value('birth_city') || '', birth_country: (value('birth_country') || (IS_ARGENTINA ? 'AR' : 'BR')).toUpperCase(), birth_timezone: value('birth_timezone') || (IS_ARGENTINA ? 'America/Argentina/Buenos_Aires' : 'America/Sao_Paulo'), birth_latitude: null, birth_longitude: null, partner_name: value('partner_name') || '', partner_birth_date: value('partner_birth_date'), partner_birth_time: value('partner_birth_time'), partner_birth_city: value('partner_birth_city') || '', partner_country: (value('partner_country') || (IS_ARGENTINA ? 'AR' : 'BR')).toUpperCase() };
+    }
+    function showStaticReading(item) {
+      document.getElementById('reading-kicker').textContent = `${item.kicker} · leitura web`;
+      document.getElementById('reading-title').textContent = item.title;
+      document.getElementById('reading-content').innerHTML = item.reading;
+      document.querySelector('[data-print-reading]').dataset.printTitle = item.title;
+      openDialog('reading-dialog');
+    }
+    async function generateReading(item) {
+      if (!appState.apiAvailable || !appState.authenticated) { showStaticReading(item); return; }
+      if (!profileComplete()) { appState.pendingContentId = item.id; showToast('Complete seus dados de nascimento para gerar esta leitura.'); openDialog('profile-dialog'); return; }
+      const reading = appState.readings.get(item.id);
+      if (reading?.status === 'ready') { showReading(item, reading); return; }
+      item.state = ACCESS_STATES.inProgress;
+      renderLibrary();
+      document.getElementById('reading-kicker').textContent = `${item.kicker} · geração em andamento`;
+      document.getElementById('reading-title').textContent = item.title;
+      document.getElementById('reading-content').innerHTML = '<p>Estamos lendo seu céu a partir dos dados salvos. Este momento leva só alguns instantes.</p>';
+      openDialog('reading-dialog');
+      try {
+        const data = await apiRequest(`/api/me/readings/${encodeURIComponent(item.id)}/generate`, { method: 'POST', body: '{}' });
+        if (data.reading) { appState.readings.set(item.id, data.reading); item.state = ACCESS_STATES.available; showReading(item, data.reading); }
+      } catch (error) {
+        item.state = fallbackState(item); renderLibrary();
+        document.getElementById('reading-dialog')?.close();
+        if (error.status === 422) { appState.pendingContentId = item.id; openDialog('profile-dialog'); }
+        else if (error.status === 403) { await refreshPrivateData(); showToast('Este conteúdo ainda não está liberado para sua conta.'); }
+        else showToast(error.message);
+      }
+    }
+    function showReading(item, reading) {
+      document.getElementById('reading-kicker').textContent = `${item.kicker} · leitura web`;
+      document.getElementById('reading-title').textContent = reading.title || item.title;
+      document.getElementById('reading-content').innerHTML = reading.body_html || item.reading;
+      document.querySelector('[data-print-reading]').dataset.printTitle = reading.title || item.title;
+      openDialog('reading-dialog');
     }
     function openReading(item) {
       if (!item) return;
@@ -860,48 +1014,64 @@
         dialog.querySelector('.eyebrow').textContent = `${item.kicker} · desbloqueio`;
         dialog.querySelector('#upgrade-title').textContent = `${item.title} pode fazer parte do seu céu.`;
         dialog.querySelector('.dialog-inner > p:not(.eyebrow)').textContent = item.description + ' Escolha a oferta que combina com o momento e o acesso aparece aqui após a confirmação.';
-        const cta = dialog.querySelector('[data-checkout-upgrade]');
-        cta.dataset.checkoutKey = item.checkoutKey || 'plano_lua_premium';
-        cta.dataset.offerTitle = item.title;
-        cta.textContent = 'Ver opções de acesso →';
-        openDialog('upgrade-dialog');
-        return;
+        const cta = dialog.querySelector('[data-checkout-upgrade]'); cta.dataset.checkoutKey = item.checkoutKey || 'plano_lua_premium'; cta.dataset.offerTitle = item.title; cta.textContent = 'Ver opções de acesso →';
+        openDialog('upgrade-dialog'); return;
       }
-      document.getElementById('reading-kicker').textContent = `${item.kicker} · leitura web`;
-      document.getElementById('reading-title').textContent = item.title;
-      document.getElementById('reading-content').innerHTML = item.reading;
-      document.querySelector('[data-print-reading]').dataset.printTitle = item.title;
-      openDialog('reading-dialog');
+      if (item.state === ACCESS_STATES.pending) { showToast('Seu acesso está sendo confirmado. Tente novamente em instantes.'); return; }
+      generateReading(item);
+    }
+    async function refreshPrivateData() {
+      if (!appState.authenticated) return;
+      const [profile, access, readings] = await Promise.all([apiRequest('/api/me/profile'), apiRequest('/api/me/access'), apiRequest('/api/me/readings')]);
+      appState.profile = profile.profile;
+      appState.entitlements = new Map((access.entitlements || []).map((entry) => [entry.product_id, entry]));
+      appState.readings = new Map((readings.readings || []).map((entry) => [entry.content_id, entry]));
+      applyRemoteState(); syncAccountDialog();
+    }
+    async function bootstrap() {
+      try {
+        const data = await apiRequest('/api/session');
+        appState.apiAvailable = true; appState.authenticated = Boolean(data.authenticated); appState.user = data.user || null;
+        if (appState.authenticated) await refreshPrivateData();
+        renderUser(); syncAccountDialog(); applyRemoteState();
+      } catch (error) { appState.apiAvailable = false; appState.authenticated = false; appState.user = null; renderUser(); syncAccountDialog(); }
+    }
+    async function submitAuth(form, mode) {
+      const button = form.querySelector('button[type="submit"]'); button.disabled = true; setFormError(mode);
+      try {
+        const payload = Object.fromEntries(new FormData(form).entries());
+        if (mode === 'register') payload.locale = PORTAL_CONFIG.locale || (IS_ARGENTINA ? 'es-AR' : 'pt-BR');
+        const data = await apiRequest(`/api/auth/${mode}`, { method: 'POST', body: JSON.stringify(payload) });
+        appState.apiAvailable = true; appState.authenticated = true; appState.user = data.user; await refreshPrivateData();
+        form.closest('dialog')?.close(); renderUser(); syncAccountDialog(); showToast(mode === 'register' ? 'Conta criada. Complete seus dados para começar.' : 'Acesso realizado. Bom reencontro com seu céu.');
+      } catch (error) { setFormError(mode, !appState.apiAvailable ? 'A API não está disponível agora. O modo demonstração continua ativo.' : error.message); }
+      finally { button.disabled = false; }
     }
     const contentById = Object.fromEntries((PORTAL_CONFIG.content || []).map((entry) => [entry.id, entry]));
-    LIBRARY_ITEMS = LIBRARY_ITEMS.map((item) => ({
-      ...item,
-      ...(contentById[item.id] ? {
-        title: contentById[item.id].title,
-        description: contentById[item.id].summary,
-        downloadable: contentById[item.id].downloadable !== false,
-        downloadUrl: contentById[item.id].download?.url || '',
-      } : {}),
-    }));
-    renderLibrary();
-    renderOffers();
-
+    LIBRARY_ITEMS = LIBRARY_ITEMS.map((item) => ({ ...item, ...(contentById[item.id] ? { title: contentById[item.id].title, description: contentById[item.id].summary, downloadable: contentById[item.id].downloadable !== false, downloadUrl: contentById[item.id].download?.url || '' } : {}) }));
+    renderLibrary(); renderOffers(); renderUser(); syncAccountDialog();
     document.addEventListener('click', (event) => {
-      const target = event.target.closest('button, a');
-      if (!target) return;
+      const target = event.target.closest('button, a'); if (!target) return;
       if (target.matches('[data-toast]')) { if (target.getAttribute('href') === '#') event.preventDefault(); showToast(target.dataset.toast); }
       if (target.matches('[data-dialog]')) openDialog(target.dataset.dialog);
       if (target.matches('.dialog-close')) target.closest('dialog')?.close();
+      if (target.matches('[data-auth-mode]')) { const mode = target.dataset.authMode; document.querySelectorAll('[data-auth-mode]').forEach((tab) => { tab.classList.toggle('active', tab === target); tab.setAttribute('aria-selected', tab === target ? 'true' : 'false'); }); document.querySelectorAll('[data-auth-form]').forEach((form) => { form.hidden = form.dataset.authForm !== mode; }); setFormError('login'); setFormError('register'); }
       if (target.matches('[data-read]')) openReading(LIBRARY_ITEMS.find((item) => item.id === target.dataset.read));
       if (target.matches('[data-print]')) { showToast('Preparando uma versão para impressão…'); window.print(); }
       if (target.matches('[data-print-reading]')) { showToast(`Preparando “${target.dataset.printTitle || 'leitura'}” para impressão…`); window.print(); }
       if (target.matches('[data-offer-checkout]')) startCheckout(target.dataset.offerCheckout, target.dataset.offerTitle);
       if (target.matches('[data-checkout-upgrade]')) { startCheckout(target.dataset.checkoutKey, target.dataset.offerTitle || 'seu upgrade'); target.closest('dialog')?.close(); }
-      if (target.matches('[data-scroll]')) {
-        document.getElementById(target.dataset.scroll)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-        document.querySelectorAll('.mobile-nav button').forEach((item) => item.classList.toggle('active', item === target));
-      }
+      if (target.matches('[data-logout]')) { apiRequest('/api/auth/logout', { method: 'POST', body: '{}' }).catch(() => {}); appState.authenticated = false; appState.user = null; appState.profile = null; appState.entitlements.clear(); appState.readings.clear(); applyRemoteState(); renderUser(); syncAccountDialog(); target.closest('dialog')?.close(); showToast('Você saiu da sua conta.'); }
+      if (target.matches('[data-scroll]')) { document.getElementById(target.dataset.scroll)?.scrollIntoView({ behavior: 'smooth', block: 'start' }); document.querySelectorAll('.mobile-nav button').forEach((item) => item.classList.toggle('active', item === target)); }
     });
+    document.addEventListener('submit', (event) => { if (event.target.matches('[data-auth-form]')) { event.preventDefault(); submitAuth(event.target, event.target.dataset.authForm); } if (event.target.matches('#profile-form')) { event.preventDefault(); saveProfile(event.target); } });
+    async function saveProfile(form) {
+      const button = form.querySelector('button[type="submit"]'); button.disabled = true; setFormError('profile');
+      try { const data = await apiRequest('/api/me/profile', { method: 'PUT', body: JSON.stringify(payloadFromForm(form)) }); appState.profile = data.profile; syncAccountDialog(); document.getElementById('profile-dialog').close(); showToast('Dados salvos. Seu céu está pronto para a próxima leitura.'); const pending = appState.pendingContentId; appState.pendingContentId = null; if (pending) generateReading(LIBRARY_ITEMS.find((item) => item.id === pending)); }
+      catch (error) { setFormError('profile', error.message); }
+      finally { button.disabled = false; }
+    }
+    void bootstrap();
   </script>
 </body>
 </html>

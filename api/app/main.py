@@ -1,0 +1,250 @@
+import hashlib
+import hmac
+import os
+from datetime import date, time
+from pathlib import Path
+
+from fastapi import Cookie, Depends, FastAPI, HTTPException, Request, Response, status
+from fastapi.middleware.cors import CORSMiddleware
+from pydantic import BaseModel, EmailStr, Field
+from sqlalchemy import select
+from sqlalchemy.exc import IntegrityError
+from sqlalchemy.orm import Session
+
+from .db import Base, engine, get_db
+from .engine import generate_reading
+from .models import Entitlement, Order, Profile, Reading, User, WebhookEvent
+from .security import create_token, decode_token, hash_password, verify_password
+
+
+SITE_ROOT = Path(__file__).resolve().parents[2]
+app = FastAPI(title="AstroDicas Site API", version="1.0.0")
+site_origins = [
+    origin.strip()
+    for origin in os.getenv("SITE_ORIGIN", "http://localhost:8080").split(",")
+    if origin.strip()
+]
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=site_origins,
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+
+class RegisterBody(BaseModel):
+    email: EmailStr
+    password: str = Field(min_length=8)
+    name: str = Field(min_length=2, max_length=160)
+    locale: str = Field(default="pt-BR", max_length=10)
+
+
+class LoginBody(BaseModel):
+    email: EmailStr
+    password: str
+
+
+class ProfileBody(BaseModel):
+    birth_date: date | None = None
+    birth_time: time | None = None
+    birth_city: str = Field(default="", max_length=160)
+    birth_country: str = Field(default="BR", min_length=2, max_length=2)
+    birth_timezone: str = Field(default="America/Sao_Paulo", max_length=64)
+    birth_latitude: str | None = Field(default=None, max_length=32)
+    birth_longitude: str | None = Field(default=None, max_length=32)
+    partner_name: str = Field(default="", max_length=160)
+    partner_birth_date: date | None = None
+    partner_birth_time: time | None = None
+    partner_birth_city: str = Field(default="", max_length=160)
+    partner_country: str = Field(default="BR", min_length=2, max_length=2)
+
+
+class WebhookBody(BaseModel):
+    event_id: str
+    email: EmailStr
+    product_id: str
+    status: str = "paid"
+    amount_minor: int = 0
+    currency: str = "BRL"
+    external_id: str | None = None
+
+
+def current_user(session: str | None, db: Session) -> User:
+    user_id = decode_token(session or "")
+    user = db.get(User, user_id) if user_id else None
+    if not user:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Faça login para continuar.")
+    return user
+
+
+def set_session(response: Response, user: User) -> None:
+    response.set_cookie("site_session", create_token(user.id), httponly=True, secure=os.getenv("COOKIE_SECURE", "1") == "1", samesite="lax", max_age=60 * 60 * 24 * 30)
+
+
+@app.on_event("startup")
+def startup() -> None:
+    Path("data").mkdir(exist_ok=True)
+    Base.metadata.create_all(engine)
+
+
+@app.get("/api/health")
+def health() -> dict:
+    return {"ok": True, "service": "astrodicas-site", "channel": "site"}
+
+
+@app.post("/api/auth/register")
+def register(body: RegisterBody, response: Response, db: Session = Depends(get_db)) -> dict:
+    email = body.email.lower()
+    if db.scalar(select(User).where(User.email == email)):
+        raise HTTPException(status_code=409, detail="Este e-mail já está cadastrado.")
+    user = User(email=email, password_hash=hash_password(body.password), name=body.name, locale=body.locale)
+    db.add(user)
+    try:
+        db.commit()
+    except IntegrityError:
+        db.rollback()
+        raise HTTPException(status_code=409, detail="Este e-mail já está cadastrado.")
+    db.refresh(user)
+    set_session(response, user)
+    return {"user": {"id": user.id, "email": user.email, "name": user.name, "locale": user.locale}}
+
+
+@app.post("/api/auth/login")
+def login(body: LoginBody, response: Response, db: Session = Depends(get_db)) -> dict:
+    user = db.scalar(select(User).where(User.email == body.email.lower()))
+    if not user or not verify_password(body.password, user.password_hash):
+        raise HTTPException(status_code=401, detail="E-mail ou senha inválidos.")
+    set_session(response, user)
+    return {"user": {"id": user.id, "email": user.email, "name": user.name, "locale": user.locale}}
+
+
+@app.post("/api/auth/logout")
+def logout(response: Response) -> dict:
+    response.delete_cookie("site_session")
+    return {"ok": True}
+
+
+@app.get("/api/session")
+def session(site_session: str | None = Cookie(default=None), db: Session = Depends(get_db)) -> dict:
+    user_id = decode_token(site_session or "")
+    user = db.get(User, user_id) if user_id else None
+    if not user:
+        return {"authenticated": False}
+    return {"authenticated": True, "user": {"id": user.id, "email": user.email, "name": user.name, "locale": user.locale}}
+
+
+@app.get("/api/me/profile")
+def get_profile(site_session: str | None = Cookie(default=None), db: Session = Depends(get_db)) -> dict:
+    user = current_user(site_session, db)
+    profile = db.get(Profile, user.id)
+    return {"profile": profile_to_dict(profile) if profile else None}
+
+
+@app.put("/api/me/profile")
+def save_profile(body: ProfileBody, site_session: str | None = Cookie(default=None), db: Session = Depends(get_db)) -> dict:
+    user = current_user(site_session, db)
+    profile = db.get(Profile, user.id) or Profile(user_id=user.id)
+    for key, value in body.model_dump().items():
+        setattr(profile, key, value)
+    db.add(profile)
+    db.commit()
+    return {"profile": profile_to_dict(profile)}
+
+
+@app.get("/api/me/access")
+def access(site_session: str | None = Cookie(default=None), db: Session = Depends(get_db)) -> dict:
+    user = current_user(site_session, db)
+    return {"entitlements": [{"product_id": e.product_id, "status": e.status} for e in user.entitlements]}
+
+
+@app.get("/api/me/readings")
+def readings(site_session: str | None = Cookie(default=None), db: Session = Depends(get_db)) -> dict:
+    user = current_user(site_session, db)
+    rows = db.scalars(select(Reading).where(Reading.user_id == user.id).order_by(Reading.created_at.desc())).all()
+    return {"readings": [reading_to_dict(row) for row in rows]}
+
+
+@app.post("/api/me/readings/{content_id}/generate")
+def generate(content_id: str, site_session: str | None = Cookie(default=None), db: Session = Depends(get_db)) -> dict:
+    user = current_user(site_session, db)
+    profile = db.get(Profile, user.id)
+    if not profile or not profile.birth_date or not profile.birth_city:
+        raise HTTPException(status_code=422, detail="Complete seus dados de nascimento antes de gerar a leitura.")
+    existing = db.scalar(select(Reading).where(Reading.user_id == user.id, Reading.content_id == content_id, Reading.status == "ready"))
+    if existing:
+        return {"reading": reading_to_dict(existing)}
+    product_id = content_product(content_id)
+    if product_id and not db.scalar(select(Entitlement).where(Entitlement.user_id == user.id, Entitlement.product_id == product_id, Entitlement.status == "available")):
+        raise HTTPException(status_code=403, detail="Este conteúdo ainda não está liberado para sua conta.")
+    reading = Reading(user_id=user.id, content_id=content_id, product_id=product_id, status="in_progress", title=content_title(content_id), input_snapshot=profile_to_dict(profile))
+    db.add(reading)
+    db.commit()
+    reading.body_html = generate_reading(content_id, reading.title, profile, user.locale)
+    reading.status = "ready"
+    db.commit()
+    db.refresh(reading)
+    return {"reading": reading_to_dict(reading)}
+
+
+@app.post("/api/webhooks/{provider}")
+async def webhook(provider: str, body: WebhookBody, request: Request, db: Session = Depends(get_db)) -> dict:
+    if provider not in {"cakto", "mercadopago"}:
+        raise HTTPException(status_code=404, detail="Provedor não configurado.")
+    secret = os.getenv(f"{provider.upper()}_WEBHOOK_SECRET", "")
+    signature = request.headers.get("x-site-signature", "")
+    raw = await request.body()
+    if secret and not hmac.compare_digest(signature, hmac.new(secret.encode(), raw, hashlib.sha256).hexdigest()):
+        raise HTTPException(status_code=401, detail="Assinatura inválida.")
+    event = db.scalar(select(WebhookEvent).where(WebhookEvent.provider == provider, WebhookEvent.event_id == body.event_id))
+    if event:
+        return {"ok": True, "duplicate": True}
+    event = WebhookEvent(provider=provider, event_id=body.event_id, payload=body.model_dump(mode="json"))
+    db.add(event)
+    user = db.scalar(select(User).where(User.email == body.email.lower()))
+    if not user:
+        user = User(email=body.email.lower(), password_hash=hash_password(os.urandom(18).hex()), name="Cliente AstroDicas")
+        db.add(user)
+        db.flush()
+    order = Order(user_id=user.id, provider=provider, external_id=body.external_id or body.event_id, product_id=body.product_id, status=body.status, amount_minor=body.amount_minor, currency=body.currency, raw_payload=body.model_dump(mode="json"))
+    db.add(order)
+    entitlement = db.scalar(select(Entitlement).where(Entitlement.user_id == user.id, Entitlement.product_id == body.product_id))
+    if not entitlement:
+        db.add(Entitlement(user_id=user.id, product_id=body.product_id, status="available", source="site"))
+    else:
+        entitlement.status = "available"
+    db.commit()
+    return {"ok": True, "user_id": user.id, "product_id": body.product_id}
+
+
+def content_product(content_id: str) -> str | None:
+    return {
+        "site:content:horoscopo_diario": "site:plano_lua",
+        "site:content:guia_do_mes": "site:plano_lua",
+        "site:content:mapa_astral_completo": "site:mapa_astral",
+        "site:content:mapa_do_amor_sinastria": "site:mapa_amor_sinastria",
+        "site:content:mapa_da_carreira": "site:mapa_carreira",
+        "site:content:mapa_da_prosperidade": "site:mapa_prosperidade",
+        "site:content:previsao_semanal": "site:oferta_plano_lua_premium",
+        "site:content:calendario_lunar": "site:oferta_plano_lua_premium",
+        "site:content:guia_dos_retrogrados": "site:oferta_plano_lua_premium",
+        "site:content:manual_do_ascendente": "site:oferta_plano_lua_premium",
+    }.get(content_id)
+
+
+def content_title(content_id: str) -> str:
+    return {"site:content:horoscopo_diario": "Horóscopo diário", "site:content:mapa_astral_completo": "Mapa Astral Completo", "site:content:mapa_do_amor_sinastria": "Mapa do Amor / Sinastria", "site:content:mapa_da_carreira": "Mapa da Carreira", "site:content:mapa_da_prosperidade": "Mapa da Prosperidade"}.get(content_id, "Leitura AstroDicas")
+
+
+def profile_to_dict(profile: Profile | None) -> dict | None:
+    if not profile:
+        return None
+    return {key: getattr(profile, key).isoformat() if isinstance(getattr(profile, key), (date, time)) else getattr(profile, key) for key in ("user_id", "birth_date", "birth_time", "birth_city", "birth_country", "birth_timezone", "birth_latitude", "birth_longitude", "partner_name", "partner_birth_date", "partner_birth_time", "partner_birth_city", "partner_country")}
+
+
+def reading_to_dict(reading: Reading) -> dict:
+    return {"id": reading.id, "content_id": reading.content_id, "product_id": reading.product_id, "status": reading.status, "title": reading.title, "body_html": reading.body_html, "created_at": reading.created_at.isoformat(), "updated_at": reading.updated_at.isoformat()}
+
+
+async def await_request_body(request: Request) -> bytes:
+    return await request.body()
