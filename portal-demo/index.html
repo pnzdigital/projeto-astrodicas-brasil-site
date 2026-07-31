@@ -950,7 +950,8 @@
       const active = LIBRARY_ITEMS.filter((item) => item.state !== ACCESS_STATES.locked).length;
       document.getElementById('active-count').textContent = String(active).padStart(2, '0');
       document.getElementById('total-count').textContent = String(LIBRARY_ITEMS.length).padStart(2, '0');
-      document.querySelector('[href="#entregaveis"]').textContent = `${String(active).padStart(2, '0')} conteúdos ativos`;
+      const deliveryNav = document.querySelector('.section-head#entregaveis a');
+      if (deliveryNav) deliveryNav.textContent = `${String(active).padStart(2, '0')} ${IS_ARGENTINA ? 'contenidos activos' : 'conteúdos ativos'}`;
       applySpanishPortalCopy();
     }
     function renderOffers() {
@@ -963,7 +964,7 @@
       const name = appState.user?.name || 'Marina Alves';
       const firstName = name.trim().split(/\s+/)[0] || 'Marina';
       const initials = name.trim().split(/\s+/).slice(0, 2).map((part) => part[0]).join('').toUpperCase() || 'MA';
-      document.querySelector('main h1').textContent = `Bom dia, ${firstName}.`;
+      document.querySelector('main h1').textContent = `${IS_ARGENTINA ? 'Buenos días' : 'Bom dia'}, ${firstName}.`;
       document.querySelector('.avatar').textContent = initials;
       document.querySelector('.sign strong').textContent = `${firstName} · Libra`;
     }
@@ -972,6 +973,23 @@
       const replacements = {
         'Seu portal': 'Tu portal', 'Visão geral': 'Vista general', 'Meus entregáveis': 'Mis entregas', 'Horóscopo diário': 'Horóscopo diario', 'Próximos envios': 'Próximos envíos', 'Explorar produtos': 'Explorar productos', 'Ajuda': 'Ayuda', 'Central de ajuda': 'Centro de ayuda', 'Configurações': 'Configuración', 'Seu céu, sempre perto.': 'Tu cielo, siempre cerca.', 'Novos conteúdos chegam por e-mail e ficam guardados aqui.': 'Los nuevos contenidos llegan por e-mail y quedan guardados aquí.', 'Ver biblioteca': 'Ver biblioteca', 'Quarta-feira': 'Miércoles', 'Bom dia': 'Buenos días', 'Você está em dia. O próximo envio chega em 2 dias.': 'Estás al día. El próximo envío llega en 2 días.', 'Fale com nosso suporte': 'Hablá con nuestro soporte', 'Seu céu de hoje · Lua crescente': 'Tu cielo de hoy · Luna creciente', 'Um passo de cada vez também é movimento.': 'Un paso a la vez también es movimiento.', 'O céu pede presença nas pequenas decisões. Escolha uma prioridade, proteja sua energia e deixe o resto encontrar o próprio ritmo.': 'El cielo pide presencia en las decisiones pequeñas. Elegí una prioridad, protegé tu energía y dejá que el resto encuentre su propio ritmo.', 'Ler meu horóscopo': 'Leer mi horóscopo', 'Seu plano': 'Tu plan', 'ativo': 'activo', 'Acesso ao portal até': 'Acceso al portal hasta', 'Conteúdos liberados': 'Contenidos disponibles', 'Leituras disponíveis para abrir agora': 'Lecturas disponibles para abrir ahora', 'Próximo envio': 'Próximo envío', 'dias': 'días', 'Seu momento agora': 'Tu momento ahora', 'Ver agenda completa': 'Ver agenda completa', 'Sol, Lua e Ascendente em foco': 'Sol, Luna y Ascendente en foco', 'A clareza chega quando você para de disputar com o tempo.': 'La claridad llega cuando dejás de competir con el tiempo.', 'Hoje, uma conversa honesta vale mais do que uma resposta perfeita. Repare no que seu corpo já sabe antes de pedir opinião para todo mundo.': 'Hoy, una conversación honesta vale más que una respuesta perfecta. Observá lo que tu cuerpo ya sabe antes de pedir opinión a todo el mundo.', 'palavra: presença': 'palabra: presencia', 'cor: rosé': 'color: rosé', 'Abrir leitura completa': 'Abrir lectura completa', 'Seu mapa em camadas': 'Tu mapa por capas', 'Você já desbloqueou as bases. Faltam dois mapas para completar seu painel.': 'Ya desbloqueaste las bases. Faltan dos mapas para completar tu panel.', 'enviada automaticamente por e-mail': 'enviada automáticamente por e-mail', 'disponível para leitura no portal': 'disponible para leer en el portal', 'Minha biblioteca': 'Mi biblioteca', 'conteúdos ativos': 'contenidos activos', 'Explore mais do seu céu': 'Explorá más de tu cielo', 'Ofertas do site': 'Ofertas del sitio', 'Continue de onde parou': 'Continuá desde donde lo dejaste', 'Você estava na parte': 'Estabas en la parte', 'Leitura 03 · 12 min restantes': 'Lectura 03 · faltan 12 min', 'Último acesso hoje, às': 'Último acceso hoy, a las', 'Seu próximo nível': 'Tu próximo nivel', 'Complete seu céu.': 'Completá tu cielo.', 'Escolha uma nova lente para aprofundar a leitura que já começou.': 'Elegí una nueva mirada para profundizar la lectura que ya empezaste.', 'Ver ofertas': 'Ver ofertas', 'Início': 'Inicio', 'Hoje': 'Hoy', 'Biblioteca': 'Biblioteca', 'Upgrade': 'Mejorar', 'Leitura completa': 'Lectura completa', 'Voltar ao portal': 'Volver al portal', 'Salvar leitura': 'Guardar lectura', 'Agora não': 'Ahora no', 'Sua conta · canal web': 'Tu cuenta · canal web', 'Entrar no AstroDicas': 'Entrar a AstroDicas', 'Seu acesso é pessoal e fica separado de qualquer compra ou conversa feita pelo Telegram.': 'Tu acceso es personal y está separado de cualquier compra o conversación hecha por Telegram.', 'Entre ou crie sua conta para salvar dados de nascimento e gerar leituras personalizadas.': 'Entrá o creá tu cuenta para guardar tus datos de nacimiento y generar lecturas personalizadas.', 'Entrar': 'Entrar', 'Criar conta': 'Crear cuenta', 'E-mail': 'E-mail', 'Senha': 'Contraseña', 'Seu nome': 'Tu nombre', 'Criar minha conta': 'Crear mi cuenta', 'Editar dados': 'Editar datos', 'Sair': 'Salir', 'Dados de nascimento': 'Datos de nacimiento', 'Complete seus dados de nascimento antes de gerar a leitura.': 'Completá tus datos de nacimiento antes de generar la lectura.'
       };
+      Object.assign(replacements, {
+        'Atualizado hoje · leitura personalizada': 'Actualizado hoy · lectura personalizada',
+        'Julho · 12 min': 'Julio · 12 min',
+        'Leitura · 28 min': 'Lectura · 28 min',
+        'disponível': 'disponible',
+        'Leitura principal': 'Lectura principal',
+        'Bônus Premium': 'Bonus Premium',
+        'Incluído no Premium': 'Incluido en Premium',
+        'Abrir leitura →': 'Abrir lectura →',
+        'Seu conteúdo': 'Tu contenido',
+        'Mais duas lentes para ler seu céu.': 'Dos nuevas miradas para leer tu cielo.',
+        'Desbloqueie o Mapa do Amor e o Mapa da Prosperidade. O acesso aparece imediatamente no seu portal após a confirmação.': 'Desbloqueá el Mapa del Amor y el Mapa de la Prosperidad. El acceso aparece inmediatamente en tu portal después de la confirmación.',
+        'Ir para checkout →': 'Ir al checkout →',
+        'Ainda não preenchidos': 'Todavía no completados',
+        'Modo demonstração: o portal continua navegável sem uma sessão.': 'Modo demostración: el portal sigue navegable sin una sesión.',
+        'Acesso conectado ao portal web.': 'Acceso conectado al portal web.'
+      });
       const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
       const nodes = [];
       while (walker.nextNode()) nodes.push(walker.currentNode);
@@ -984,12 +1002,18 @@
       const userPanel = document.getElementById('account-user');
       auth.hidden = appState.authenticated;
       userPanel.hidden = !appState.authenticated;
-      document.getElementById('account-title').textContent = appState.authenticated ? `Olá, ${(appState.user?.name || 'seu céu').split(/\s+/)[0]}.` : 'Entrar no AstroDicas';
-      document.getElementById('account-description').textContent = appState.authenticated ? 'Seu acesso é pessoal e fica separado de qualquer compra ou conversa feita pelo Telegram.' : 'Entre ou crie sua conta para salvar dados de nascimento e gerar leituras personalizadas.';
-      document.getElementById('portal-mode-note').textContent = appState.apiAvailable ? 'Acesso conectado ao portal web.' : 'Modo demonstração: o portal continua navegável sem uma sessão.';
+      document.getElementById('account-title').textContent = appState.authenticated
+        ? `${IS_ARGENTINA ? 'Hola' : 'Olá'}, ${(appState.user?.name || (IS_ARGENTINA ? 'tu cielo' : 'seu céu')).split(/\s+/)[0]}.`
+        : (IS_ARGENTINA ? 'Entrar a AstroDicas' : 'Entrar no AstroDicas');
+      document.getElementById('account-description').textContent = appState.authenticated
+        ? (IS_ARGENTINA ? 'Tu acceso es personal y está separado de cualquier compra o conversación hecha por Telegram.' : 'Seu acesso é pessoal e fica separado de qualquer compra ou conversa feita pelo Telegram.')
+        : (IS_ARGENTINA ? 'Entrá o creá tu cuenta para guardar tus datos de nacimiento y generar lecturas personalizadas.' : 'Entre ou crie sua conta para salvar dados de nascimento e gerar leituras personalizadas.');
+      document.getElementById('portal-mode-note').textContent = appState.apiAvailable
+        ? (IS_ARGENTINA ? 'Acceso conectado al portal web.' : 'Acesso conectado ao portal web.')
+        : (IS_ARGENTINA ? 'Modo demostración: el portal sigue navegable sin una sesión.' : 'Modo demonstração: o portal continua navegável sem uma sessão.');
       if (appState.authenticated) {
         document.querySelector('[data-account-email]').textContent = appState.user?.email || '—';
-        document.querySelector('[data-account-profile]').textContent = profileComplete() ? `${appState.profile.birth_date} · ${appState.profile.birth_city}` : 'Ainda não preenchidos';
+        document.querySelector('[data-account-profile]').textContent = profileComplete() ? `${appState.profile.birth_date} · ${appState.profile.birth_city}` : (IS_ARGENTINA ? 'Todavía no completados' : 'Ainda não preenchidos');
       }
       enforceDashboardGate();
     }
