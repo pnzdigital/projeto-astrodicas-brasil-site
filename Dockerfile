@@ -14,7 +14,8 @@ RUN pip install --no-cache-dir -r requirements.txt
 COPY api/app ./app
 COPY portal-demo/index.html portal-demo/portal-config.js portal-demo/portal-config-ar.js /usr/share/nginx/html/
 COPY nginx.runtime.conf /etc/nginx/conf.d/default.conf
-RUN mkdir -p /app/data /run/nginx
+RUN rm -f /etc/nginx/sites-enabled/default \
+    && mkdir -p /app/data /run/nginx
 
 EXPOSE 80
 CMD ["sh", "-c", "uvicorn app.main:app --host 127.0.0.1 --port 8000 & exec nginx -g 'daemon off;'"]
