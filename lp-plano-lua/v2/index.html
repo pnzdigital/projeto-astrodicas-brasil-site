@@ -1,0 +1,998 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Seu Horóscopo Personalizado + Mapa Astral Completo | AstroDicas</title>
+<meta name="description" content="Horóscopo diário calculado no SEU mapa astral. Mapa Astral Completo de brinde e um guia novo todo mês. R$27,90/mês — cancela quando quiser.">
+<meta property="og:title" content="Seu horóscopo, não o do seu signo">
+<meta property="og:description" content="Calculado no seu mapa natal, todo dia. Mapa Astral Completo de brinde.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,600;1,400&family=Jost:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+
+<!-- ═══════════ CONFIG — editar só aqui ═══════════ -->
+<script>
+window.LP = {
+  CHECKOUT_BASICO:   "https://pay.cakto.com.br/BASICO",
+  CHECKOUT_COMPLETO: "https://pay.cakto.com.br/COMPLETO",       // pagamento ÚNICO
+  CHECKOUT_BUMP:     "https://pay.cakto.com.br/COMPLETO-BUMP",   // Premium com desconto (order bump)
+  CHECKOUT_EXIT:     "https://pay.cakto.com.br/BASICO-EXIT",     // Plano Lua com desconto (saída)
+  PIXEL_ID:          "SEU_PIXEL_ID",
+
+  // Cada valor é um produto separado na Cakto.
+  // BASICO e EXIT = assinatura mensal fixa | COMPLETO e BUMP = pagamento único.
+  BASICO:      "27,90",  BASICO_DE: "67",      // Plano Lua (vitrine)
+  COMPLETO:    "97,00",                        // Premium (vitrine, pgto único) — caro de propósito
+  BUMP:        "57,90",                        // Premium (pgto único) — só pra quem clica no básico
+  EXIT:        "20,90",                        // Plano Lua — só pra quem tenta sair da página
+  BONUS_VALOR: "184,00",
+  TIMER_MIN:   15,
+
+  // ── Vídeo da hero ──────────────────────────────────────────
+  // Preencha UM dos dois. Deixe ambos vazios pra esconder o player.
+  VIDEO_MP4:     "",              // ex: "video/vsl.mp4"  (melhor opção: sem cookie, carrega rápido)
+  VIDEO_YOUTUBE: "",              // ex: "dQw4w9WgXcQ"    (só o ID do vídeo)
+  VIDEO_POSTER:  "",              // ex: "video/capa.jpg" (thumb antes do play)
+  VIDEO_VERTICAL: true            // true = 9:16 (stories/reels) | false = 16:9
+};
+</script>
+
+<style>
+:root{
+  --ink:#07061a; --ink-2:#0d0a28;
+  --gold:#e0b263; --gold-lit:#ffe0a3; --gold-dim:rgba(224,178,99,.3);
+  --hot:#ff4d5e; --green:#22c55e; --green-lit:#5ce68b;
+  --cream:#f6f2e8; --cream-dim:rgba(246,242,232,.68); --cream-faint:rgba(246,242,232,.4);
+  --display:"Cormorant Garamond",Georgia,serif;
+  --body:"Jost",-apple-system,sans-serif;
+  --rule:1px solid rgba(224,178,99,.2);
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html{scroll-behavior:smooth;-webkit-text-size-adjust:100%}
+body{background:var(--ink);color:var(--cream);font-family:var(--body);font-size:17px;line-height:1.6;overflow-x:hidden;-webkit-font-smoothing:antialiased}
+body::before{content:"";position:fixed;inset:0;z-index:0;pointer-events:none;
+  background:radial-gradient(ellipse 90% 50% at 50% -8%,rgba(96,64,190,.45),transparent 68%),
+             radial-gradient(ellipse 60% 40% at 95% 30%,rgba(224,178,99,.11),transparent 70%),
+             radial-gradient(ellipse 70% 45% at 2% 72%,rgba(130,70,170,.16),transparent 70%)}
+body::after{content:"";position:fixed;inset:0;z-index:1;pointer-events:none;opacity:.3;mix-blend-mode:overlay;
+  background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='140' height='140'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='3'/%3E%3C/filter%3E%3Crect width='140' height='140' filter='url(%23n)' opacity='.38'/%3E%3C/svg%3E")}
+#stars{position:fixed;inset:0;z-index:0;pointer-events:none}
+.star{position:absolute;background:#fff;border-radius:50%;animation:twinkle 4s ease-in-out infinite}
+@keyframes twinkle{0%,100%{opacity:.1;transform:scale(.8)}50%{opacity:.85;transform:scale(1.15)}}
+main,header,footer,.topbar{position:relative;z-index:2}
+.wrap{max-width:1080px;margin:0 auto;padding:0 20px}
+.narrow{max-width:780px}
+
+h1,h2,h3{font-family:var(--body);font-weight:700;line-height:1.14;letter-spacing:-.02em}
+h1{font-size:clamp(1.85rem,min(4.6vw,5.6svh),2.9rem)}
+h2{font-size:clamp(1.6rem,4vw,2.4rem)}
+h3{font-size:clamp(1.08rem,2.2vw,1.3rem)}
+.serif{font-family:var(--display);font-weight:400;font-style:italic;color:var(--gold-lit)}
+.hl{text-decoration:underline;text-decoration-color:var(--hot);text-decoration-thickness:3px;
+  text-underline-offset:5px;text-decoration-skip-ink:none;
+  -webkit-box-decoration-break:clone;box-decoration-break:clone}
+.strike{text-decoration:line-through;text-decoration-color:var(--hot);text-decoration-thickness:2px;opacity:.6}
+.lede{font-size:clamp(1.02rem,2vw,1.18rem);color:var(--cream-dim)}
+.kicker{font-size:.7rem;font-weight:700;letter-spacing:.26em;text-transform:uppercase;color:var(--gold);display:block;margin-bottom:12px}
+.center{text-align:center}
+.ico{width:1em;height:1em;display:inline-block;vertical-align:-.13em;flex-shrink:0;
+  fill:none;stroke:currentColor;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round}
+.ico-lg{width:1.55rem;height:1.55rem;vertical-align:middle;stroke-width:1.5}
+
+.topbar{background:linear-gradient(90deg,var(--hot),#ff7a43);color:#fff;text-align:center;padding:9px 16px;font-size:.83rem;font-weight:600}
+.topbar b{font-variant-numeric:tabular-nums;background:rgba(0,0,0,.25);padding:2px 8px;border-radius:3px;margin-left:4px}
+
+header{padding:16px 0;border-bottom:var(--rule)}
+header .wrap{display:flex;align-items:center;justify-content:space-between;gap:12px}
+.brand{font-family:var(--display);font-size:1.35rem;letter-spacing:.05em}
+.brand b{color:var(--gold);font-weight:400}
+.hdr-note{font-size:.68rem;letter-spacing:.16em;text-transform:uppercase;color:var(--cream-faint)}
+
+/* ── CTA ── */
+.cta{display:block;
+  background:linear-gradient(170deg,var(--green-lit),var(--green) 55%,#15a34a);
+  color:#04220f;text-decoration:none;text-align:center;line-height:1.25;
+  font-weight:700;font-size:clamp(.98rem,2.3vw,1.1rem);
+  padding:17px 26px;border-radius:9px;width:100%;max-width:520px;border:0;cursor:pointer;font-family:var(--body);
+  box-shadow:0 1px 0 rgba(255,255,255,.4) inset,0 14px 32px -12px rgba(34,197,94,.75);
+  position:relative;overflow:hidden;animation:pulse 2.6s ease-in-out infinite}
+.cta small{display:block;font-weight:500;font-size:.75rem;opacity:.8;margin-top:5px;line-height:1.35}
+.cta::before{content:"";position:absolute;top:0;left:-120%;width:55%;height:100%;
+  background:linear-gradient(100deg,transparent,rgba(255,255,255,.5),transparent);animation:sheen 4s ease-in-out infinite}
+@keyframes sheen{0%,74%{left:-120%}100%{left:180%}}
+@keyframes pulse{0%,100%{transform:scale(1)}50%{transform:scale(1.018)}}
+.cta:hover{filter:brightness(1.06)}
+.cta.ghost{background:transparent;border:1px solid var(--gold-dim);color:var(--gold-lit);box-shadow:none;animation:none;font-weight:600}
+.cta-block{display:flex;flex-direction:column;align-items:center;gap:11px;margin:26px 0}
+.trust{font-size:.78rem;color:var(--cream-faint);display:flex;gap:14px;flex-wrap:wrap;justify-content:center}
+.trust b{color:var(--green-lit)}
+.freebadge{display:inline-flex;align-items:center;gap:7px;background:rgba(34,197,94,.14);border:1px solid rgba(34,197,94,.4);
+  color:var(--green-lit);font-size:.79rem;font-weight:600;padding:7px 14px;border-radius:100px}
+
+/* ── hero ── */
+/* hero de uma coluna, centralizada, cabendo na tela sem scroll */
+.hero{position:relative;text-align:center;
+  min-height:calc(100svh - 96px);   /* desconta topbar + header */
+  display:flex;align-items:center;padding:20px 0 28px}
+.hero .wrap{position:relative;z-index:2;max-width:760px;width:100%}
+.hero-grid{display:flex;flex-direction:column;align-items:center;gap:clamp(12px,2.2vh,20px)}
+.hero-txt{display:flex;flex-direction:column;align-items:center;gap:clamp(10px,1.8vh,16px)}
+.hero-txt .badge{margin-bottom:0}
+.hero-txt h1{margin-bottom:0}
+.hero-txt .lede{max-width:52ch;margin:0}
+.hero-txt .cta-block{margin:0;gap:9px}
+.hero-video{width:100%;display:flex;justify-content:center}
+.badge{display:inline-block;border:1px solid var(--gold-dim);background:rgba(224,178,99,.09);color:var(--gold-lit);
+  font-size:.72rem;font-weight:700;letter-spacing:.14em;text-transform:uppercase;padding:7px 15px;border-radius:100px;margin-bottom:18px}
+.hero h1{margin-bottom:18px}
+.hero .lede{max-width:52ch;margin:0 auto}
+.socialproof{margin-top:4px;font-size:.85rem;color:var(--cream-dim);display:flex;align-items:center;justify-content:center;gap:10px;flex-wrap:wrap}
+.socialproof .av{display:flex}
+.socialproof .av i{width:26px;height:26px;border-radius:50%;border:2px solid var(--ink);margin-left:-8px;display:block;
+  background:linear-gradient(140deg,#7a5cc4,#e0b263)}
+.socialproof .av i:first-child{margin-left:0}
+/* ── vídeo da hero ── */
+.vwrap{position:relative;margin:0 auto;max-width:620px;border-radius:14px;overflow:hidden;
+  border:1px solid var(--gold-dim);background:#050414;
+  box-shadow:0 34px 74px -30px rgba(0,0,0,.95),0 0 0 6px rgba(224,178,99,.05)}
+/* 9:16 limitado pela ALTURA da janela — nunca empurra o CTA pra fora da dobra.
+   9:16 → altura = largura × 1.778, então largura máx = altura desejada ÷ 1.778 */
+/* 9:16 → altura = largura × 1,778. Travar pela ALTURA da janela mantém
+   headline, vídeo, CTA e prova social todos dentro da primeira dobra. */
+.vwrap.vertical{max-width:min(240px, 24svh)}
+.vwrap .ratio{position:relative;width:100%;padding-top:56.25%}
+.vwrap.vertical .ratio{padding-top:177.78%}
+.vwrap video,.vwrap iframe,.vwrap .facade{position:absolute;inset:0;width:100%;height:100%;border:0;display:block;object-fit:cover}
+.vwrap .facade{cursor:pointer;background-size:cover;background-position:center;
+  display:grid;place-items:center;background-color:#0b0a24}
+.vplay{width:66px;height:66px;border-radius:50%;display:grid;place-items:center;
+  background:rgba(224,178,99,.94);color:#1a1206;box-shadow:0 10px 34px -8px rgba(224,178,99,.8);
+  transition:transform .3s;animation:pulse 2.6s ease-in-out infinite}
+.facade:hover .vplay{transform:scale(1.1)}
+.vplay svg{width:26px;height:26px;fill:currentColor;stroke:none;margin-left:4px}
+.vhint{position:absolute;left:0;right:0;bottom:12px;text-align:center;font-size:.76rem;
+  color:rgba(246,242,232,.75);text-shadow:0 2px 8px #000;pointer-events:none}
+.vplaceholder{position:absolute;inset:0;display:grid;place-items:center;text-align:center;padding:20px;
+  background:repeating-linear-gradient(135deg,rgba(224,178,99,.05) 0 12px,transparent 12px 24px)}
+.vplaceholder b{display:block;color:var(--gold-lit);font-size:.9rem;margin-bottom:5px}
+.vplaceholder span{font-size:.76rem;color:var(--cream-faint);line-height:1.5}
+@media(max-width:600px){
+  .vwrap.vertical{max-width:min(58vw, 26svh)}
+  .vplay{width:52px;height:52px}
+}
+/* telas baixas (notebook 768p, celular deitado) */
+@media(max-height:760px){ .vwrap.vertical{max-width:min(200px, 22svh)} }
+
+.hero-wheel-wrap{position:absolute;inset:0;display:grid;place-items:center;z-index:0;overflow:hidden;pointer-events:none}
+.hero-wheel{width:min(125%,760px);opacity:.15;animation:spin 140s linear infinite;
+  -webkit-mask-image:radial-gradient(circle,#000 42%,transparent 76%);
+  mask-image:radial-gradient(circle,#000 42%,transparent 76%)}
+@keyframes spin{to{transform:rotate(360deg)}}
+
+section{padding:clamp(40px,6.5vw,72px) 0}
+.sec-head{text-align:center;max-width:60ch;margin:0 auto clamp(26px,4vw,44px)}
+.sec-head h2{margin-bottom:12px}
+
+/* ── transformação ── */
+.transf{display:grid;gap:12px;max-width:720px;margin:0 auto}
+.tline{display:grid;grid-template-columns:1fr 34px 1fr;align-items:stretch;gap:10px}
+.tbox{border-radius:9px;padding:16px 18px;font-size:.93rem;line-height:1.45;border:1px solid}
+.tbox.bad{background:rgba(255,77,94,.06);border-color:rgba(255,77,94,.24);color:var(--cream-faint)}
+.tbox.good{background:rgba(34,197,94,.08);border-color:rgba(34,197,94,.3)}
+.tbox b{display:block;font-size:.66rem;letter-spacing:.16em;text-transform:uppercase;margin-bottom:5px}
+.tbox.bad b{color:var(--hot)} .tbox.good b{color:var(--green-lit)}
+.tarrow{display:grid;place-items:center;color:var(--gold);font-size:1.3rem}
+.bens{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;margin-top:26px;max-width:720px;margin-inline:auto}
+.ben{border:var(--rule);border-radius:9px;padding:16px;text-align:center;font-size:.86rem;background:rgba(255,255,255,.018)}
+.ben span{display:block;font-size:1.4rem;margin-bottom:6px}
+.ben b{display:block;font-weight:600;margin-bottom:3px}
+.ben i{font-style:normal;color:var(--cream-faint);font-size:.8rem}
+
+/* ── entregáveis ── */
+.deliver{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:13px}
+.deliver article{border:var(--rule);border-radius:10px;padding:22px;background:rgba(255,255,255,.018);transition:transform .3s,border-color .3s}
+.deliver article:hover{transform:translateY(-3px);border-color:var(--gold-dim)}
+.deliver .num{font-family:var(--display);font-size:1.9rem;color:var(--gold-dim);line-height:1;display:block;margin-bottom:9px}
+.deliver h3{margin-bottom:8px} .deliver p{font-size:.9rem;color:var(--cream-dim)}
+.deliver .free{display:inline-block;margin-top:11px;font-size:.66rem;letter-spacing:.12em;text-transform:uppercase;
+  color:#04220f;background:var(--green);padding:5px 10px;border-radius:100px;font-weight:700}
+.deliver .destaque{border-color:rgba(34,197,94,.4);background:rgba(34,197,94,.06)}
+
+/* ── whatsapp ── */
+/* carrossel de depoimentos */
+.carousel{position:relative}
+.zaps{display:flex;gap:16px;overflow-x:auto;scroll-snap-type:x mandatory;
+  scroll-behavior:smooth;padding:4px 2px 6px;scrollbar-width:none;-ms-overflow-style:none}
+.zaps::-webkit-scrollbar{display:none}
+.zaps>.zap{flex:0 0 calc((100% - 32px)/3);scroll-snap-align:center}
+@media(max-width:900px){.zaps>.zap{flex:0 0 calc((100% - 16px)/2)}}
+@media(max-width:620px){.zaps>.zap{flex:0 0 86%}}
+.cnav{position:absolute;top:50%;transform:translateY(-50%);z-index:5;
+  width:40px;height:40px;border-radius:50%;display:grid;place-items:center;cursor:pointer;
+  background:rgba(13,10,40,.9);backdrop-filter:blur(8px);border:1px solid var(--gold-dim);
+  color:var(--gold-lit);font-size:1.2rem;line-height:1;transition:background .25s,transform .25s}
+.cnav:hover{background:rgba(224,178,99,.2);transform:translateY(-50%) scale(1.08)}
+.cnav.prev{left:-14px} .cnav.next{right:-14px}
+@media(max-width:1120px){.cnav.prev{left:2px}.cnav.next{right:2px}}
+@media(max-width:620px){.cnav{display:none}}
+.cdots{display:flex;gap:7px;justify-content:center;margin-top:18px}
+.cdots button{width:8px;height:8px;border-radius:50%;border:0;cursor:pointer;padding:0;
+  background:rgba(246,242,232,.24);transition:background .3s,width .3s}
+.cdots button.on{background:var(--gold);width:22px;border-radius:100px}
+.zap{background:#0b141a;border:1px solid rgba(255,255,255,.07);border-radius:12px;padding:14px;box-shadow:0 20px 44px -22px rgba(0,0,0,.9)}
+.zap .zhead{display:flex;align-items:center;gap:9px;padding-bottom:10px;border-bottom:1px solid rgba(255,255,255,.06);margin-bottom:12px}
+.zap .zhead i{width:30px;height:30px;border-radius:50%;background:linear-gradient(140deg,#7a5cc4,#e0b263);flex-shrink:0}
+.zap .zhead b{font-size:.87rem;font-weight:600;display:block;line-height:1.2}
+.zap .zhead em{font-style:normal;font-size:.68rem;color:#7f8c94;display:block}
+.msg{background:#005c4b;border-radius:9px 9px 9px 2px;padding:8px 11px;font-size:.87rem;line-height:1.45;margin-bottom:7px;max-width:94%;color:#e9edef}
+.msg time{display:block;text-align:right;font-size:.6rem;color:rgba(233,237,239,.5);margin-top:3px}
+.zap .rating{color:var(--gold);font-size:.82rem;letter-spacing:.14em;margin-top:10px;text-align:center}
+
+/* ── planos ── */
+.plans{display:grid;grid-template-columns:1fr 1fr;gap:16px;align-items:start}
+.plan{border:1px solid var(--gold-dim);border-radius:13px;padding:26px 22px;background:rgba(255,255,255,.02);position:relative}
+.plan.top{border-color:var(--green);background:linear-gradient(170deg,rgba(34,197,94,.11),rgba(7,6,26,.5));
+  box-shadow:0 26px 60px -26px rgba(34,197,94,.42)}
+.plan .flag{position:absolute;top:-12px;left:50%;transform:translateX(-50%);background:var(--green);color:#04220f;
+  font-size:.66rem;font-weight:700;letter-spacing:.14em;text-transform:uppercase;padding:5px 14px;border-radius:100px;white-space:nowrap}
+.plan.premium .flag{background:var(--gold);color:#1a1206}
+.plan h3{font-size:1.25rem;margin-bottom:4px}
+.plan .sub{font-size:.82rem;color:var(--cream-faint);margin-bottom:16px}
+.plan .pold{font-size:1rem;display:block}
+.plan .pnew{font-size:clamp(2.4rem,7.5vw,3.2rem);font-weight:700;color:var(--gold-lit);line-height:1;letter-spacing:-.03em}
+.plan .pnew sup{font-size:.3em;vertical-align:.9em;color:var(--gold);font-weight:600}
+.plan .pnew .mes{font-size:.26em;font-weight:500;color:var(--cream-dim);letter-spacing:0}
+.plan .cancel{display:inline-flex;align-items:center;gap:6px;margin-top:10px;font-size:.79rem;font-weight:600;
+  color:var(--green-lit);background:rgba(34,197,94,.12);border:1px solid rgba(34,197,94,.3);padding:5px 11px;border-radius:100px}
+.plan ul{list-style:none;display:grid;gap:9px;margin:18px 0;font-size:.9rem}
+.plan li{padding-left:26px;position:relative;line-height:1.45}
+.plan li.yes::before{content:"✓";position:absolute;left:2px;color:var(--green-lit);font-weight:700}
+.plan li.no::before{content:"✕";position:absolute;left:3px;color:var(--hot);font-weight:700;font-size:.85rem;top:1px}
+.plan li.no{color:var(--cream-faint);text-decoration:line-through;text-decoration-color:rgba(255,77,94,.4)}
+.plan .note{font-size:.79rem;color:var(--cream-faint);margin-top:12px;line-height:1.5}
+
+/* ── entrega/garantia ── */
+.three{display:grid;grid-template-columns:repeat(auto-fit,minmax(165px,1fr));gap:13px;margin-bottom:26px}
+.three div{border:var(--rule);border-radius:9px;padding:18px;text-align:center;background:rgba(255,255,255,.018)}
+.three span{font-size:1.5rem;display:block;margin-bottom:6px}
+.three b{font-size:.89rem}
+.guar{display:flex;gap:22px;align-items:center;border:1px solid var(--gold-dim);border-radius:13px;
+  padding:clamp(22px,3.5vw,32px);background:rgba(224,178,99,.06);flex-wrap:wrap;justify-content:center}
+.seal{flex-shrink:0;width:94px;height:94px;border-radius:50%;display:grid;place-items:center;text-align:center;
+  border:2px dashed var(--gold);color:var(--gold-lit);font-weight:700;font-size:1.5rem;line-height:1;font-family:var(--display)}
+.seal small{display:block;font-family:var(--body);font-size:.56rem;letter-spacing:.18em;text-transform:uppercase;font-weight:700;margin-top:4px}
+.guar-txt{flex:1;min-width:250px}
+.guar-txt p{font-size:.94rem;color:var(--cream-dim);margin-top:8px}
+.pillars{display:flex;gap:16px;flex-wrap:wrap;margin-top:14px;font-size:.79rem;color:var(--cream-faint)}
+.pillars b{color:var(--green-lit)}
+
+/* ── faixa cancelamento ── */
+.cancelband{border:1px solid rgba(34,197,94,.32);background:rgba(34,197,94,.07);border-radius:13px;
+  padding:clamp(20px,3.5vw,30px);text-align:center;max-width:720px;margin:0 auto}
+.cancelband h3{margin-bottom:10px}
+.cancelband p{font-size:.94rem;color:var(--cream-dim);max-width:52ch;margin:0 auto}
+.cancelband .row{display:flex;gap:14px;justify-content:center;flex-wrap:wrap;margin-top:16px;font-size:.82rem}
+.cancelband .row span{background:rgba(255,255,255,.05);border-radius:100px;padding:6px 14px}
+
+/* ── faq ── */
+details{border:var(--rule);border-radius:9px;margin-bottom:10px;background:rgba(255,255,255,.015)}
+summary{cursor:pointer;list-style:none;font-weight:600;font-size:.99rem;padding:15px 18px;display:flex;justify-content:space-between;gap:14px;align-items:center}
+summary::-webkit-details-marker{display:none}
+summary::after{content:"+";color:var(--gold);font-size:1.3rem;font-weight:400;transition:transform .3s;flex-shrink:0}
+details[open] summary::after{transform:rotate(45deg)}
+details p{padding:0 18px 16px;color:var(--cream-dim);font-size:.91rem}
+
+footer.site{border-top:var(--rule);padding:30px 0 100px;font-size:.75rem;color:var(--cream-faint);text-align:center}
+footer.site a{color:var(--cream-dim)}
+footer.site .badges{display:flex;gap:18px;justify-content:center;margin-bottom:12px;font-size:.76rem}
+footer.site p{max-width:58ch;margin:12px auto 0;line-height:1.6}
+
+/* botão flutuante — canto inferior direito (desktop) */
+.sticky{position:fixed;right:20px;bottom:20px;z-index:50;width:auto;
+  animation:stickyIn .5s cubic-bezier(.2,1.1,.3,1)}
+@keyframes stickyIn{from{opacity:0;transform:translateY(20px)}to{opacity:1;transform:none}}
+.sticky .cta{width:auto;max-width:none;padding:15px 26px;
+  box-shadow:0 1px 0 rgba(255,255,255,.4) inset,0 18px 44px -12px rgba(34,197,94,.85),0 0 0 1px rgba(34,197,94,.25)}
+/* mobile: continua pílula no canto direito, só que compacta */
+@media(max-width:700px){
+  .sticky{right:12px;bottom:calc(12px + env(safe-area-inset-bottom))}
+  .sticky .cta{padding:12px 18px;font-size:.86rem;max-width:62vw}
+  .sticky .cta small{font-size:.66rem;margin-top:3px}
+}
+
+/* ── notificações de compra ── */
+#notif{position:fixed;top:14px;right:14px;z-index:80;display:flex;flex-direction:column;gap:8px;
+  max-width:320px;pointer-events:none}
+.notif{display:flex;align-items:center;gap:11px;background:rgba(13,10,40,.94);backdrop-filter:blur(12px);
+  border:1px solid rgba(224,178,99,.28);border-radius:11px;padding:10px 13px;
+  box-shadow:0 18px 40px -18px rgba(0,0,0,.95);animation:nIn .45s cubic-bezier(.2,1.1,.3,1)}
+.notif.out{animation:nOut .4s ease forwards}
+@keyframes nIn{from{opacity:0;transform:translateX(30px) scale(.96)}to{opacity:1;transform:none}}
+@keyframes nOut{to{opacity:0;transform:translateX(30px) scale(.96)}}
+.notif i{width:34px;height:34px;border-radius:50%;flex-shrink:0;display:grid;place-items:center;
+  background:linear-gradient(140deg,#7a5cc4,#e0b263);font-size:.95rem;font-style:normal;color:#1a1206;font-weight:700}
+.notif div{min-width:0}
+.notif b{display:block;font-size:.82rem;font-weight:600;line-height:1.25}
+.notif span{display:block;font-size:.72rem;color:var(--cream-faint);line-height:1.3;margin-top:1px}
+.notif em{font-style:normal;color:var(--green-lit)}
+@media(max-width:600px){#notif{top:10px;right:10px;left:10px;max-width:none}}
+
+/* ── modais ── */
+.modal{position:fixed;inset:0;z-index:100;background:rgba(3,2,12,.87);backdrop-filter:blur(6px);
+  display:none;align-items:center;justify-content:center;padding:18px;overflow-y:auto}
+.modal.on{display:flex}
+.modal-box{background:linear-gradient(170deg,#12102e,#08071c);border:1px solid var(--gold-dim);border-radius:15px;
+  max-width:500px;width:100%;padding:clamp(24px,4vw,32px);text-align:center;position:relative;
+  box-shadow:0 40px 90px -30px #000;animation:pop .35s cubic-bezier(.2,1.2,.3,1);margin:auto}
+@keyframes pop{from{opacity:0;transform:scale(.93) translateY(14px)}to{opacity:1;transform:none}}
+.modal-box h3{font-size:clamp(1.28rem,3.6vw,1.6rem);margin-bottom:10px}
+.modal-box .sub{font-size:.89rem;color:var(--cream-dim);margin-bottom:15px}
+.modal-box ul{list-style:none;display:grid;gap:8px;text-align:left;font-size:.88rem;margin:0 0 16px}
+.modal-box li{padding-left:25px;position:relative}
+.modal-box li::before{content:"✕";position:absolute;left:3px;color:var(--hot);font-weight:700;font-size:.82rem}
+.modal-box.win li::before{content:"✓";color:var(--green-lit)}
+.modal-price{border:1px dashed var(--gold-dim);border-radius:10px;padding:14px;margin-bottom:15px;background:rgba(224,178,99,.07)}
+.modal-price .was{font-size:.85rem;color:var(--cream-faint)}
+.modal-price b{display:block;font-size:2.4rem;font-weight:700;color:var(--gold-lit);line-height:1.15;
+  letter-spacing:-.02em;margin:4px 0}
+.modal-price b span{font-size:inherit;color:inherit}
+.modal-price>span{display:block;font-size:.81rem;color:var(--cream-dim)}
+.modal-skip{display:block;margin-top:13px;font-size:.79rem;color:var(--cream-faint);text-decoration:underline;
+  background:none;border:0;cursor:pointer;width:100%;font-family:var(--body)}
+.modal-x{position:absolute;top:8px;right:13px;background:none;border:0;color:var(--cream-faint);font-size:1.5rem;cursor:pointer;line-height:1}
+
+@media(max-width:760px){
+  .plans{grid-template-columns:1fr}
+  .tline{grid-template-columns:1fr;gap:6px}
+  .tarrow{transform:rotate(90deg);height:22px}
+}
+@media(prefers-reduced-motion:reduce){*,*::before,*::after{animation:none!important;transition:none!important}}
+</style>
+</head>
+<body>
+
+<!-- ═══ sprite de ícones ═══ -->
+<svg width="0" height="0" style="position:absolute" aria-hidden="true"><defs>
+<symbol id="i-moon" viewBox="0 0 24 24"><path d="M20 14.5A8.5 8.5 0 1 1 9.5 4a7 7 0 0 0 10.5 10.5Z"/></symbol>
+<symbol id="i-gift" viewBox="0 0 24 24"><path d="M20 12v8H4v-8M2 8h20v4H2zM12 8v12M12 8S10.5 3 8 3a2.5 2.5 0 0 0 0 5M12 8s1.5-5 4-5a2.5 2.5 0 0 1 0 5"/></symbol>
+<symbol id="i-star" viewBox="0 0 24 24"><path d="m12 3 2.6 5.6 6.4.8-4.7 4.3 1.2 6.3-5.5-3-5.5 3 1.2-6.3L3 9.4l6.4-.8z"/></symbol>
+<symbol id="i-unlock" viewBox="0 0 24 24"><rect x="4" y="11" width="16" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 7.5-2"/></symbol>
+<symbol id="i-flame" viewBox="0 0 24 24"><path d="M12 2s5 4.5 5 9a5 5 0 0 1-10 0c0-1.5.7-2.8 1.5-3.7C9 9.5 10 11 11 11c0-3 1-6 1-9Z"/></symbol>
+<symbol id="i-target" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="5"/><circle cx="12" cy="12" r="1.4"/></symbol>
+<symbol id="i-bolt" viewBox="0 0 24 24"><path d="M13 2 4 14h7l-1 8 9-12h-7z"/></symbol>
+<symbol id="i-mail" viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="m3 7 9 6 9-6"/></symbol>
+<symbol id="i-screen" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="12" rx="2"/><path d="M8 20h8M12 16v4"/></symbol>
+<symbol id="i-shield" viewBox="0 0 24 24"><path d="M12 3l7 3v6c0 4.5-3 7.5-7 9-4-1.5-7-4.5-7-9V6z"/><path d="m9 12 2 2 4-4"/></symbol>
+<symbol id="i-lock" viewBox="0 0 24 24"><rect x="4" y="11" width="16" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></symbol>
+<symbol id="i-chat" viewBox="0 0 24 24"><path d="M21 12a8 8 0 0 1-11.5 7.2L4 21l1.8-5.5A8 8 0 1 1 21 12Z"/></symbol>
+</defs></svg>
+
+<div id="stars"></div>
+<div id="notif"></div>
+
+<div class="topbar"><svg class="ico"><use href="#i-flame"/></svg> Condição de lançamento acaba em <b id="timer">15:00</b></div>
+
+<header>
+  <div class="wrap">
+    <div class="brand">☾ Astro<b>Dicas</b></div>
+    <div class="hdr-note">Astrologia calculada</div>
+  </div>
+</header>
+
+<main>
+
+<!-- ══ 1. HERO ══ -->
+<section class="hero">
+  <div class="hero-wheel-wrap">
+    <svg class="hero-wheel" viewBox="0 0 400 400" aria-hidden="true">
+      <circle cx="200" cy="200" r="196" fill="none" stroke="rgba(224,178,99,.5)"/>
+      <circle cx="200" cy="200" r="164" fill="none" stroke="rgba(224,178,99,.32)"/>
+      <circle cx="200" cy="200" r="112" fill="none" stroke="rgba(224,178,99,.24)"/>
+      <circle cx="200" cy="200" r="58" fill="none" stroke="rgba(224,178,99,.4)" stroke-dasharray="3 7"/>
+      <g stroke="rgba(224,178,99,.34)" id="spokes"></g>
+      <g id="glyphs" fill="#e0b263" font-family="'Segoe UI Symbol','DejaVu Sans',serif" font-size="17" text-anchor="middle" dominant-baseline="middle"></g>
+      <g stroke="rgba(246,242,232,.4)" fill="none" id="aspects"></g>
+    </svg>
+  </div>
+  <div class="wrap">
+   <div class="hero-grid">
+    <div class="hero-txt">
+    <span class="badge"><svg class="ico"><use href="#i-moon"/></svg> Mapa astral + horóscopo diário</span>
+    <h1>O horóscopo que você lê todo dia foi escrito <span class="hl">uma vez</span> para <span class="serif">200 milhões de pessoas.</span></h1>
+    <p class="lede">
+      Por alguém que não sabe a sua hora nem a sua cidade.
+      <strong style="color:var(--cream)">O seu, eu calculo — e você recebe ainda hoje.</strong>
+      <br><strong style="color:var(--gold-lit)"><svg class="ico"><use href="#i-gift"/></svg> Mapa Astral Completo agora + um brinde novo todo mês.</strong>
+    </p>
+    <div class="hero-video">
+      <div class="vwrap" id="vwrap"><div class="ratio" id="vslot"></div></div>
+    </div>
+
+    <div class="cta-block">
+      <a class="cta" data-cta="scroll" href="#planos">QUERO MEU HORÓSCOPO PERSONALIZADO<small>R$<span data-lp="basico">27,90</span>/mês · cancela quando quiser</small></a>
+      <div class="trust"><span><b>✓</b> Acesso imediato</span><span><b>✓</b> Cancela num clique</span><span><b>✓</b> 7 dias de garantia</span></div>
+      <div class="socialproof">
+        <span class="av"><i></i><i></i><i></i><i></i></span>
+        <span><strong style="color:var(--gold-lit)">+1.000 mapas calculados</strong> · 4,8 ★</span>
+      </div>
+    </div>
+    </div>
+   </div>
+  </div>
+</section>
+
+<!-- ══ 2. TRANSFORMAÇÃO ══ -->
+<section style="padding-top:0">
+  <div class="wrap">
+    <div class="sec-head"><span class="kicker">Sua transformação</span><h2>Do horóscopo genérico<br>pro <span class="serif">seu céu de verdade</span></h2></div>
+    <div class="transf">
+      <div class="tline">
+        <div class="tbox bad"><b>Hoje</b>Você lê o do seu signo e não sente nada. Parece escrito pra outra pessoa.</div>
+        <div class="tarrow">→</div>
+        <div class="tbox good"><b>Com a AstroDicas</b>Você lê e trava: fala exatamente do que está acontecendo na sua vida hoje.</div>
+      </div>
+      <div class="tline">
+        <div class="tbox bad"><b>Hoje</b>Você toma decisão importante no escuro e só sente o baque depois.</div>
+        <div class="tarrow">→</div>
+        <div class="tbox good"><b>Com a AstroDicas</b>Você é avisada antes do retrógrado, da lua cheia e dos trânsitos pesados no SEU mapa.</div>
+      </div>
+      <div class="tline">
+        <div class="tbox bad"><b>Hoje</b>Mapa astral com astrólogo custa R$200+ e você faz uma vez na vida.</div>
+        <div class="tarrow">→</div>
+        <div class="tbox good"><b>Com a AstroDicas</b>Mapa Astral Completo de brinde + leitura nova todo dia, por menos que um lanche.</div>
+      </div>
+    </div>
+    <div class="bens">
+      <div class="ben"><span><svg class="ico ico-lg"><use href="#i-moon"/></svg></span><b>Todo dia</b><i>Leitura nova sempre</i></div>
+      <div class="ben"><span><svg class="ico ico-lg"><use href="#i-target"/></svg></span><b>Só sua</b><i>Calculada no seu mapa</i></div>
+      <div class="ben"><span><svg class="ico ico-lg"><use href="#i-bolt"/></svg></span><b>Na hora</b><i>Acesso em segundos</i></div>
+      <div class="ben"><span><svg class="ico ico-lg"><use href="#i-gift"/></svg></span><b>Brinde mensal</b><i>Guia novo todo mês</i></div>
+    </div>
+  </div>
+</section>
+
+<!-- ══ 3. O QUE VOCÊ RECEBE ══ -->
+<section style="padding-top:0">
+  <div class="wrap">
+    <div class="sec-head"><span class="kicker">O que você recebe</span><h2>Tudo isso já no primeiro dia</h2></div>
+    <div class="deliver">
+      <article>
+        <span class="num">01</span><h3>Seu horóscopo, todo dia</h3>
+        <p>O primeiro chega hoje mesmo, assim que seu mapa é calculado. Depois é toda manhã: trânsitos do dia cruzados com o seu mapa natal, em português claro. Nunca é texto repetido.</p>
+      </article>
+      <article class="destaque">
+        <span class="num">02</span><h3>Mapa Astral Completo</h3>
+        <p>Seu mapa natal em PDF: Sol, Lua, Ascendente, os 10 planetas, as 12 casas e os aspectos — tudo interpretado. É o mesmo que vendemos avulso.</p>
+        <span class="free"><svg class="ico"><use href="#i-gift"/></svg> De brinde hoje</span>
+      </article>
+      <article class="destaque">
+        <span class="num">03</span><h3>Um brinde novo todo mês</h3>
+        <p>Todo dia 1º você recebe o <strong style="color:var(--gold-lit)">Guia do Mês</strong>: os trânsitos daquele mês no SEU mapa, o calendário lunar e os melhores dias pra amar, pedir aumento e assinar contrato. Mês novo, guia novo.</p>
+        <span class="free"><svg class="ico"><use href="#i-gift"/></svg> Todo mês, sem custo</span>
+      </article>
+      <article>
+        <span class="num">04</span><h3>Sua área no site</h3>
+        <p>Histórico de todos os horóscopos, seus mapas pra baixar quando quiser, e tudo que comprar depois fica guardado lá.</p>
+      </article>
+      <article>
+        <span class="num">05</span><h3>Entrega imediata</h3>
+        <p>Pagou, recebeu. O acesso cai no seu e-mail na hora, e o Mapa Astral mais o horóscopo de hoje saem em minutos, assim que você manda seus dados de nascimento.</p>
+      </article>
+    </div>
+    <div class="cta-block">
+      <a class="cta" data-cta="scroll" href="#planos">QUERO COMEÇAR AGORA<small>R$<span data-lp="basico">27,90</span>/mês · cancela quando quiser</small></a>
+    </div>
+  </div>
+</section>
+
+<!-- ══ 4. DEPOIMENTOS ══ -->
+<section style="padding-top:0">
+  <div class="wrap">
+    <div class="sec-head"><span class="kicker">Quem já recebe</span><h2>Não acredite só na gente</h2>
+      <p class="lede">Veja o que elas mandaram depois de começar a receber</p></div>
+    <div class="carousel">
+    <button class="cnav prev" aria-label="Anterior">‹</button>
+    <button class="cnav next" aria-label="Próximo">›</button>
+    <div class="zaps">
+      <div class="zap">
+        <div class="zhead"><i></i><div><b>Camila R.</b><em>assinante há 5 meses</em></div></div>
+        <div class="msg">gente eu li o de hoje de manhã e travei 😳<time>08:14</time></div>
+        <div class="msg">falava EXATAMENTE da conversa que eu tive ontem no trabalho<time>08:14</time></div>
+        <div class="msg">nunca tinha acontecido isso comigo com horóscopo<time>08:15</time></div>
+        <div class="rating">★★★★★</div>
+      </div>
+      <div class="zap">
+        <div class="zhead"><i></i><div><b>Juliana M.</b><em>assinante há 8 meses</em></div></div>
+        <div class="msg">o mapa completo sozinho já pagou o ano inteiro 🙌<time>19:32</time></div>
+        <div class="msg">tinha pago quase 200 reais num parecido e esse veio bem mais detalhado<time>19:33</time></div>
+        <div class="msg">chegou tudo no e-mail na hora<time>19:33</time></div>
+        <div class="rating">★★★★★</div>
+      </div>
+      <div class="zap">
+        <div class="zhead"><i></i><div><b>Patrícia L.</b><em>assinante há 3 meses</em></div></div>
+        <div class="msg">me avisou do retrógrado ANTES<time>21:07</time></div>
+        <div class="msg">segurei a assinatura de um contrato por causa disso<time>21:07</time></div>
+        <div class="msg">no fim deu ruim pra quem assinou 😅 valeu cada centavo<time>21:09</time></div>
+        <div class="rating">★★★★★</div>
+      </div>
+      <div class="zap">
+        <div class="zhead"><i></i><div><b>Rita S.</b><em>assinante há 2 meses</em></div></div>
+        <div class="msg">confesso que achei que fosse pouca coisa por esse preço 😅<time>10:41</time></div>
+        <div class="msg">mas é MUITA coisa, todo dia chega um texto diferente<time>10:42</time></div>
+        <div class="msg">melhor compra que fiz esse ano<time>10:42</time></div>
+        <div class="rating">★★★★★</div>
+      </div>
+      <div class="zap">
+        <div class="zhead"><i></i><div><b>Aline P.</b><em>assinante há 6 meses</em></div></div>
+        <div class="msg">o guia do mês chegou hoje e eu já marquei tudo na agenda<time>07:58</time></div>
+        <div class="msg">os dias bons pra conversar com meu chefe vieram certinhos<time>07:59</time></div>
+        <div class="msg">nunca tinha visto nada assim tão específico<time>07:59</time></div>
+        <div class="rating">★★★★★</div>
+      </div>
+      <div class="zap">
+        <div class="zhead"><i></i><div><b>Fernanda C.</b><em>assinante há 4 meses</em></div></div>
+        <div class="msg">meu mapa explicou coisa que eu pago terapia pra entender 😅<time>22:15</time></div>
+        <div class="msg">a parte do ascendente me deixou sem palavras<time>22:16</time></div>
+        <div class="msg">já indiquei pra três amigas<time>22:17</time></div>
+        <div class="rating">★★★★★</div>
+      </div>
+    </div>
+    <div class="cdots"></div>
+    </div>
+  </div>
+</section>
+
+<!-- ══ 5. PLANOS ══ -->
+<section id="planos" style="padding-top:0">
+  <div class="wrap">
+    <div class="sec-head"><span class="kicker">Escolha seu acesso</span>
+      <h2>Quanto vale saber o que <span class="serif">o seu céu está fazendo?</span></h2>
+      <p class="lede">Sem fidelidade. Sem multa. Cancela num clique, quando quiser.</p></div>
+
+    <div class="plans">
+      <!-- básico -->
+      <div class="plan top">
+        <span class="flag"><svg class="ico"><use href="#i-star"/></svg> Mais escolhido</span>
+        <h3>Plano Lua</h3>
+        <div class="sub">O essencial pra começar hoje</div>
+        <span class="pold strike">R$ <span data-lp="basicoDe">47</span></span>
+        <div class="pnew"><sup>R$</sup><span data-lp="basico">27,90</span><span class="mes">/mês</span></div>
+        <div class="cancel"><svg class="ico"><use href="#i-unlock"/></svg> Cancela quando quiser</div>
+        <ul>
+          <li class="yes">Horóscopo diário calculado no seu mapa</li>
+          <li class="yes">Mapa Astral Completo em PDF (brinde)</li>
+          <li class="yes"><strong style="color:var(--gold-lit)"><svg class="ico"><use href="#i-gift"/></svg> Guia do Mês — brinde novo todo mês</strong></li>
+          <li class="yes">Sua área no site com tudo salvo</li>
+          <li class="yes">Entrega imediata por e-mail</li>
+          <li class="no">Previsão personalizada da semana</li>
+          <li class="no">Avisos de lua e retrógrados</li>
+          <li class="no">Mapa do Amor + Mapa da Prosperidade</li>
+          <li class="no">Calendário Lunar + Guia dos Retrógrados</li>
+          <li class="no">Suporte prioritário</li>
+        </ul>
+        <button class="cta" data-cta="basico">QUERO O PLANO LUA<small>R$<span data-lp="basico">27,90</span>/mês · cancela quando quiser</small></button>
+        <p class="note">Você recebe no e-mail o acesso à sua área, já com o mapa liberado. Sem senha pra inventar.</p>
+      </div>
+
+      <!-- premium (caro de propósito) -->
+      <div class="plan premium">
+        <span class="flag">Completo</span>
+        <h3>Plano Lua Premium</h3>
+        <div class="sub">1 mês inteiro do Plano Lua + todos os bônus</div>
+        <div class="pnew"><sup>R$</sup><span data-lp="completo">97,00</span></div>
+        <div class="cancel"><svg class="ico"><use href="#i-lock"/></svg> Pagamento único · sem recorrência</div>
+        <ul>
+          <li class="yes"><strong>1 mês do Plano Lua completo</strong> — horóscopo diário, Mapa Astral e Guia do Mês</li>
+          <li class="yes">Previsão personalizada da semana, todo domingo</li>
+          <li class="yes">Avisos de lua nova, cheia e retrógrados</li>
+          <li class="yes"><svg class="ico"><use href="#i-gift"/></svg> Mapa do Amor</li>
+          <li class="yes"><svg class="ico"><use href="#i-gift"/></svg> Mapa da Prosperidade</li>
+          <li class="yes"><svg class="ico"><use href="#i-gift"/></svg> Calendário Lunar do ano</li>
+          <li class="yes"><svg class="ico"><use href="#i-gift"/></svg> Guia dos Retrógrados</li>
+          <li class="yes"><svg class="ico"><use href="#i-gift"/></svg> Manual do Seu Ascendente</li>
+          <li class="yes"><svg class="ico"><use href="#i-chat"/></svg> Suporte prioritário</li>
+        </ul>
+        <button class="cta ghost" data-cta="completo">Quero o Premium<small>Pagamento único, sem assinatura</small></button>
+        <p class="note">Você paga uma vez só. Bônus valendo R$ <span data-lp="bonusValor">184,00</span> liberados junto com o acesso e seus pra sempre.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ══ 6. CANCELAMENTO ══ -->
+<section style="padding-top:0">
+  <div class="wrap">
+    <div class="cancelband">
+      <h3><svg class="ico"><use href="#i-unlock"/></svg> Cancela quando quiser. Sério.</h3>
+      <p>Um clique dentro da sua área e acabou. Sem multa, sem fidelidade, sem prazo mínimo, sem ligação de retenção tentando te convencer. E tudo que você já baixou continua sendo seu pra sempre.</p>
+      <div class="row"><span>✓ Sem fidelidade</span><span>✓ Sem multa</span><span>✓ 1 clique</span><span>✓ Sem ligação</span></div>
+    </div>
+  </div>
+</section>
+
+<!-- ══ 7. ENTREGA + GARANTIA ══ -->
+<section style="padding-top:0">
+  <div class="wrap narrow">
+    <div class="three">
+      <div><span><svg class="ico ico-lg"><use href="#i-mail"/></svg></span><b>Chega no seu e-mail</b></div>
+      <div><span><svg class="ico ico-lg"><use href="#i-screen"/></svg></span><b>E fica salvo no site</b></div>
+      <div><span><svg class="ico ico-lg"><use href="#i-shield"/></svg></span><b>Garantia de 7 dias</b></div>
+    </div>
+    <div class="guar">
+      <div class="seal">7<small>dias</small></div>
+      <div class="guar-txt">
+        <h3>Garantia incondicional de 7 dias</h3>
+        <p>Recebe o mapa, lê os horóscopos da semana. Se por qualquer motivo achar que não valeu a pena, devolvo 100% do seu dinheiro — sem pergunta, sem burocracia.</p>
+        <div class="pillars"><span><b>✓</b> Reembolso total</span><span><b>✓</b> Sem perguntas</span><span><b>✓</b> Processo rápido</span></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ══ 8. FAQ ══ -->
+<section style="padding-top:0">
+  <div class="wrap narrow">
+    <div class="sec-head"><span class="kicker">Dúvidas</span><h2>Perguntas frequentes</h2></div>
+    <details open>
+      <summary>Consigo cancelar mesmo? Como?</summary>
+      <p>Consegue, num clique dentro da sua área — o botão fica visível, não escondido. Sem multa, sem fidelidade, sem prazo mínimo e sem ninguém te ligando pra tentar convencer. O que você já baixou continua seu.</p>
+    </details>
+    <details>
+      <summary>O acesso chega na hora?</summary>
+      <p>Chega. Assim que o pagamento é aprovado, cai um e-mail com o link da sua área — sem senha pra inventar, é só clicar. Você informa seus dados de nascimento e, em minutos, recebe o Mapa Astral Completo <strong>e o horóscopo de hoje</strong>. Não precisa esperar até amanhã.</p>
+    </details>
+    <details>
+      <summary>Não sei a hora exata que nasci. Dá pra fazer?</summary>
+      <p>Dá. Sem a hora, Sol, planetas e aspectos saem corretos; Ascendente e casas ficam aproximados. A hora costuma estar na sua certidão de nascimento e vale a pena procurar — você corrige depois na sua área e o mapa é recalculado sem custo.</p>
+    </details>
+    <details>
+      <summary>É robô ou astrólogo de verdade?</summary>
+      <p>O cálculo é astronômico e exato: efemérides reais, posição planetária na data, hora e coordenadas do seu nascimento. A interpretação segue a tradição astrológica, escrita em português claro. Cada dia é recalculado sobre o seu mapa — não é texto reaproveitado.</p>
+    </details>
+    <details>
+      <summary>Como funciona o brinde de todo mês?</summary>
+      <p>Todo dia 1º você recebe o Guia do Mês: um PDF calculado no seu mapa com os trânsitos daquele mês, o calendário lunar e os melhores dias pra decisões de amor, dinheiro e trabalho. Não é o mesmo pra todo mundo — é feito pro seu nascimento, igual o horóscopo. Fica salvo na sua área e é seu pra sempre, mesmo se cancelar depois.</p>
+    </details>
+    <details>
+      <summary>Qual a diferença do Plano Lua pro Premium?</summary>
+      <p>O Plano Lua é assinatura mensal: horóscopo diário, Mapa Astral Completo e o Guia do Mês, todo mês, enquanto você quiser. O Premium é <strong>pagamento único</strong>: você leva 1 mês inteiro do Plano Lua mais a previsão semanal, os avisos de lua e retrógrados e os 5 bônus (Mapa do Amor, Mapa da Prosperidade, Calendário Lunar, Guia dos Retrógrados e Manual do Ascendente) — sem assinatura e sem cobrança recorrente.</p>
+    </details>
+    <details>
+      <summary>E se eu não gostar?</summary>
+      <p>Você tem 7 dias de garantia incondicional. Pede o reembolso e devolvemos 100% — sem perguntas, sem burocracia.</p>
+    </details>
+    <details>
+      <summary>Meus dados ficam guardados?</summary>
+      <p>Só na sua conta, usados apenas pra calcular o que é seu. Não vendemos nem compartilhamos com ninguém. Pode pedir exclusão quando quiser.</p>
+    </details>
+  </div>
+</section>
+
+<!-- ══ 9. CTA FINAL ══ -->
+<section style="padding-top:0">
+  <div class="wrap narrow center">
+    <h2>Quantos dias mais<br><span class="serif">você vai gastar com o texto errado?</span></h2>
+    <p class="lede" style="margin:16px auto 0;max-width:50ch">
+      Você já sabe que aquele horóscopo não é seu. Amanhã ele vai estar lá de novo, igualzinho,
+      falando com 200 milhões de pessoas ao mesmo tempo — e você vai tentar se encaixar de novo.
+    </p>
+    <p class="lede" style="margin:14px auto 0;max-width:50ch">
+      <strong style="color:var(--cream)">Ou o seu chega hoje.</strong>
+      Calculado com a sua hora e a sua cidade, escrito só pra você. Leva dois minutos pra decidir isso.
+    </p>
+    <div class="cta-block">
+      <a class="cta" data-cta="scroll" href="#planos">COMEÇAR POR R$<span data-lp="basico">27,90</span>/MÊS<small>Brinde novo todo mês · cancela quando quiser</small></a>
+      <div class="trust"><span><b>✓</b> Acesso imediato</span><span><b>✓</b> Garantia de 7 dias</span><span><b>✓</b> Cancela num clique</span></div>
+    </div>
+  </div>
+</section>
+
+</main>
+
+<footer class="site">
+  <div class="wrap">
+    <div class="badges"><span><svg class="ico"><use href="#i-lock"/></svg> Compra garantida</span><span><svg class="ico"><use href="#i-shield"/></svg> Dados protegidos</span></div>
+    <div>© <span id="ano"></span> AstroDicas · Astrologia calculada, não chutada</div>
+    <div style="margin-top:6px"><a href="/termos">Termos</a> · <a href="/privacidade">Privacidade</a> · <a href="/suporte">Suporte</a></div>
+    <p>Conteúdo de astrologia com finalidade de autoconhecimento e entretenimento. Não substitui orientação médica, psicológica, jurídica ou financeira.</p>
+  </div>
+</footer>
+
+<div class="sticky">
+  <a class="cta" data-cta="scroll" href="#planos">QUERO GARANTIR O MEU<small>R$<span data-lp="basico">27,90</span>/mês · cancela quando quiser</small></a>
+</div>
+
+<!-- ══ MODAL 1 — ORDER BUMP (clicou no básico) ══ -->
+<div class="modal" id="mBump">
+  <div class="modal-box">
+    <button class="modal-x" data-close>×</button>
+    <h3>ESPERE! Vai deixar tudo isso pra trás?</h3>
+    <p class="sub">Só com o Plano Lua você <strong style="color:var(--hot)">NÃO leva</strong>:</p>
+    <ul>
+      <li>Previsão personalizada da semana</li>
+      <li>Avisos de lua nova, cheia e retrógrados</li>
+      <li>Mapa do Amor</li>
+      <li>Mapa da Prosperidade</li>
+      <li>Calendário Lunar do ano</li>
+      <li>Guia dos Retrógrados</li>
+      <li>Manual do Seu Ascendente</li>
+      <li>Suporte prioritário</li>
+    </ul>
+    <div class="modal-price">
+      <span class="was">O Premium sai por <span class="strike">R$ <span data-lp="completo">97,00</span></span>. Só agora:</span>
+      <b>R$ <span data-lp="bump">57,90</span></b>
+      <span>pagamento único · todos os bônus juntos valem R$ <span data-lp="bonusValor">184,00</span></span>
+    </div>
+    <button class="cta" data-cta="bump">SIM! QUERO O PREMIUM POR R$ <span data-lp="bump">57,90</span><small>Pagamento único, sem assinatura</small></button>
+    <button class="modal-skip" data-cta="basico-direto">Não, continuar só com o Plano Lua (R$<span data-lp="basico">27,90</span>)</button>
+  </div>
+</div>
+
+<!-- ══ MODAL 2 — EXIT INTENT ══ -->
+<div class="modal" id="mExit">
+  <div class="modal-box win">
+    <button class="modal-x" data-close>×</button>
+    <h3>Peraí! Antes de você ir</h3>
+    <p class="sub">Deixa eu fazer o menor preço que já fiz do Plano Lua:</p>
+    <ul>
+      <li>Horóscopo diário calculado no SEU mapa</li>
+      <li>Mapa Astral Completo em PDF, de brinde</li>
+      <li>Guia do Mês — brinde novo todo mês</li>
+      <li>Sua área no site com tudo salvo pra sempre</li>
+    </ul>
+    <div class="modal-price">
+      <span class="was">De <span class="strike">R$ <span data-lp="basico">27,90</span>/mês</span> por só</span>
+      <b>R$ <span data-lp="exit">20,90</span><span style="font-size:.45em;font-weight:500;color:var(--cream-dim)">/mês</span></b>
+      <span>preço travado enquanto você for assinante — cancela quando quiser</span>
+    </div>
+    <button class="cta" data-cta="exit">QUERO O PLANO LUA POR R$ <span data-lp="exit">20,90</span><small>Cancela quando quiser, sem multa</small></button>
+    <button class="modal-skip" data-close>Não, prefiro perder essa condição</button>
+  </div>
+</div>
+
+<script>
+(function(){
+  var C = window.LP;
+
+  /* config → DOM */
+  var map = {basico:C.BASICO, basicoDe:C.BASICO_DE, completo:C.COMPLETO,
+             bump:C.BUMP, exit:C.EXIT, bonusValor:C.BONUS_VALOR};
+  Object.keys(map).forEach(function(k){
+    document.querySelectorAll('[data-lp="'+k+'"]').forEach(function(n){n.textContent=map[k]});
+  });
+
+  /* checkout + repasse de UTM */
+  var qs = window.location.search.slice(1);
+  function link(u){ return u + (qs ? (u.indexOf('?')>-1?'&':'?') + qs : ''); }
+  function num(s){ return parseFloat(String(s).replace('.','').replace(',','.')); }
+  function go(u,v){
+    if(window.fbq) fbq('track','InitiateCheckout',{value:v,currency:'BRL'});
+    window.location.href = link(u);
+  }
+
+  var jaOfertou=false;   // trava: bump e exit nunca aparecem os dois
+
+  function open(id){ document.getElementById(id).classList.add('on'); document.body.style.overflow='hidden'; jaOfertou=true; }
+  function close(){ document.querySelectorAll('.modal').forEach(function(m){m.classList.remove('on')}); document.body.style.overflow=''; }
+
+  document.querySelectorAll('[data-cta]').forEach(function(el){
+    el.addEventListener('click', function(e){
+      var t = el.getAttribute('data-cta');
+      if(t==='scroll') return;                       // âncora: rola até os planos
+      e.preventDefault();
+      if(t==='basico')            open('mBump');     // clicou no básico → oferta do premium
+      else if(t==='completo')     go(C.CHECKOUT_COMPLETO, num(C.COMPLETO));
+      else if(t==='bump')         go(C.CHECKOUT_BUMP,     num(C.BUMP));
+      else if(t==='basico-direto')go(C.CHECKOUT_BASICO,   num(C.BASICO));
+      else if(t==='exit')         go(C.CHECKOUT_EXIT,     num(C.EXIT));
+    });
+  });
+
+  document.querySelectorAll('[data-close]').forEach(function(b){ b.addEventListener('click', close) });
+  document.querySelectorAll('.modal').forEach(function(m){
+    m.addEventListener('click', function(e){ if(e.target===m) close() });
+  });
+  document.addEventListener('keydown', function(e){ if(e.key==='Escape') close() });
+
+  /* exit intent — desktop: mouse sai pelo topo */
+  document.addEventListener('mouseout', function(e){
+    if(jaOfertou) return;
+    if(e.clientY<=0 && !e.relatedTarget) open('mExit');
+  });
+  /* exit intent — mobile: scroll rápido pra cima depois de 55% da página */
+  var lastY=0, deep=false;
+  window.addEventListener('scroll', function(){
+    var y=window.scrollY, h=document.body.scrollHeight-window.innerHeight;
+    if(h>0 && y/h > .55) deep=true;
+    if(deep && !jaOfertou && lastY-y > 90) open('mExit');
+    lastY=y;
+  }, {passive:true});
+
+  /* vídeo da hero */
+  (function(){
+    var wrap=document.getElementById('vwrap'), slot=document.getElementById('vslot');
+    if(!wrap) return;
+    if(C.VIDEO_VERTICAL) wrap.classList.add('vertical');
+
+    var PLAY='<div class="vplay"><svg viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg></div>';
+
+    if(C.VIDEO_MP4){
+      /* mp4 próprio: autoplay mudo (igual VSL), clique liga o som */
+      slot.innerHTML='<video playsinline muted loop autoplay preload="metadata"'+
+        (C.VIDEO_POSTER?' poster="'+C.VIDEO_POSTER+'"':'')+' src="'+C.VIDEO_MP4+'"></video>'+
+        '<div class="vhint">Toque para ativar o som</div>';
+      var v=slot.querySelector('video'), hint=slot.querySelector('.vhint');
+      v.addEventListener('click', function(){
+        v.muted=!v.muted;
+        if(!v.muted){ v.controls=true; hint.remove(); v.play(); }
+      });
+    }
+    else if(C.VIDEO_YOUTUBE){
+      /* facade: só carrega o YouTube depois do clique (não pesa no LCP) */
+      var thumb=C.VIDEO_POSTER||'https://i.ytimg.com/vi/'+C.VIDEO_YOUTUBE+'/maxresdefault.jpg';
+      slot.innerHTML='<div class="facade" style="background-image:url('+thumb+')">'+PLAY+'</div>';
+      slot.querySelector('.facade').addEventListener('click', function(){
+        slot.innerHTML='<iframe src="https://www.youtube-nocookie.com/embed/'+C.VIDEO_YOUTUBE+
+          '?autoplay=1&rel=0&modestbranding=1" allow="autoplay; encrypted-media" allowfullscreen></iframe>';
+      });
+    }
+    else {
+      /* nada configurado: placeholder só pra visualizar o layout */
+      slot.innerHTML='<div class="vplaceholder"><div>'+PLAY+
+        '<b style="margin-top:14px">Slot do vídeo</b>'+
+        '<span>Preencha VIDEO_MP4 ou VIDEO_YOUTUBE no config.<br>Some sozinho se os dois ficarem vazios.</span></div></div>';
+    }
+  })();
+
+  /* carrossel de depoimentos */
+  (function(){
+    var track=document.querySelector('.zaps');
+    if(!track) return;
+    var itens=[].slice.call(track.children),
+        dots=document.querySelector('.cdots'),
+        prev=document.querySelector('.cnav.prev'),
+        next=document.querySelector('.cnav.next'),
+        auto, parado=false;
+
+    itens.forEach(function(_,i){
+      var b=document.createElement('button');
+      b.setAttribute('aria-label','Depoimento '+(i+1));
+      b.addEventListener('click',function(){ irPara(i); pausar(); });
+      dots.appendChild(b);
+    });
+    var bolinhas=[].slice.call(dots.children);
+
+    function porPagina(){
+      var w=track.clientWidth, iw=itens[0].offsetWidth+16;
+      return Math.max(1, Math.round(w/iw));
+    }
+    function atual(){
+      var iw=itens[0].offsetWidth+16;
+      return Math.round(track.scrollLeft/iw);
+    }
+    function irPara(i){
+      var iw=itens[0].offsetWidth+16, max=itens.length-porPagina();
+      if(i>max) i=0; if(i<0) i=max;
+      track.scrollTo({left:i*iw, behavior:'smooth'});
+    }
+    function marcar(){
+      var a=atual(), max=itens.length-porPagina();
+      bolinhas.forEach(function(b,i){ b.classList.toggle('on', i===a) });
+      bolinhas.forEach(function(b,i){ b.style.display = i>max ? 'none' : '' });
+    }
+    track.addEventListener('scroll', marcar, {passive:true});
+    window.addEventListener('resize', marcar);
+    prev.addEventListener('click', function(){ irPara(atual()-1); pausar() });
+    next.addEventListener('click', function(){ irPara(atual()+1); pausar() });
+
+    /* autoplay: só pausa em interação real (arrastar/clicar) e quando a aba
+       está oculta ou o carrossel fora da tela — passar o mouse por cima não trava */
+    var visivel=true;
+    function tocar(){
+      clearInterval(auto);
+      auto=setInterval(function(){
+        if(parado || document.hidden || !visivel) return;
+        irPara(atual()+1);
+      }, 4500);
+    }
+    function pausar(){
+      parado=true;
+      clearTimeout(pausar._t);
+      pausar._t=setTimeout(function(){ parado=false }, 9000);
+    }
+    track.addEventListener('pointerdown', pausar);
+    track.addEventListener('touchstart', pausar, {passive:true});
+
+    if(window.IntersectionObserver){
+      new IntersectionObserver(function(es){ visivel=es[0].isIntersecting; },{threshold:.25})
+        .observe(track);
+    }
+    document.addEventListener('visibilitychange', function(){ if(!document.hidden) tocar() });
+
+    marcar(); tocar();
+  })();
+
+  /* notificações de compra */
+  var NOMES=['Camila','Juliana','Patrícia','Rita','Fernanda','Aline','Bruna','Larissa','Tatiane','Vanessa',
+             'Débora','Simone', 'Renata','Priscila','Gabriela','Mariana','Carla','Letícia','Amanda','Jéssica'],
+      SOBRE=['S.','M.','R.','L.','P.','A.','C.','F.','T.','B.'],
+      CIDADES=['São Paulo, SP','Rio de Janeiro, RJ','Belo Horizonte, MG','Curitiba, PR','Salvador, BA',
+               'Porto Alegre, RS','Recife, PE','Fortaleza, CE','Goiânia, GO','Brasília, DF',
+               'Campinas, SP','Florianópolis, SC','Manaus, AM','Belém, PA','Natal, RN'],
+      PRODS=[['Plano Lua',68],['Plano Lua Premium',22],['Plano Lua + Mapa do Amor',10]];
+
+  function pick(a){ return a[Math.floor(Math.random()*a.length)] }
+  function prod(){
+    var r=Math.random()*100, acc=0;
+    for(var i=0;i<PRODS.length;i++){ acc+=PRODS[i][1]; if(r<acc) return PRODS[i][0]; }
+    return PRODS[0][0];
+  }
+
+  var box=document.getElementById('notif');
+  function notificar(){
+    if(document.hidden) return;
+    var nome=pick(NOMES), n=document.createElement('div');
+    n.className='notif';
+    n.innerHTML='<i>'+nome.charAt(0)+'</i><div><b>'+nome+' '+pick(SOBRE)+' acabou de assinar</b>'+
+                '<span><em>'+prod()+'</em> · '+pick(CIDADES)+' · há '+(Math.floor(Math.random()*9)+1)+' min</span></div>';
+    box.appendChild(n);
+    setTimeout(function(){
+      n.classList.add('out');
+      setTimeout(function(){ n.remove() }, 400);
+    }, 5200);
+    while(box.children.length>2) box.firstChild.remove();
+  }
+  setTimeout(function agenda(){
+    notificar();
+    setTimeout(agenda, 9000 + Math.random()*13000);   // 9–22s entre notificações
+  }, 4500);
+
+  /* timer */
+  var end=Date.now()+C.TIMER_MIN*60000, el=document.getElementById('timer');
+  (function tick(){
+    var d=Math.max(0,end-Date.now()), m=Math.floor(d/60000), s=Math.floor(d%60000/1000);
+    el.textContent=m+':'+(s<10?'0':'')+s;
+    if(d>0) setTimeout(tick,1000);
+  })();
+
+  /* céu */
+  var sky=document.getElementById('stars'), frag=document.createDocumentFragment();
+  for(var i=0;i<100;i++){
+    var s=document.createElement('i'); s.className='star';
+    var sz=Math.random()*2+.6;
+    s.style.cssText='width:'+sz+'px;height:'+sz+'px;left:'+Math.random()*100+'%;top:'+Math.random()*100+'%;animation-delay:'+(Math.random()*4)+'s';
+    frag.appendChild(s);
+  }
+  sky.appendChild(frag);
+
+  /* roda astrológica */
+  /* ︎ força renderização como texto — sem isso o sistema troca por emoji colorido */
+  var gs='♈♉♊♋♌♍♎♏♐♑♒♓'.split('').map(function(g){return g+'︎'}), sp='', gl='';
+  for(var k=0;k<12;k++){
+    var a=(k*30-90)*Math.PI/180;
+    sp+='<line x1="'+(200+112*Math.cos(a))+'" y1="'+(200+112*Math.sin(a))+'" x2="'+(200+196*Math.cos(a))+'" y2="'+(200+196*Math.sin(a))+'"/>';
+    var m2=((k+.5)*30-90)*Math.PI/180;
+    gl+='<text x="'+(200+180*Math.cos(m2))+'" y="'+(200+180*Math.sin(m2))+'">'+gs[k]+'</text>';
+  }
+  document.getElementById('spokes').innerHTML=sp;
+  document.getElementById('glyphs').innerHTML=gl;
+  var asp='';
+  [[0,1],[2,5],[4,9],[7,11],[3,8]].forEach(function(p){
+    var a1=(p[0]*30+15-90)*Math.PI/180, a2=(p[1]*30+15-90)*Math.PI/180;
+    asp+='<line x1="'+(200+112*Math.cos(a1))+'" y1="'+(200+112*Math.sin(a1))+'" x2="'+(200+112*Math.cos(a2))+'" y2="'+(200+112*Math.sin(a2))+'" stroke-width=".6"/>';
+  });
+  document.getElementById('aspects').innerHTML=asp;
+
+  document.getElementById('ano').textContent=new Date().getFullYear();
+
+  if(C.PIXEL_ID && C.PIXEL_ID.indexOf('SEU_')<0){
+    !function(f,b,e,v,n,t,s){if(f.fbq)return;n=f.fbq=function(){n.callMethod?n.callMethod.apply(n,arguments):n.queue.push(arguments)};
+    if(!f._fbq)f._fbq=n;n.push=n;n.loaded=!0;n.version='2.0';n.queue=[];t=b.createElement(e);t.async=!0;
+    t.src=v;s=b.getElementsByTagName(e)[0];s.parentNode.insertBefore(t,s)}(window,document,'script','https://connect.facebook.net/en_US/fbevents.js');
+    fbq('init',C.PIXEL_ID); fbq('track','PageView');
+  }
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,907 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#090822">
+  <title>AstroDicas · Seu portal</title>
+  <meta name="description" content="Sua área AstroDicas para ler mapas, previsões e conteúdos do seu céu.">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@400;500;600;700&family=Jost:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --ink: #07061a;
+      --ink-2: #0e0b2e;
+      --ink-3: #171144;
+      --panel: rgba(19, 15, 59, .82);
+      --panel-strong: #19134d;
+      --gold: #d9ac5c;
+      --gold-lit: #f4d79a;
+      --gold-soft: rgba(217, 172, 92, .16);
+      --gold-line: rgba(217, 172, 92, .27);
+      --cream: #f4efe4;
+      --cream-dim: rgba(244, 239, 228, .66);
+      --cream-faint: rgba(244, 239, 228, .42);
+      --rose: #c98b8b;
+      --mint: #9fc8b6;
+      --display: "Cormorant Garamond", Georgia, serif;
+      --body: "Jost", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      --shadow: 0 24px 70px rgba(0, 0, 0, .26);
+    }
+
+    * { box-sizing: border-box; }
+    html { scroll-behavior: smooth; }
+    body {
+      margin: 0;
+      min-width: 320px;
+      color: var(--cream);
+      background:
+        radial-gradient(circle at 78% 0%, rgba(82, 65, 167, .22), transparent 32rem),
+        radial-gradient(circle at 20% 55%, rgba(42, 32, 121, .2), transparent 38rem),
+        var(--ink);
+      font-family: var(--body);
+      font-size: 15px;
+      line-height: 1.5;
+    }
+    body::before {
+      content: "";
+      pointer-events: none;
+      position: fixed;
+      z-index: 5;
+      inset: 0;
+      opacity: .13;
+      background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 180 180' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='.22'/%3E%3C/svg%3E");
+      mix-blend-mode: screen;
+    }
+    button, a { font: inherit; }
+    button { color: inherit; }
+    a { color: inherit; text-decoration: none; }
+    button:focus-visible, a:focus-visible {
+      outline: 2px solid var(--gold-lit);
+      outline-offset: 3px;
+    }
+
+    .app-shell { display: flex; min-height: 100vh; }
+    .sidebar {
+      position: fixed;
+      inset: 0 auto 0 0;
+      z-index: 10;
+      display: flex;
+      width: 260px;
+      flex-direction: column;
+      padding: 26px 18px 22px;
+      border-right: 1px solid var(--gold-line);
+      background: rgba(8, 7, 29, .8);
+      backdrop-filter: blur(22px);
+    }
+    .brand {
+      display: inline-flex;
+      align-items: center;
+      gap: 10px;
+      padding: 0 12px 30px;
+      color: var(--gold-lit);
+      font: 600 28px/1 var(--display);
+      letter-spacing: -.02em;
+    }
+    .brand-mark {
+      display: grid;
+      width: 32px;
+      height: 32px;
+      place-items: center;
+      border: 1px solid var(--gold);
+      border-radius: 50%;
+      font: 600 17px var(--display);
+    }
+    .nav-label {
+      padding: 0 13px 9px;
+      color: var(--cream-faint);
+      font-size: 10px;
+      font-weight: 600;
+      letter-spacing: .18em;
+      text-transform: uppercase;
+    }
+    .nav { display: grid; gap: 5px; }
+    .nav-link {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      min-height: 46px;
+      padding: 0 13px;
+      border: 1px solid transparent;
+      border-radius: 10px;
+      color: var(--cream-dim);
+      font-size: 13px;
+      transition: background .2s ease, border-color .2s ease, color .2s ease;
+    }
+    .nav-link:hover, .nav-link.active {
+      color: var(--cream);
+      border-color: var(--gold-line);
+      background: var(--gold-soft);
+    }
+    .nav-icon { width: 18px; color: var(--gold); text-align: center; font-size: 17px; }
+    .sidebar-bottom { margin-top: auto; }
+    .support-card {
+      margin: 18px 4px 0;
+      padding: 17px 15px;
+      border: 1px solid var(--gold-line);
+      background: linear-gradient(145deg, rgba(40, 29, 91, .9), rgba(12, 10, 40, .8));
+    }
+    .support-card strong { display: block; margin-bottom: 6px; font: 600 19px/1.1 var(--display); }
+    .support-card p { margin: 0 0 13px; color: var(--cream-dim); font-size: 12px; }
+    .mini-link { color: var(--gold-lit); font-size: 12px; font-weight: 600; }
+
+    main {
+      width: calc(100% - 260px);
+      margin-left: 260px;
+      padding: 42px clamp(24px, 5vw, 72px) 70px;
+    }
+    .page { width: min(1180px, 100%); margin: 0 auto; }
+    .topbar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 20px;
+      margin-bottom: 36px;
+    }
+    .eyebrow {
+      margin: 0 0 5px;
+      color: var(--gold);
+      font-size: 10px;
+      font-weight: 600;
+      letter-spacing: .2em;
+      text-transform: uppercase;
+    }
+    h1, h2, h3, p { margin-top: 0; }
+    h1 {
+      margin-bottom: 0;
+      font: 500 clamp(34px, 4vw, 52px)/.98 var(--display);
+      letter-spacing: -.03em;
+    }
+    .top-actions { display: flex; align-items: center; gap: 11px; }
+    .icon-button {
+      position: relative;
+      display: grid;
+      width: 39px;
+      height: 39px;
+      place-items: center;
+      border: 1px solid var(--gold-line);
+      border-radius: 50%;
+      background: transparent;
+      color: var(--cream-dim);
+      cursor: pointer;
+      transition: background .2s ease, color .2s ease;
+    }
+    .icon-button:hover { color: var(--cream); background: var(--gold-soft); }
+    .dot {
+      position: absolute;
+      top: 7px;
+      right: 7px;
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      background: var(--rose);
+      box-shadow: 0 0 0 3px var(--ink);
+    }
+    .avatar {
+      display: grid;
+      width: 39px;
+      height: 39px;
+      place-items: center;
+      border: 1px solid var(--gold);
+      border-radius: 50%;
+      color: var(--ink);
+      background: linear-gradient(145deg, var(--gold-lit), var(--gold));
+      font-weight: 700;
+      font-size: 13px;
+    }
+
+    .hero {
+      position: relative;
+      display: grid;
+      grid-template-columns: minmax(0, 1.1fr) minmax(230px, .9fr);
+      gap: 25px;
+      min-height: 284px;
+      overflow: hidden;
+      padding: 32px 35px;
+      border: 1px solid var(--gold-line);
+      background:
+        radial-gradient(circle at 83% 33%, rgba(217, 172, 92, .13), transparent 13rem),
+        linear-gradient(118deg, rgba(30, 22, 82, .95), rgba(14, 11, 46, .94));
+      box-shadow: var(--shadow);
+    }
+    .hero::after {
+      content: "";
+      position: absolute;
+      right: 3%;
+      bottom: -52%;
+      width: 300px;
+      height: 300px;
+      border: 1px solid rgba(217, 172, 92, .17);
+      border-radius: 50%;
+      box-shadow: 0 0 0 24px rgba(217,172,92,.025), 0 0 0 49px rgba(217,172,92,.025);
+    }
+    .hero-copy { position: relative; z-index: 1; }
+    .hero-kicker { margin-bottom: 14px; color: var(--gold-lit); font-size: 12px; font-weight: 600; letter-spacing: .13em; text-transform: uppercase; }
+    .hero h2 { max-width: 540px; margin-bottom: 12px; font: 500 clamp(30px, 3.5vw, 46px)/.99 var(--display); letter-spacing: -.025em; }
+    .hero p { max-width: 540px; margin-bottom: 24px; color: var(--cream-dim); font-size: 14px; }
+    .hero-visual { position: relative; z-index: 1; display: grid; place-items: center; }
+    .moon-wrap { display: grid; place-items: center; gap: 12px; }
+    .moon {
+      width: 128px;
+      height: 128px;
+      border: 1px solid rgba(244, 215, 154, .7);
+      border-radius: 50%;
+      background: radial-gradient(circle at 37% 36%, #f8dfaa 0 16%, #d9ac5c 36%, #a87540 100%);
+      box-shadow: 0 0 0 9px rgba(217, 172, 92, .06), 0 0 55px rgba(217, 172, 92, .28);
+      position: relative;
+      overflow: hidden;
+    }
+    .moon::before {
+      content: "";
+      position: absolute;
+      inset: -4px -26px -4px 42%;
+      border-radius: 50%;
+      background: var(--ink-2);
+      box-shadow: -4px 0 0 rgba(217,172,92,.28);
+    }
+    .moon-label { color: var(--cream-dim); font-size: 11px; text-align: center; }
+    .moon-label strong { display: block; color: var(--gold-lit); font-size: 12px; }
+    .button {
+      display: inline-flex;
+      min-height: 40px;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      padding: 0 17px;
+      border: 1px solid var(--gold);
+      border-radius: 7px;
+      color: var(--ink);
+      background: var(--gold);
+      font-size: 12px;
+      font-weight: 700;
+      letter-spacing: .03em;
+      cursor: pointer;
+      transition: transform .2s ease, background .2s ease, box-shadow .2s ease;
+    }
+    .button:hover { transform: translateY(-2px); background: var(--gold-lit); box-shadow: 0 8px 22px rgba(217,172,92,.2); }
+    .button.ghost { color: var(--gold-lit); background: transparent; }
+    .button.ghost:hover { background: var(--gold-soft); box-shadow: none; }
+    .button.small { min-height: 34px; padding: 0 13px; font-size: 11px; }
+
+    .section-head { display: flex; align-items: baseline; justify-content: space-between; gap: 15px; margin: 40px 0 15px; }
+    .section-head h2 { margin: 0; font: 500 30px/1 var(--display); }
+    .section-head a { color: var(--gold-lit); font-size: 12px; }
+    .metrics { display: grid; grid-template-columns: repeat(3, 1fr); gap: 13px; margin-top: 17px; }
+    .metric {
+      padding: 17px 18px;
+      border: 1px solid rgba(244,239,228,.11);
+      background: rgba(22, 17, 65, .68);
+    }
+    .metric-label { margin-bottom: 9px; color: var(--cream-faint); font-size: 11px; }
+    .metric-value { display: flex; align-items: baseline; gap: 8px; color: var(--gold-lit); font: 600 27px/1 var(--display); }
+    .metric-value small { color: var(--cream-faint); font: 500 11px var(--body); }
+    .metric-note { margin: 8px 0 0; color: var(--cream-dim); font-size: 11px; }
+
+    .content-grid { display: grid; grid-template-columns: minmax(0, 1.4fr) minmax(280px, .8fr); gap: 16px; }
+    .panel {
+      border: 1px solid rgba(244,239,228,.12);
+      background: rgba(19, 15, 59, .72);
+      box-shadow: 0 15px 35px rgba(0,0,0,.13);
+    }
+    .daily-card { padding: 26px 27px; }
+    .daily-top { display: flex; align-items: center; justify-content: space-between; gap: 18px; margin-bottom: 23px; }
+    .sign { display: flex; align-items: center; gap: 13px; }
+    .sign-symbol { display: grid; width: 45px; height: 45px; place-items: center; border: 1px solid var(--gold-line); border-radius: 50%; color: var(--gold-lit); font: 23px var(--display); }
+    .sign strong { display: block; font-size: 13px; }
+    .sign span { display: block; color: var(--cream-faint); font-size: 11px; }
+    .date-chip { color: var(--gold-lit); font-size: 11px; white-space: nowrap; }
+    .daily-card h3 { margin-bottom: 10px; font: 500 29px/1.02 var(--display); }
+    .daily-card p { margin-bottom: 20px; color: var(--cream-dim); font-size: 13px; }
+    .daily-footer { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding-top: 16px; border-top: 1px solid rgba(244,239,228,.1); }
+    .tags { display: flex; flex-wrap: wrap; gap: 7px; }
+    .tag { padding: 5px 9px; border: 1px solid var(--gold-line); color: var(--cream-faint); font-size: 10px; }
+    .progress-card { padding: 23px; }
+    .progress-card h3 { margin-bottom: 18px; font: 500 25px/1 var(--display); }
+    .profile-line { display: flex; align-items: center; justify-content: space-between; margin-bottom: 13px; color: var(--cream-dim); font-size: 11px; }
+    .progress { height: 7px; overflow: hidden; background: rgba(244,239,228,.1); }
+    .progress i { display: block; width: 68%; height: 100%; background: linear-gradient(90deg, var(--gold), var(--gold-lit)); }
+    .progress-note { margin: 12px 0 0; color: var(--cream-faint); font-size: 11px; }
+    .delivery-list { display: grid; gap: 0; margin-top: 23px; }
+    .delivery { display: flex; gap: 12px; padding: 12px 0; border-top: 1px solid rgba(244,239,228,.1); }
+    .delivery-date { min-width: 36px; color: var(--gold-lit); font-size: 11px; font-weight: 600; }
+    .delivery strong { display: block; font-size: 12px; font-weight: 500; }
+    .delivery span { color: var(--cream-faint); font-size: 10px; }
+
+    .library { display: grid; grid-template-columns: repeat(4, 1fr); gap: 13px; }
+    .asset {
+      position: relative;
+      display: flex;
+      min-height: 184px;
+      flex-direction: column;
+      padding: 19px 17px;
+      border: 1px solid rgba(244,239,228,.12);
+      background: linear-gradient(160deg, rgba(26, 20, 74, .84), rgba(14, 11, 43, .83));
+      transition: transform .2s ease, border-color .2s ease;
+    }
+    .asset:hover { transform: translateY(-3px); border-color: var(--gold-line); }
+    .asset-icon { margin-bottom: 19px; color: var(--gold); font-size: 22px; }
+    .asset h3 { margin-bottom: 7px; font: 500 23px/1 var(--display); }
+    .asset p { margin-bottom: 15px; color: var(--cream-faint); font-size: 11px; }
+    .asset .button { width: 100%; margin-top: auto; }
+    .asset.locked { border-color: rgba(201,139,139,.34); background: linear-gradient(160deg, rgba(51, 28, 68, .77), rgba(19, 14, 44, .85)); }
+    .lock-label { position: absolute; top: 14px; right: 13px; color: var(--rose); font-size: 10px; }
+    .asset.locked .asset-icon { color: var(--rose); }
+    .asset .state-badge { display: inline-flex; align-items: center; gap: 5px; margin: -3px 0 11px; color: var(--mint); font-size: 10px; }
+    .asset.locked .state-badge { color: var(--rose); }
+    .asset .asset-meta { margin-top: auto; color: var(--cream-faint); font-size: 10px; }
+    .asset .asset-actions { display: flex; gap: 7px; margin-top: 13px; }
+    .asset .asset-actions .button { width: auto; flex: 1; margin-top: 0; }
+    .offer-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 13px; }
+    .offer { padding: 21px; border: 1px solid var(--gold-line); background: linear-gradient(145deg, rgba(40, 29, 91, .82), rgba(15, 11, 43, .88)); }
+    .offer-kicker { margin-bottom: 9px; color: var(--gold); font-size: 10px; font-weight: 700; letter-spacing: .16em; text-transform: uppercase; }
+    .offer h3 { margin-bottom: 7px; font: 500 24px/1 var(--display); }
+    .offer p { min-height: 48px; margin-bottom: 17px; color: var(--cream-dim); font-size: 12px; }
+    .offer-price { display: block; margin-bottom: 15px; color: var(--gold-lit); font: 600 23px/1 var(--display); }
+    .offer-price small { color: var(--cream-faint); font: 500 11px var(--body); }
+    .library-empty { grid-column: 1 / -1; padding: 28px; border: 1px dashed var(--gold-line); color: var(--cream-dim); text-align: center; }
+    .asset-kicker { margin: -4px 0 10px; color: var(--gold); font-size: 9px; font-weight: 700; letter-spacing: .15em; text-transform: uppercase; }
+    .asset .asset-meta { min-height: 15px; }
+    .offer-meta { min-height: 31px; margin: -8px 0 14px; color: var(--cream-faint); font-size: 10px; }
+    .offer .button { width: 100%; }
+
+    .bottom-grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(300px, .75fr); gap: 16px; margin-top: 16px; }
+    .resume { padding: 24px 26px; }
+    .resume h3, .upsell h3 { margin-bottom: 9px; font: 500 28px/1 var(--display); }
+    .resume p, .upsell p { color: var(--cream-dim); font-size: 12px; }
+    .resume-row { display: flex; align-items: center; gap: 15px; margin-top: 21px; padding-top: 18px; border-top: 1px solid rgba(244,239,228,.1); }
+    .resume-art { display: grid; width: 60px; height: 60px; flex: 0 0 auto; place-items: center; border: 1px solid var(--gold-line); color: var(--gold-lit); font-size: 25px; }
+    .resume-row strong { display: block; margin-bottom: 5px; font-size: 12px; }
+    .resume-row span { display: block; color: var(--cream-faint); font-size: 11px; }
+    .resume-row .button { margin-left: auto; }
+    .upsell { padding: 24px 26px; border-color: rgba(217,172,92,.3); background: linear-gradient(145deg, rgba(38, 28, 84, .9), rgba(19, 14, 50, .9)); }
+    .upsell p { margin-bottom: 18px; }
+    .upsell-list { display: grid; gap: 9px; margin-bottom: 18px; }
+    .upsell-item { display: flex; align-items: center; gap: 9px; color: var(--cream-dim); font-size: 11px; }
+    .upsell-item b { color: var(--gold); font-size: 15px; }
+
+    .mobile-nav { display: none; }
+    .toast {
+      position: fixed;
+      right: 22px;
+      bottom: 22px;
+      z-index: 30;
+      max-width: min(360px, calc(100vw - 32px));
+      padding: 13px 16px;
+      border: 1px solid var(--gold-line);
+      color: var(--cream);
+      background: #1b1550;
+      box-shadow: var(--shadow);
+      font-size: 12px;
+      transform: translateY(20px);
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity .22s ease, transform .22s ease;
+    }
+    .toast.show { opacity: 1; transform: translateY(0); }
+    dialog {
+      width: min(520px, calc(100vw - 32px));
+      padding: 0;
+      border: 1px solid var(--gold-line);
+      color: var(--cream);
+      background: #15103f;
+      box-shadow: var(--shadow);
+    }
+    dialog::backdrop { background: rgba(3, 2, 15, .75); backdrop-filter: blur(5px); }
+    .dialog-inner { padding: 27px; }
+    .dialog-inner h2 { margin-bottom: 9px; font: 500 32px/1 var(--display); }
+    .dialog-inner p { color: var(--cream-dim); font-size: 13px; }
+    .dialog-close { float: right; border: 0; color: var(--cream-faint); background: transparent; cursor: pointer; font-size: 20px; }
+    .dialog-actions { display: flex; justify-content: flex-end; gap: 9px; margin-top: 21px; }
+    .dialog-content { max-height: 48vh; overflow: auto; padding-right: 4px; }
+    .dialog-content h3 { margin: 20px 0 7px; color: var(--gold-lit); font: 500 23px/1 var(--display); }
+    .dialog-content ul { margin: 0; padding-left: 19px; color: var(--cream-dim); font-size: 13px; }
+    .dialog-content li + li { margin-top: 6px; }
+    .account-detail { display: grid; gap: 10px; margin-top: 17px; }
+    .account-detail div { display: flex; justify-content: space-between; gap: 15px; padding-bottom: 9px; border-bottom: 1px solid rgba(244,239,228,.1); color: var(--cream-dim); font-size: 12px; }
+    .account-detail strong { color: var(--cream); font-weight: 500; }
+    @media print {
+      body { color: #111; background: #fff; }
+      body::before, .sidebar, .topbar, .top-actions, .mobile-nav, .hero-visual, .button, .upsell, .toast { display: none !important; }
+      main { width: 100%; margin: 0; padding: 25px; }
+      .hero, .panel, .asset { color: #111; border: 1px solid #ccc; background: #fff; box-shadow: none; }
+      .hero h2, .daily-card h3, .section-head h2, .asset h3 { color: #111; }
+      .hero p, .daily-card p, .asset p, .metric-note { color: #444; }
+    }
+
+    @media (max-width: 1060px) {
+      .library { grid-template-columns: repeat(2, 1fr); }
+      .hero { grid-template-columns: minmax(0, 1fr) 190px; }
+    }
+    @media (max-width: 760px) {
+      .app-shell { display: block; }
+      .sidebar { display: none; }
+      main { width: 100%; margin: 0; padding: 25px 17px 96px; }
+      .topbar { margin-bottom: 25px; }
+      .top-actions .icon-button:first-child { display: none; }
+      .hero { grid-template-columns: 1fr; min-height: 0; padding: 25px 21px 23px; }
+      .hero::after { right: -90px; bottom: -165px; }
+      .hero-visual { position: absolute; top: 27px; right: 22px; opacity: .76; transform: scale(.68); transform-origin: top right; }
+      .hero-copy { max-width: 70%; }
+      .hero h2 { font-size: 34px; }
+      .hero p { font-size: 12px; }
+      .metrics { grid-template-columns: 1fr; gap: 8px; }
+      .metric { display: grid; grid-template-columns: 1fr auto; align-items: center; padding: 13px 15px; }
+      .metric-label { margin: 0; }
+      .metric-note { grid-column: 1 / -1; margin: 2px 0 0; }
+      .content-grid, .bottom-grid { grid-template-columns: 1fr; }
+      .section-head { margin-top: 31px; }
+      .section-head h2 { font-size: 27px; }
+      .library { grid-template-columns: repeat(2, 1fr); gap: 9px; }
+      .offer-grid { grid-template-columns: 1fr; }
+      .asset { min-height: 174px; padding: 15px; }
+      .asset h3 { font-size: 21px; }
+      .daily-card { padding: 20px; }
+      .daily-card h3 { font-size: 27px; }
+      .daily-footer { align-items: flex-start; flex-direction: column; }
+      .resume, .upsell { padding: 21px; }
+      .resume-row .button { padding-inline: 11px; }
+      .mobile-nav {
+        position: fixed;
+        right: 0;
+        bottom: 0;
+        left: 0;
+        z-index: 20;
+        display: grid;
+        grid-template-columns: repeat(4, 1fr);
+        padding: 8px 6px max(8px, env(safe-area-inset-bottom));
+        border-top: 1px solid var(--gold-line);
+        background: rgba(9, 8, 32, .92);
+        backdrop-filter: blur(20px);
+      }
+      .mobile-nav button {
+        display: grid;
+        min-height: 47px;
+        place-items: center;
+        gap: 2px;
+        border: 0;
+        color: var(--cream-faint);
+        background: transparent;
+        font-size: 10px;
+        cursor: pointer;
+      }
+      .mobile-nav button span:first-child { color: var(--gold); font-size: 17px; }
+      .mobile-nav button.active { color: var(--cream); }
+    }
+    @media (max-width: 390px) {
+      .hero-copy { max-width: 100%; }
+      .hero-visual { position: relative; top: auto; right: auto; margin: -3px auto -11px; transform: scale(.64); }
+      .hero h2 { font-size: 32px; }
+      .library { grid-template-columns: 1fr; }
+      .asset { min-height: 157px; }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      *, *::before, *::after { scroll-behavior: auto !important; transition-duration: .01ms !important; animation-duration: .01ms !important; }
+    }
+  </style>
+</head>
+<body>
+  <div class="app-shell">
+    <aside class="sidebar" aria-label="Navegação principal">
+      <a class="brand" href="#" aria-label="AstroDicas, início"><span class="brand-mark">✦</span>AstroDicas</a>
+      <div class="nav-label">Seu portal</div>
+      <nav class="nav">
+        <a class="nav-link active" href="#inicio"><span class="nav-icon">⌂</span>Visão geral</a>
+        <a class="nav-link" href="#entregaveis"><span class="nav-icon">◌</span>Meus entregáveis</a>
+        <a class="nav-link" href="#horoscopo"><span class="nav-icon">☽</span>Horóscopo diário</a>
+        <a class="nav-link" href="#proximos"><span class="nav-icon">◷</span>Próximos envios</a>
+        <a class="nav-link" href="#catalogo"><span class="nav-icon">✧</span>Explorar produtos</a>
+      </nav>
+      <div class="sidebar-bottom">
+        <div class="nav-label">Ajuda</div>
+        <nav class="nav">
+          <a class="nav-link" href="#" data-toast="Central de ajuda em breve."><span class="nav-icon">?</span>Central de ajuda</a>
+          <a class="nav-link" href="#" data-toast="Preferências salvas neste dispositivo."><span class="nav-icon">⚙</span>Configurações</a>
+        </nav>
+        <div class="support-card">
+          <strong>Seu céu, sempre perto.</strong>
+          <p>Novos conteúdos chegam por e-mail e ficam guardados aqui.</p>
+          <a class="mini-link" href="#entregaveis">Ver biblioteca →</a>
+        </div>
+      </div>
+    </aside>
+
+    <main id="inicio">
+      <div class="page">
+        <header class="topbar">
+          <div>
+            <p class="eyebrow">Quarta-feira, 29 de julho de 2026</p>
+            <h1>Bom dia, Marina.</h1>
+          </div>
+          <div class="top-actions">
+            <button class="icon-button" type="button" aria-label="Notificações" data-toast="Você está em dia. O próximo envio chega em 2 dias.">♧<span class="dot"></span></button>
+            <button class="icon-button" type="button" aria-label="Ajuda" data-toast="Fale com nosso suporte: oi@astrodicas.com.br">?</button>
+            <button class="avatar" type="button" aria-label="Abrir perfil" data-dialog="account-dialog">MA</button>
+          </div>
+        </header>
+
+        <section class="hero" aria-labelledby="hero-title">
+          <div class="hero-copy">
+            <div class="hero-kicker">Seu céu de hoje · Lua crescente</div>
+            <h2 id="hero-title">Um passo de cada vez também é movimento.</h2>
+            <p>O céu pede presença nas pequenas decisões. Escolha uma prioridade, proteja sua energia e deixe o resto encontrar o próprio ritmo.</p>
+            <button class="button" type="button" data-dialog="horoscopo-dialog">Ler meu horóscopo <span aria-hidden="true">→</span></button>
+          </div>
+          <div class="hero-visual" aria-hidden="true">
+            <div class="moon-wrap">
+              <div class="moon"></div>
+              <div class="moon-label"><strong>Lua em Libra</strong>equilíbrio · trocas · escolhas</div>
+            </div>
+          </div>
+        </section>
+
+        <section class="metrics" aria-label="Resumo da conta">
+          <article class="metric">
+            <div class="metric-label">Seu plano</div>
+            <div class="metric-value">Lua <small>ativo</small></div>
+            <p class="metric-note">Acesso ao portal até 29 jul 2027</p>
+          </article>
+          <article class="metric">
+            <div class="metric-label">Conteúdos liberados</div>
+            <div class="metric-value"><span id="active-count">04</span> <small>de <span id="total-count">08</span></small></div>
+            <p class="metric-note">Leituras disponíveis para abrir agora</p>
+          </article>
+          <article class="metric">
+            <div class="metric-label">Próximo envio</div>
+            <div class="metric-value">02 <small>dias</small></div>
+            <p class="metric-note">Previsão semanal · sexta-feira, 31/07</p>
+          </article>
+        </section>
+
+        <div class="section-head" id="horoscopo">
+          <h2>Seu momento agora</h2>
+          <a href="#proximos">Ver agenda completa →</a>
+        </div>
+        <section class="content-grid">
+          <article class="panel daily-card">
+            <div class="daily-top">
+              <div class="sign"><span class="sign-symbol">♎</span><div><strong>Marina · Libra</strong><span>Sol, Lua e Ascendente em foco</span></div></div>
+              <time class="date-chip" datetime="2026-07-29">29 JUL</time>
+            </div>
+            <h3>A clareza chega quando você para de disputar com o tempo.</h3>
+            <p>Hoje, uma conversa honesta vale mais do que uma resposta perfeita. Repare no que seu corpo já sabe antes de pedir opinião para todo mundo.</p>
+            <div class="daily-footer">
+              <div class="tags"><span class="tag">palavra: presença</span><span class="tag">cor: rosé</span></div>
+              <button class="button ghost small" type="button" data-dialog="horoscopo-dialog">Abrir leitura completa →</button>
+            </div>
+          </article>
+          <aside class="panel progress-card" aria-labelledby="profile-title">
+            <h3 id="profile-title">Seu mapa em camadas</h3>
+            <div class="profile-line"><span>Perfil explorado</span><strong>68%</strong></div>
+            <div class="progress" role="progressbar" aria-label="Perfil explorado" aria-valuemin="0" aria-valuemax="100" aria-valuenow="68"><i></i></div>
+            <p class="progress-note">Você já desbloqueou as bases. Faltam dois mapas para completar seu painel.</p>
+            <div class="delivery-list" id="proximos">
+              <div class="delivery"><time class="delivery-date" datetime="2026-07-31">31<br>JUL</time><div><strong>Previsão semanal</strong><span>enviada automaticamente por e-mail</span></div></div>
+              <div class="delivery"><time class="delivery-date" datetime="2026-08-01">01<br>AGO</time><div><strong>Calendário lunar de agosto</strong><span>disponível para leitura no portal</span></div></div>
+            </div>
+          </aside>
+        </section>
+
+        <div class="section-head" id="entregaveis">
+          <h2>Minha biblioteca</h2>
+          <a href="#" data-toast="Todos os seus conteúdos já estão visíveis aqui.">04 conteúdos ativos</a>
+        </div>
+        <section class="library" id="library-grid" aria-label="Entregáveis disponíveis"></section>
+
+        <div class="section-head" id="catalogo">
+          <h2>Explore mais do seu céu</h2>
+          <a href="#catalogo" data-toast="Ofertas do canal web AstroDicas.">Ofertas do site</a>
+        </div>
+        <section class="offer-grid" id="offer-grid" aria-label="Produtos disponíveis para compra"></section>
+
+        <section class="bottom-grid">
+          <article class="panel resume">
+            <p class="eyebrow">Continue de onde parou</p>
+            <h3>Manual do seu Ascendente</h3>
+            <p>Você estava na parte “Como sua presença chega antes das palavras”.</p>
+            <div class="resume-row">
+              <div class="resume-art" aria-hidden="true">↑</div>
+              <div><strong>Leitura 03 · 12 min restantes</strong><span>Último acesso hoje, às 08:42</span></div>
+              <button class="button ghost small" type="button" data-toast="Retomando sua leitura…">Continuar</button>
+            </div>
+          </article>
+          <aside class="panel upsell">
+            <p class="eyebrow">Seu próximo nível</p>
+            <h3>Complete seu céu.</h3>
+            <p>Escolha uma nova lente para aprofundar a leitura que já começou.</p>
+            <div class="upsell-list" id="upsell-list"></div>
+            <button class="button small" type="button" data-scroll="catalogo">Ver ofertas →</button>
+          </aside>
+        </section>
+      </div>
+    </main>
+  </div>
+
+  <nav class="mobile-nav" aria-label="Navegação móvel">
+    <button class="active" type="button" data-scroll="inicio"><span>⌂</span><span>Início</span></button>
+    <button type="button" data-scroll="horoscopo"><span>☽</span><span>Hoje</span></button>
+    <button type="button" data-scroll="entregaveis"><span>◌</span><span>Biblioteca</span></button>
+    <button type="button" data-dialog="upgrade-dialog"><span>✧</span><span>Upgrade</span></button>
+  </nav>
+  <div class="toast" role="status" aria-live="polite"></div>
+
+  <dialog id="horoscopo-dialog" aria-labelledby="horoscopo-title">
+    <div class="dialog-inner">
+      <button class="dialog-close" type="button" aria-label="Fechar">×</button>
+      <p class="eyebrow">Leitura completa · 29 de julho</p>
+      <h2 id="horoscopo-title">A sua intuição já está trabalhando.</h2>
+      <p>Há uma diferença entre esperar o momento certo e adiar o que já amadureceu. Hoje, o céu favorece escolhas simples, conversas sem rodeios e um compromisso possível com aquilo que te faz bem.</p>
+      <p>Se puder, reserve vinte minutos sem notificações. Uma ideia que parecia pequena pode se revelar a direção que faltava.</p>
+      <div class="dialog-actions"><button class="button ghost small dialog-close" type="button">Voltar ao portal</button><button class="button small" type="button" data-toast="Leitura salva na sua biblioteca.">Salvar leitura</button></div>
+    </div>
+  </dialog>
+  <dialog id="upgrade-dialog" aria-labelledby="upgrade-title">
+    <div class="dialog-inner">
+      <button class="dialog-close" type="button" aria-label="Fechar">×</button>
+      <p class="eyebrow">Upgrade do Plano Lua</p>
+      <h2 id="upgrade-title">Mais duas lentes para ler seu céu.</h2>
+      <p>Desbloqueie o Mapa do Amor e o Mapa da Prosperidade. O acesso aparece imediatamente no seu portal após a confirmação.</p>
+      <div class="dialog-actions"><button class="button ghost small dialog-close" type="button">Agora não</button><button class="button small" type="button" data-checkout-upgrade data-checkout-key="plano_lua_premium" data-offer-title="Plano Lua Premium">Ir para checkout →</button></div>
+    </div>
+  </dialog>
+
+  <dialog id="reading-dialog" aria-labelledby="reading-title">
+    <div class="dialog-inner">
+      <button class="dialog-close" type="button" aria-label="Fechar">×</button>
+      <p class="eyebrow" id="reading-kicker">Leitura AstroDicas</p>
+      <h2 id="reading-title">Seu conteúdo</h2>
+      <div class="dialog-content" id="reading-content"></div>
+      <div class="dialog-actions">
+        <button class="button ghost small dialog-close" type="button">Voltar ao portal</button>
+        <button class="button ghost small" type="button" data-print-reading>Imprimir / PDF</button>
+        <button class="button small" type="button" data-toast="Leitura salva na sua biblioteca.">Salvar leitura</button>
+      </div>
+    </div>
+  </dialog>
+
+  <dialog id="account-dialog" aria-labelledby="account-title">
+    <div class="dialog-inner">
+      <button class="dialog-close" type="button" aria-label="Fechar">×</button>
+      <p class="eyebrow">Sua conta · canal web</p>
+      <h2 id="account-title">Marina Alves</h2>
+      <p>Seu acesso é pessoal e fica separado de qualquer compra ou conversa feita pelo Telegram.</p>
+      <div class="account-detail">
+        <div><span>E-mail</span><strong>marina@exemplo.com</strong></div>
+        <div><span>Plano atual</span><strong>Plano Lua · ativo</strong></div>
+        <div><span>Próxima cobrança</span><strong>29 jul 2027</strong></div>
+      </div>
+      <div class="dialog-actions"><button class="button ghost small dialog-close" type="button">Fechar</button><button class="button small" type="button" data-toast="Um link de acesso foi enviado para seu e-mail.">Enviar link de acesso</button></div>
+    </div>
+  </dialog>
+
+  <script type="module">
+    /*
+     * Catálogo do canal web. Os identificadores são próprios do site (site:*)
+     * e não devem ser reutilizados pelo produto Telegram. O backend pode trocar
+     * o conteúdo e o checkout por meio de window.PORTAL_CONFIG sem alterar a UI.
+     */
+    const IS_ARGENTINA = window.location.pathname === '/es' || window.location.pathname.startsWith('/es/');
+    const CONFIG_URL = IS_ARGENTINA ? '/portal-config-ar.js' : './portal-config.js';
+    const { default: PORTAL_CONFIG } = await import(CONFIG_URL);
+    window.PORTAL_CONFIG = PORTAL_CONFIG;
+    const DEMO_PAID = new URLSearchParams(window.location.search).get('demo') === 'paid';
+    const ACCESS_STATES = Object.freeze({ available: 'available', locked: 'locked', inProgress: 'in_progress', new: 'new', pending: 'pending', expired: 'expired', revoked: 'revoked' });
+    const USER_ACCESS = Object.freeze({
+      'site:content:boas_vindas': ACCESS_STATES.new,
+      'site:content:horoscopo_diario': ACCESS_STATES.available,
+      'site:content:guia_do_mes': ACCESS_STATES.available,
+      'site:content:mapa_astral_completo': ACCESS_STATES.available,
+      'site:content:previsao_semanal': ACCESS_STATES.available,
+    });
+    const CONTENT_COPY = Object.freeze({
+      'site:content:boas_vindas': { icon: '✦', kicker: 'Primeira leitura', meta: 'Leitura · 5 min', reading: '<p>Este é o seu espaço para ler o céu com calma. Comece por uma leitura, volte quando quiser e deixe as perguntas certas aparecerem no caminho.</p><h3>Como usar seu portal</h3><ul><li>Abra uma leitura por vez.</li><li>Salve o que quiser revisitar.</li><li>O PDF é opcional: a experiência principal acontece aqui.</li></ul>' },
+      'site:content:horoscopo_diario': { icon: '☽', kicker: 'Plano Lua', meta: 'Atualizado hoje · leitura personalizada', reading: '<p>Hoje você pode sentir que está carregando mais do que contou para alguém. Há uma parte sua tentando manter tudo sob controle, enquanto outra já percebeu que uma escolha precisa ser feita. Antes de responder no automático, observe onde seu corpo relaxa — essa é a pista mais honesta do seu dia.</p><p>Nas relações, o céu favorece uma conversa direta, mas não uma conversa dura. Diga o que você precisa sem transformar sua necessidade em cobrança. Quem realmente está disponível para você vai entender melhor quando você trocar a explicação interminável por uma frase simples, dita no momento certo.</p><p>No trabalho e nos planos pessoais, escolha uma prioridade que possa ser concluída, não uma lista que sirva apenas para provar o quanto você aguenta. O movimento de hoje é pequeno e decisivo: proteger sua energia, terminar o que importa e deixar o restante esperar. À noite, anote o que se repetiu — ali está o tema que seu mapa está pedindo para você olhar com mais carinho.</p>' },
+      'site:content:guia_do_mes': { icon: '◌', kicker: 'Plano Lua', meta: 'Julho · 12 min', reading: '<p>Este mês pede presença nas pequenas decisões. Use as mudanças do céu como um convite para ajustar o ritmo, não como uma lista de regras.</p><h3>Prática do mês</h3><ul><li>Escolha uma palavra-guia.</li><li>Reserve um espaço sem notificações por semana.</li><li>Registre o que se repete nos seus dias.</li></ul>' },
+      'site:content:mapa_astral_completo': { icon: '✦', kicker: 'Leitura principal', meta: 'Leitura · 28 min', reading: '<p>Seu mapa natal é a fotografia simbólica do céu no instante em que você chegou ao mundo. Explore cada camada no seu ritmo e volte sempre que uma fase pedir novas palavras.</p><h3>Você vai encontrar</h3><ul><li>Tríade principal e temperamento.</li><li>Casas, planetas e aspectos de destaque.</li><li>Perguntas para observar na vida real.</li></ul>' },
+      'site:content:mapa_do_amor_sinastria': { icon: '♡', kicker: 'Leitura avulsa', meta: 'Desbloqueie para ler', reading: '<p>Uma leitura para compreender a dinâmica entre duas pessoas com delicadeza e profundidade — sem transformar vínculo em sentença.</p>' },
+      'site:content:mapa_da_carreira': { icon: '✧', kicker: 'Leitura avulsa', meta: 'Desbloqueie para ler', reading: '<p>Seu mapa também fala sobre trabalho, visibilidade e a maneira como você constrói algo que importa.</p>' },
+      'site:content:mapa_da_prosperidade': { icon: '◇', kicker: 'Leitura avulsa', meta: 'Desbloqueie para ler', reading: '<p>Prosperidade é relação: com tempo, recursos, prazer e segurança. Esta leitura abre novas perguntas para suas escolhas.</p>' },
+      'site:content:previsao_semanal': { icon: '◷', kicker: 'Plano Lua', meta: 'Domingo · automático', reading: '<p>A previsão semanal combina os movimentos do céu com o seu mapa. Ela chega no domingo e fica disponível nesta biblioteca durante todo o ciclo.</p><h3>Como usar</h3><ul><li>Leia no início da semana.</li><li>Marque o tema que mais ressoa.</li><li>Retorne no fim para observar o que mudou.</li></ul>' },
+      'site:content:calendario_lunar': { icon: '☾', kicker: 'Bônus Premium', meta: 'Incluído no Premium', reading: '<p>Um calendário para acompanhar luas novas, cheias e os momentos de recolhimento e expansão do ano.</p>' },
+      'site:content:guia_dos_retrogrados': { icon: '↺', kicker: 'Bônus Premium', meta: 'Incluído no Premium', reading: '<p>Retrogradações são convites para rever. Use este guia para atravessar cada fase com menos pressa e mais contexto.</p>' },
+      'site:content:manual_do_ascendente': { icon: '↑', kicker: 'Bônus Premium', meta: 'Incluído no Premium', reading: '<p>Seu Ascendente fala sobre a primeira impressão, o corpo e a forma como você encontra o mundo. Uma leitura para voltar muitas vezes.</p>' },
+    });
+    const FALLBACK_LIBRARY_ITEMS = [
+      { id: 'site:content:boas_vindas', productId: null, title: 'Boas-vindas ao seu céu', description: 'Um pequeno ritual para começar a explorar sua área AstroDicas.' },
+      { id: 'site:content:horoscopo_diario', productId: 'site:plano_lua', title: 'Horóscopo diário', description: 'Uma leitura breve calculada sobre o seu mapa natal.' },
+      { id: 'site:content:guia_do_mes', productId: 'site:plano_lua', title: 'Guia do mês', description: 'Ritual editorial com os principais movimentos e uma prática para o mês.' },
+      { id: 'site:content:mapa_astral_completo', productId: 'site:mapa_astral', title: 'Mapa Astral Completo', description: 'Sol, Lua, Ascendente, casas, planetas e aspectos em uma leitura contínua.' },
+      { id: 'site:content:mapa_do_amor_sinastria', productId: 'site:mapa_amor_sinastria', title: 'Mapa do Amor · Sinastria', description: 'Encontre os pontos de encontro, desejo e cuidado entre dois mapas.' },
+      { id: 'site:content:mapa_da_carreira', productId: 'site:mapa_carreira', title: 'Mapa da Carreira', description: 'Talentos, direção e escolhas profissionais vistos pelo seu céu.' },
+      { id: 'site:content:mapa_da_prosperidade', productId: 'site:mapa_prosperidade', title: 'Mapa da Prosperidade', description: 'Uma leitura sobre recursos, merecimento e a forma como você sustenta seus planos.' },
+      { id: 'site:content:previsao_semanal', productId: 'site:oferta_plano_lua_premium', title: 'Previsão da semana', description: 'Uma lente personalizada para atravessar a semana com mais clareza.' },
+      { id: 'site:content:calendario_lunar', productId: 'site:oferta_plano_lua_premium', title: 'Calendário lunar', description: 'As fases do ano organizadas para você planejar, pausar e recomeçar.' },
+      { id: 'site:content:guia_dos_retrogrados', productId: 'site:oferta_plano_lua_premium', title: 'Guia dos retrógrados', description: 'O que revisar, recalibrar e observar quando os planetas parecem voltar.' },
+      { id: 'site:content:manual_do_ascendente', productId: 'site:oferta_plano_lua_premium', title: 'Manual do Ascendente', description: 'A presença que chega antes das palavras — e como cuidar dela.' },
+    ].map((item) => ({
+      ...item,
+      ...CONTENT_COPY[item.id],
+      state: DEMO_PAID && item.productId ? ACCESS_STATES.available : (USER_ACCESS[item.id] || ACCESS_STATES.locked),
+      downloadable: item.id !== 'site:content:boas_vindas',
+      downloadUrl: '',
+    }));
+
+    const OFFER_COPY_BR = Object.freeze({
+      'site:plano_lua': ['Assinatura', 'Plano Lua', 'Horóscopo personalizado, Mapa Astral e Guia do Mês na sua área.', 'R$ 27,90', '/mês · cancela quando quiser', 'Conhecer Plano Lua'],
+      'site:mapa_astral': ['Leitura avulsa', 'Mapa Astral Completo', 'A leitura natal completa para guardar, revisitar e compartilhar quando quiser.', 'A partir de R$ 47,00', 'acesso permanente', 'Ver Mapa Astral'],
+      'site:mapa_amor_sinastria': ['Leitura avulsa', 'Mapa do Amor · Sinastria', 'Duas histórias, uma leitura cuidadosa sobre encontro, desejo e parceria.', 'A partir de R$ 47,00', 'acesso permanente', 'Ver Mapa do Amor'],
+      'site:mapa_carreira': ['Leitura avulsa', 'Mapa da Carreira', 'Talentos e direção para tomar decisões profissionais com mais presença.', 'A partir de R$ 47,00', 'acesso permanente', 'Ver Mapa da Carreira'],
+      'site:mapa_prosperidade': ['Leitura avulsa', 'Mapa da Prosperidade', 'Uma nova lente para recursos, merecimento e os planos que você sustenta.', 'A partir de R$ 47,00', 'acesso permanente', 'Ver Prosperidade'],
+      'site:oferta_plano_lua_premium': ['Pagamento único', 'Plano Lua Premium', 'Um mês do Plano Lua + Amor, Prosperidade, calendário, retrógrados e Ascendente.', 'R$ 97,00', 'uma vez · acesso aos bônus', 'Desbloquear tudo'],
+      'site:combo_mapa_astral_amor': ['Combinação', 'Mapa Astral + Mapa do Amor', 'Seu mapa natal completo e uma leitura dos seus encontros.', 'R$ 79,00', 'pagamento único', 'Conhecer combinação'],
+      'site:combo_mapa_astral_carreira': ['Combinação', 'Mapa Astral + Mapa da Carreira', 'Identidade e direção profissional na mesma experiência.', 'R$ 79,00', 'pagamento único', 'Conhecer combinação'],
+      'site:combo_mapa_astral_prosperidade': ['Combinação', 'Mapa Astral + Mapa da Prosperidade', 'Seu céu natal e os caminhos de abundância que ele revela.', 'R$ 79,00', 'pagamento único', 'Conhecer combinação'],
+      'site:combo_amor_carreira': ['Combinação', 'Mapa do Amor + Mapa da Carreira', 'Relações e direção profissional em duas leituras complementares.', 'R$ 79,00', 'pagamento único', 'Conhecer combinação'],
+      'site:combo_amor_prosperidade': ['Combinação', 'Mapa do Amor + Mapa da Prosperidade', 'Relações e recursos vistos em duas leituras complementares.', 'R$ 79,00', 'pagamento único', 'Conhecer combinação'],
+      'site:combo_carreira_prosperidade': ['Combinação', 'Mapa da Carreira + Mapa da Prosperidade', 'Trabalho, talento e abundância em uma jornada única.', 'R$ 79,00', 'pagamento único', 'Conhecer combinação'],
+      'site:combo_plano_lua_mapa_astral': ['Combinação', 'Plano Lua + Mapa Astral', 'Acompanhamento mensal e seu mapa completo em uma só compra.', 'R$ 67,00', 'pagamento único', 'Conhecer combinação'],
+      'site:combo_plano_lua_mapa_amor': ['Combinação', 'Plano Lua + Mapa do Amor', 'Seu céu diário e uma leitura especial para os relacionamentos.', 'R$ 67,00', 'pagamento único', 'Conhecer combinação'],
+      'site:combo_plano_lua_mapa_prosperidade': ['Combinação', 'Plano Lua + Mapa da Prosperidade', 'Seu acompanhamento diário e uma leitura para prosperar.', 'R$ 67,00', 'pagamento único', 'Conhecer combinação'],
+    });
+    const OFFER_COPY_AR = Object.freeze({
+      'site:plano_lua': ['Suscripción', 'Plan Luna', 'Horóscopo personalizado, Mapa Astral y Guía del Mes en tu área.', 'ARS 9.900', '/mes · cancela cuando quieras', 'Conocer Plan Luna'],
+      'site:mapa_astral': ['Lectura individual', 'Mapa Astral Completo', 'Una lectura profunda para guardar y volver a consultar.', 'Desde ARS 16.900', 'acceso permanente', 'Ver Mapa Astral'],
+      'site:mapa_amor_sinastria': ['Lectura individual', 'Mapa del Amor · Sinastría', 'Dos historias y una lectura cuidadosa sobre el encuentro.', 'Desde ARS 16.900', 'acceso permanente', 'Ver Mapa del Amor'],
+      'site:mapa_carreira': ['Lectura individual', 'Mapa de la Carrera', 'Talentos y dirección para tus próximas decisiones profesionales.', 'Desde ARS 16.900', 'acceso permanente', 'Ver Mapa de la Carrera'],
+      'site:mapa_prosperidade': ['Lectura individual', 'Mapa de la Prosperidad', 'Una nueva mirada sobre recursos, merecimiento y abundancia.', 'Desde ARS 16.900', 'acceso permanente', 'Ver Prosperidad'],
+      'site:oferta_plano_lua_premium': ['Pago único', 'Plan Luna Premium', 'Un mes de Plan Luna más todos los bonus de lectura.', 'ARS 34.900', 'una vez · acceso a los bonus', 'Desbloquear todo'],
+      'site:combo_mapa_astral_amor': ['Combinación', 'Mapa Astral + Mapa del Amor', 'Tu mapa natal y una lectura de tus encuentros.', 'ARS 27.900', 'pago único', 'Conocer combinación'],
+      'site:combo_mapa_astral_carreira': ['Combinación', 'Mapa Astral + Mapa de la Carrera', 'Identidad y dirección profesional en una sola experiencia.', 'ARS 27.900', 'pago único', 'Conocer combinación'],
+      'site:combo_mapa_astral_prosperidade': ['Combinación', 'Mapa Astral + Mapa de la Prosperidad', 'Tu cielo natal y los caminos de abundancia que revela.', 'ARS 27.900', 'pago único', 'Conocer combinación'],
+      'site:combo_amor_carreira': ['Combinación', 'Mapa del Amor + Mapa de la Carrera', 'Relaciones y dirección profesional en una experiencia.', 'ARS 27.900', 'pago único', 'Conocer combinación'],
+      'site:combo_amor_prosperidade': ['Combinación', 'Mapa del Amor + Mapa de la Prosperidad', 'Relaciones y recursos en dos lecturas complementarias.', 'ARS 27.900', 'pago único', 'Conocer combinación'],
+      'site:combo_carreira_prosperidade': ['Combinación', 'Mapa de la Carrera + Prosperidad', 'Trabajo, talento y abundancia en una jornada única.', 'ARS 27.900', 'pago único', 'Conocer combinación'],
+      'site:combo_plano_lua_mapa_astral': ['Combinación', 'Plan Luna + Mapa Astral', 'Acompañamiento mensual y tu mapa completo.', 'ARS 23.900', 'pago único', 'Conocer combinación'],
+      'site:combo_plano_lua_mapa_amor': ['Combinación', 'Plan Luna + Mapa del Amor', 'Tu cielo diario y una lectura para tus relaciones.', 'ARS 23.900', 'pago único', 'Conocer combinación'],
+      'site:combo_plano_lua_mapa_prosperidade': ['Combinación', 'Plan Luna + Prosperidad', 'Acompañamiento diario y una lectura para prosperar.', 'ARS 23.900', 'pago único', 'Conocer combinación'],
+    });
+    const OFFER_COPY = IS_ARGENTINA ? OFFER_COPY_AR : OFFER_COPY_BR;
+    let LIBRARY_ITEMS = FALLBACK_LIBRARY_ITEMS;
+    let OFFERS = Object.entries(OFFER_COPY).map(([id, [kicker, title, description, price, cadence, button]]) => ({ id, checkoutKey: id, kicker, title, description, price, cadence, button }));
+    /* legacy demo data retained for reference; the portal uses the normalized catalog above.
+      { id: 'site:horoscopo-diario', title: 'Horóscopo diário', kicker: 'Plano Lua', icon: '☽', description: 'Uma leitura breve calculada sobre o seu mapa natal.', meta: 'Atualizado hoje', unlocked: true, reading: '<p>O céu de hoje favorece escolhas simples e conversas sem rodeios. Repare no que seu corpo já sabe antes de pedir opinião para todo mundo.</p><h3>Para levar com você</h3><ul><li>Escolha uma prioridade possível.</li><li>Proteja sua energia antes de explicar tudo.</li><li>Deixe o resto encontrar o próprio ritmo.</li></ul>' },
+      { id: 'site:mapa-astral', title: 'Mapa Astral Completo', kicker: 'Leitura principal', icon: '✦', description: 'Sol, Lua, Ascendente, casas, planetas e aspectos em uma leitura contínua.', meta: 'Leitura · 28 min', unlocked: true, reading: '<p>Seu mapa natal é a fotografia simbólica do céu no instante em que você chegou ao mundo. Explore cada camada no seu ritmo e volte sempre que uma fase pedir novas palavras.</p><h3>Você vai encontrar</h3><ul><li>Tríade principal e temperamento.</li><li>Casas, planetas e aspectos de destaque.</li><li>Perguntas para observar na vida real.</li></ul>' },
+      { id: 'site:guia-do-mes', title: 'Guia do mês', kicker: 'Novo conteúdo', icon: '◌', description: 'Ritual editorial com os principais movimentos e uma prática para o mês.', meta: 'Julho · 12 min', unlocked: true, reading: '<p>Este mês pede presença nas pequenas decisões. Use as mudanças do céu como um convite para ajustar o ritmo, não como uma lista de regras.</p><h3>Prática do mês</h3><ul><li>Escolha uma palavra-guia.</li><li>Reserve um espaço sem notificações por semana.</li><li>Registre o que se repete nos seus dias.</li></ul>' },
+      { id: 'site:previsao-semanal', title: 'Previsão da semana', kicker: 'Próximo envio', icon: '◷', description: 'Uma lente personalizada para atravessar a semana com mais clareza.', meta: 'Domingo · automático', unlocked: true, reading: '<p>A previsão semanal combina os movimentos do céu com o seu mapa. Ela chega no domingo e fica disponível nesta biblioteca durante todo o ciclo.</p><h3>Como usar</h3><ul><li>Leia no início da semana.</li><li>Marque o tema que mais ressoa.</li><li>Retorne no fim para observar o que mudou.</li></ul>' },
+      { id: 'site:mapa-amor-sinastria', title: 'Mapa do Amor · Sinastria', kicker: 'Produto avulso', icon: '♡', description: 'Encontre os pontos de encontro, desejo e cuidado entre dois mapas.', meta: 'Desbloqueie para ler', unlocked: false, checkoutKey: 'mapa_amor', reading: '<p>Uma leitura para compreender a dinâmica entre duas pessoas com delicadeza e profundidade — sem transformar vínculo em sentença.</p>' },
+      { id: 'site:mapa-carreira', title: 'Mapa da Carreira', kicker: 'Produto avulso', icon: '✧', description: 'Talentos, direção e escolhas profissionais vistos pelo seu céu.', meta: 'Desbloqueie para ler', unlocked: false, checkoutKey: 'mapa_carreira', reading: '<p>Seu mapa também fala sobre trabalho, visibilidade e a maneira como você constrói algo que importa.</p>' },
+      { id: 'site:mapa-prosperidade', title: 'Mapa da Prosperidade', kicker: 'Produto avulso', icon: '◇', description: 'Uma leitura sobre recursos, merecimento e a forma como você sustenta seus planos.', meta: 'Desbloqueie para ler', unlocked: false, checkoutKey: 'mapa_prosperidade', reading: '<p>Prosperidade é relação: com tempo, recursos, prazer e segurança. Esta leitura abre novas perguntas para suas escolhas.</p>' },
+      { id: 'site:calendario-lunar', title: 'Calendário lunar', kicker: 'Bônus Premium', icon: '☾', description: 'As fases do ano organizadas para você planejar, pausar e recomeçar.', meta: 'Incluído no Premium', unlocked: false, checkoutKey: 'plano_lua_premium', reading: '<p>Um calendário para acompanhar luas novas, cheias e os momentos de recolhimento e expansão do ano.</p>' },
+      { id: 'site:guia-retrogrados', title: 'Guia dos retrógrados', kicker: 'Bônus Premium', icon: '↺', description: 'O que revisar, recalibrar e observar quando os planetas parecem voltar.', meta: 'Incluído no Premium', unlocked: false, checkoutKey: 'plano_lua_premium', reading: '<p>Retrogradações são convites para rever. Use este guia para atravessar cada fase com menos pressa e mais contexto.</p>' },
+      { id: 'site:manual-ascendente', title: 'Manual do Ascendente', kicker: 'Bônus Premium', icon: '↑', description: 'A presença que chega antes das palavras — e como cuidar dela.', meta: 'Incluído no Premium', unlocked: false, checkoutKey: 'plano_lua_premium', reading: '<p>Seu Ascendente fala sobre a primeira impressão, o corpo e a forma como você encontra o mundo. Uma leitura para voltar muitas vezes.</p>' }
+    ]; */
+
+    /* legacy offer list
+      const OFFERS = [
+      { id: 'site:plano-lua', checkoutKey: 'plano_lua', kicker: 'Assinatura', title: 'Plano Lua', description: 'Horóscopo diário no seu mapa, Mapa Astral Completo e um Guia do Mês novo.', price: 'R$ 27,90', cadence: '/mês · cancela quando quiser', button: 'Conhecer Plano Lua' },
+      { id: 'site:plano-lua-premium', checkoutKey: 'plano_lua_premium', kicker: 'Pagamento único', title: 'Plano Lua Premium', description: 'Um mês do Plano Lua + Amor, Prosperidade, calendário, retrógrados e Ascendente.', price: 'R$ 97,00', cadence: 'uma vez · acesso aos bônus', button: 'Desbloquear tudo' },
+      { id: 'site:mapa-astral-avulso', checkoutKey: 'mapa_astral', kicker: 'Leitura avulsa', title: 'Mapa Astral Completo', description: 'A leitura natal completa para guardar, revisitar e compartilhar quando quiser.', price: 'A partir de R$ 47,00', cadence: 'acesso permanente', button: 'Ver Mapa Astral' },
+      { id: 'site:mapa-amor', checkoutKey: 'mapa_amor', kicker: 'Leitura avulsa', title: 'Mapa do Amor · Sinastria', description: 'Duas histórias, uma leitura cuidadosa sobre encontro, desejo e parceria.', price: 'A partir de R$ 47,00', cadence: 'acesso permanente', button: 'Ver Mapa do Amor' },
+      { id: 'site:mapa-carreira-oferta', checkoutKey: 'mapa_carreira', kicker: 'Leitura avulsa', title: 'Mapa da Carreira', description: 'Talentos e direção para tomar decisões profissionais com mais presença.', price: 'A partir de R$ 47,00', cadence: 'acesso permanente', button: 'Ver Mapa da Carreira' },
+      { id: 'site:mapa-prosperidade-oferta', checkoutKey: 'mapa_prosperidade', kicker: 'Leitura avulsa', title: 'Mapa da Prosperidade', description: 'Uma nova lente para recursos, merecimento e os planos que você sustenta.', price: 'A partir de R$ 47,00', cadence: 'acesso permanente', button: 'Ver Prosperidade' },
+      { id: 'site:combo-mapas', checkoutKey: 'combo_mapas', kicker: 'Combinação', title: 'Tríade do seu céu', description: 'Amor, Carreira e Prosperidade em uma jornada única, com valor especial.', price: 'R$ 117,00', cadence: 'pagamento único', button: 'Conhecer combinação' }
+    ]; */
+
+    const toast = document.querySelector('.toast');
+    let toastTimer;
+    function showToast(message) {
+      toast.textContent = message;
+      toast.classList.add('show');
+      clearTimeout(toastTimer);
+      toastTimer = setTimeout(() => toast.classList.remove('show'), 3200);
+    }
+    function openDialog(id) { document.getElementById(id)?.showModal(); }
+    function checkoutUrl(key) {
+      const config = window.PORTAL_CONFIG || {};
+      const provider = config.checkout?.defaultProvider || 'cakto';
+      const aliases = {
+        plano_lua: 'site:plano_lua',
+        plano_lua_premium: 'site:oferta_plano_lua_premium',
+        mapa_astral: 'site:mapa_astral',
+        mapa_amor: 'site:mapa_amor_sinastria',
+        mapa_carreira: 'site:mapa_carreira',
+        mapa_prosperidade: 'site:mapa_prosperidade',
+        combo_mapas: 'site:combo_mapa_astral_amor',
+      };
+      const productId = aliases[key] || key;
+      return config.checkout?.providers?.[provider]?.checkoutUrls?.[productId] || '';
+    }
+    function startCheckout(key, title) {
+      const url = checkoutUrl(key);
+      if (url) { window.location.href = url; return; }
+      showToast(`Checkout de “${title}” será conectado ao canal web.`);
+    }
+    function renderLibrary() {
+      const grid = document.getElementById('library-grid');
+      grid.innerHTML = LIBRARY_ITEMS.map((item) => `
+        <article class="asset${item.state === ACCESS_STATES.locked ? ' locked' : ''}" data-product="${item.id}" data-state="${item.state}" aria-label="${item.title}, ${item.state}">
+          ${item.state === ACCESS_STATES.locked ? '<span class="lock-label">bloqueado</span>' : ''}
+          <div class="asset-icon" aria-hidden="true">${item.icon}</div>
+          <div class="asset-kicker">${item.kicker}</div>
+          <h3>${item.title}</h3>
+          <p>${item.description}</p>
+          <div class="asset-meta">${item.meta}</div>
+          <div class="asset-actions">
+            <button class="button ${item.state === ACCESS_STATES.locked ? 'ghost' : ''} small" type="button" data-read="${item.id}">${item.state === ACCESS_STATES.locked ? 'Conhecer produto →' : item.state === ACCESS_STATES.new ? 'Começar leitura →' : 'Abrir leitura →'}</button>
+            ${item.state !== ACCESS_STATES.locked && item.downloadable ? (item.downloadUrl ? '<a class="button ghost small" href="'+item.downloadUrl+'" download>Baixar PDF</a>' : '<button class="button ghost small" type="button" data-print="'+item.id+'" aria-label="Imprimir ou salvar '+item.title+'">PDF</button>') : ''}
+          </div>
+        </article>`).join('');
+      const active = LIBRARY_ITEMS.filter((item) => item.state !== ACCESS_STATES.locked).length;
+      document.getElementById('active-count').textContent = String(active).padStart(2, '0');
+      document.getElementById('total-count').textContent = String(LIBRARY_ITEMS.length).padStart(2, '0');
+      document.querySelector('[href="#entregaveis"]').textContent = `${String(active).padStart(2, '0')} conteúdos ativos`;
+    }
+    function renderOffers() {
+      document.getElementById('offer-grid').innerHTML = OFFERS.map((offer) => `
+        <article class="offer" data-offer="${offer.id}">
+          <div class="offer-kicker">${offer.kicker}</div>
+          <h3>${offer.title}</h3>
+          <p>${offer.description}</p>
+          <span class="offer-price">${offer.price} <small>${offer.cadence}</small></span>
+          <button class="button small" type="button" data-offer-checkout="${offer.checkoutKey}" data-offer-title="${offer.title}">${offer.button} →</button>
+        </article>`).join('');
+      const upsell = OFFERS.filter((offer) => offer.id !== 'site:plano-lua').slice(0, 3);
+      document.getElementById('upsell-list').innerHTML = upsell.map((offer) => `<div class="upsell-item"><b>✦</b><span>${offer.title}</span></div>`).join('');
+    }
+    function openReading(item) {
+      if (!item) return;
+      if (item.state === ACCESS_STATES.locked) {
+        const dialog = document.getElementById('upgrade-dialog');
+        dialog.querySelector('.eyebrow').textContent = `${item.kicker} · desbloqueio`;
+        dialog.querySelector('#upgrade-title').textContent = `${item.title} pode fazer parte do seu céu.`;
+        dialog.querySelector('.dialog-inner > p:not(.eyebrow)').textContent = item.description + ' Escolha a oferta que combina com o momento e o acesso aparece aqui após a confirmação.';
+        const cta = dialog.querySelector('[data-checkout-upgrade]');
+        cta.dataset.checkoutKey = item.checkoutKey || 'plano_lua_premium';
+        cta.dataset.offerTitle = item.title;
+        cta.textContent = 'Ver opções de acesso →';
+        openDialog('upgrade-dialog');
+        return;
+      }
+      document.getElementById('reading-kicker').textContent = `${item.kicker} · leitura web`;
+      document.getElementById('reading-title').textContent = item.title;
+      document.getElementById('reading-content').innerHTML = item.reading;
+      document.querySelector('[data-print-reading]').dataset.printTitle = item.title;
+      openDialog('reading-dialog');
+    }
+    const contentById = Object.fromEntries((PORTAL_CONFIG.content || []).map((entry) => [entry.id, entry]));
+    LIBRARY_ITEMS = LIBRARY_ITEMS.map((item) => ({
+      ...item,
+      ...(contentById[item.id] ? {
+        title: contentById[item.id].title,
+        description: contentById[item.id].summary,
+        downloadable: contentById[item.id].downloadable !== false,
+        downloadUrl: contentById[item.id].download?.url || '',
+      } : {}),
+    }));
+    renderLibrary();
+    renderOffers();
+
+    document.addEventListener('click', (event) => {
+      const target = event.target.closest('button, a');
+      if (!target) return;
+      if (target.matches('[data-toast]')) { if (target.getAttribute('href') === '#') event.preventDefault(); showToast(target.dataset.toast); }
+      if (target.matches('[data-dialog]')) openDialog(target.dataset.dialog);
+      if (target.matches('.dialog-close')) target.closest('dialog')?.close();
+      if (target.matches('[data-read]')) openReading(LIBRARY_ITEMS.find((item) => item.id === target.dataset.read));
+      if (target.matches('[data-print]')) { showToast('Preparando uma versão para impressão…'); window.print(); }
+      if (target.matches('[data-print-reading]')) { showToast(`Preparando “${target.dataset.printTitle || 'leitura'}” para impressão…`); window.print(); }
+      if (target.matches('[data-offer-checkout]')) startCheckout(target.dataset.offerCheckout, target.dataset.offerTitle);
+      if (target.matches('[data-checkout-upgrade]')) { startCheckout(target.dataset.checkoutKey, target.dataset.offerTitle || 'seu upgrade'); target.closest('dialog')?.close(); }
+      if (target.matches('[data-scroll]')) {
+        document.getElementById(target.dataset.scroll)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        document.querySelectorAll('.mobile-nav button').forEach((item) => item.classList.toggle('active', item === target));
+      }
+    });
+  </script>
+</body>
+</html>

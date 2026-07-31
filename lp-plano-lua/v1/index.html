@@ -1,0 +1,617 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Plano Lua — seu horóscopo calculado no seu mapa astral | AstroDicas</title>
+<meta name="description" content="Horóscopo diário calculado em cima do SEU mapa astral, entregue no site e no seu e-mail. Mapa Astral Completo de brinde na primeira assinatura.">
+<meta property="og:title" content="Plano Lua — seu horóscopo, não o do seu signo">
+<meta property="og:description" content="Horóscopo diário calculado no seu mapa astral. Mapa Astral Completo de brinde.">
+<meta property="og:type" content="website">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,600;1,300;1,400&family=Jost:wght@300;400;500;600&display=swap" rel="stylesheet">
+
+<!-- ═══════════════ CONFIG — editar só aqui ═══════════════ -->
+<script>
+window.LP = {
+  CHECKOUT_URL: "https://pay.cakto.com.br/SEU-PRODUTO",   // ← link do checkout Cakto
+  PIXEL_ID:     "SEU_PIXEL_ID",                            // ← Meta Pixel
+  PRECO:        "37,90",
+  PRECO_ANCORA: "97",
+  RECORRENCIA:  "depois R$16,90/mês",                      // "" pra esconder
+  VAGAS:        37
+};
+</script>
+
+<style>
+:root{
+  --ink:#07061a;
+  --ink-2:#0e0b2e;
+  --ink-3:#171144;
+  --gold:#d9ac5c;
+  --gold-lit:#f4d79a;
+  --gold-dim:rgba(217,172,92,.28);
+  --cream:#f4efe4;
+  --cream-dim:rgba(244,239,228,.62);
+  --cream-faint:rgba(244,239,228,.34);
+  --rose:#c98b8b;
+  --display:"Cormorant Garamond",Georgia,serif;
+  --body:"Jost",-apple-system,sans-serif;
+  --maxw:1180px;
+  --rule:1px solid rgba(217,172,92,.22);
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html{scroll-behavior:smooth;-webkit-text-size-adjust:100%}
+body{
+  background:var(--ink);color:var(--cream);
+  font-family:var(--body);font-weight:300;font-size:17px;line-height:1.65;
+  overflow-x:hidden;
+  -webkit-font-smoothing:antialiased;
+}
+
+/* ── atmosfera: céu, grão, halos ── */
+body::before{
+  content:"";position:fixed;inset:0;z-index:0;pointer-events:none;
+  background:
+    radial-gradient(ellipse 80% 55% at 50% -10%, rgba(90,62,180,.42), transparent 70%),
+    radial-gradient(ellipse 60% 45% at 92% 22%, rgba(217,172,92,.13), transparent 70%),
+    radial-gradient(ellipse 70% 50% at 4% 68%, rgba(120,70,160,.18), transparent 70%);
+}
+body::after{
+  content:"";position:fixed;inset:0;z-index:1;pointer-events:none;opacity:.32;
+  background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='140' height='140'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='3'/%3E%3C/filter%3E%3Crect width='140' height='140' filter='url(%23n)' opacity='.38'/%3E%3C/svg%3E");
+  mix-blend-mode:overlay;
+}
+#stars{position:fixed;inset:0;z-index:0;pointer-events:none}
+.star{position:absolute;background:#fff;border-radius:50%;animation:twinkle 4s ease-in-out infinite}
+@keyframes twinkle{0%,100%{opacity:.12;transform:scale(.8)}50%{opacity:.9;transform:scale(1.15)}}
+
+main,header,footer{position:relative;z-index:2}
+.wrap{max-width:var(--maxw);margin:0 auto;padding:0 24px}
+
+/* ── tipografia ── */
+h1,h2,h3{font-family:var(--display);font-weight:300;line-height:1.04;letter-spacing:-.015em}
+h1{font-size:clamp(2.4rem,6.6vw,4.3rem)}
+h2{font-size:clamp(2.1rem,5.6vw,3.6rem)}
+h3{font-size:clamp(1.35rem,2.6vw,1.7rem)}
+em{font-style:italic;color:var(--gold-lit)}
+.eyebrow{
+  font-family:var(--body);font-size:.72rem;font-weight:500;
+  letter-spacing:.32em;text-transform:uppercase;color:var(--gold);
+  display:flex;align-items:center;gap:14px;
+}
+.eyebrow::after{content:"";flex:1;height:1px;background:linear-gradient(90deg,var(--gold-dim),transparent);max-width:120px}
+.lede{font-size:clamp(1.05rem,2.1vw,1.24rem);color:var(--cream-dim);max-width:56ch}
+
+/* ── botão ── */
+.cta{
+  display:inline-flex;flex-direction:column;align-items:center;gap:2px;
+  background:linear-gradient(168deg,var(--gold-lit),var(--gold) 55%,#b98c3f);
+  color:#1a1206;text-decoration:none;
+  font-family:var(--body);font-weight:600;font-size:1.02rem;letter-spacing:.02em;
+  padding:20px 44px;border-radius:2px;
+  box-shadow:0 1px 0 rgba(255,255,255,.45) inset,0 18px 46px -14px rgba(217,172,92,.6);
+  transition:transform .35s cubic-bezier(.2,.8,.2,1),box-shadow .35s;
+  position:relative;overflow:hidden;text-align:center;
+}
+.cta small{font-weight:400;font-size:.74rem;opacity:.72;letter-spacing:.06em}
+.cta::before{
+  content:"";position:absolute;top:0;left:-120%;width:60%;height:100%;
+  background:linear-gradient(100deg,transparent,rgba(255,255,255,.55),transparent);
+  animation:sheen 4.5s ease-in-out infinite;
+}
+@keyframes sheen{0%,72%{left:-120%}100%{left:180%}}
+.cta:hover{transform:translateY(-3px);box-shadow:0 1px 0 rgba(255,255,255,.5) inset,0 24px 58px -14px rgba(217,172,92,.8)}
+
+/* ── header ── */
+header{padding:26px 0;border-bottom:var(--rule)}
+header .wrap{display:flex;align-items:center;justify-content:space-between;gap:16px}
+.brand{font-family:var(--display);font-size:1.5rem;letter-spacing:.06em;display:flex;align-items:center;gap:10px}
+.brand span{color:var(--gold)}
+.hdr-note{font-size:.74rem;letter-spacing:.2em;text-transform:uppercase;color:var(--cream-faint)}
+
+/* ── hero ── */
+.hero{padding:clamp(56px,10vw,110px) 0 clamp(60px,9vw,100px);position:relative}
+.hero-grid{display:grid;grid-template-columns:1.15fr .85fr;gap:clamp(32px,5vw,72px);align-items:center}
+.hero h1{margin:26px 0 22px}
+.hero h1 .line{display:block;overflow:hidden}
+.hero h1 .line>span{display:block;animation:rise 1.1s cubic-bezier(.16,1,.3,1) backwards}
+@keyframes rise{from{transform:translateY(105%);opacity:0}to{transform:translateY(0);opacity:1}}
+.reveal{animation:fade .9s ease backwards}
+@keyframes fade{from{opacity:0;transform:translateY(18px)}to{opacity:1;transform:none}}
+
+.price-row{display:flex;align-items:baseline;gap:14px;margin:32px 0 10px;flex-wrap:wrap}
+.price-old{font-size:1.1rem;color:var(--cream-faint);text-decoration:line-through;text-decoration-color:var(--rose)}
+.price{font-family:var(--display);font-size:clamp(3rem,8vw,4.4rem);color:var(--gold-lit);line-height:1}
+.price sup{font-size:.34em;vertical-align:super;margin-right:4px;color:var(--gold)}
+.price-note{font-size:.86rem;color:var(--cream-dim);letter-spacing:.04em}
+.hero-cta-block{margin-top:26px;display:flex;flex-direction:column;align-items:flex-start;gap:16px}
+.microtrust{display:flex;gap:20px;flex-wrap:wrap;font-size:.8rem;color:var(--cream-faint);letter-spacing:.04em}
+.microtrust b{color:var(--cream-dim);font-weight:400}
+
+/* roda astrológica */
+.wheel-wrap{position:relative;display:grid;place-items:center}
+.wheel{width:min(100%,420px);aspect-ratio:1;animation:spin 90s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+.wheel-core{
+  position:absolute;text-align:center;font-family:var(--display);
+  font-size:clamp(1rem,2.2vw,1.25rem);color:var(--gold-lit);letter-spacing:.14em;
+  text-transform:uppercase;line-height:1.5;
+}
+.wheel-core small{display:block;font-family:var(--body);font-size:.62rem;letter-spacing:.3em;color:var(--cream-faint);margin-top:6px}
+
+/* ── faixa de prova ── */
+.strip{border-block:var(--rule);background:rgba(255,255,255,.014);padding:22px 0}
+.strip .wrap{display:flex;gap:clamp(20px,5vw,60px);align-items:center;justify-content:center;flex-wrap:wrap;text-align:center}
+.strip div{font-size:.82rem;letter-spacing:.16em;text-transform:uppercase;color:var(--cream-faint)}
+.strip b{color:var(--gold);font-weight:500}
+
+/* ── seções ── */
+section{padding:clamp(64px,10vw,124px) 0}
+.sec-head{max-width:64ch;margin-bottom:clamp(34px,5vw,62px)}
+.sec-head h2{margin:18px 0 20px}
+
+/* comparação */
+.versus{display:grid;grid-template-columns:1fr 1fr;gap:clamp(16px,3vw,28px);align-items:stretch}
+.card{border:var(--rule);padding:clamp(26px,3.5vw,40px);border-radius:3px;position:relative}
+.card.dead{background:rgba(255,255,255,.018);border-color:rgba(244,239,228,.1);color:var(--cream-faint)}
+.card.dead h3{color:var(--cream-faint)}
+.card.live{background:linear-gradient(165deg,rgba(217,172,92,.11),rgba(217,172,92,.02));border-color:var(--gold-dim)}
+.card .tag{font-size:.68rem;letter-spacing:.26em;text-transform:uppercase;margin-bottom:16px;display:block}
+.card.dead .tag{color:var(--rose)}
+.card.live .tag{color:var(--gold)}
+.card h3{margin-bottom:16px}
+.card ul{list-style:none;margin-top:20px;display:grid;gap:12px;font-size:.95rem}
+.card li{padding-left:26px;position:relative;line-height:1.55}
+.card.dead li::before{content:"×";position:absolute;left:4px;color:var(--rose);font-size:1.1rem;line-height:1.4}
+.card.live li::before{content:"✦";position:absolute;left:2px;color:var(--gold);font-size:.85rem;line-height:1.9}
+
+/* entregáveis */
+.deliver{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:1px;background:rgba(217,172,92,.18);border:var(--rule)}
+.deliver article{background:var(--ink);padding:clamp(28px,3.5vw,40px);transition:background .4s}
+.deliver article:hover{background:var(--ink-2)}
+.deliver .num{font-family:var(--display);font-size:2.6rem;color:var(--gold-dim);line-height:1;display:block;margin-bottom:14px}
+.deliver h3{margin-bottom:12px;font-size:1.4rem}
+.deliver p{font-size:.94rem;color:var(--cream-dim)}
+.deliver .free{display:inline-block;margin-top:14px;font-size:.68rem;letter-spacing:.2em;text-transform:uppercase;color:#1a1206;background:var(--gold);padding:5px 12px;border-radius:2px;font-weight:600}
+
+/* passos */
+.steps{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:clamp(24px,4vw,50px);counter-reset:s}
+.step{counter-increment:s;position:relative;padding-top:30px;border-top:var(--rule)}
+.step::before{
+  content:"0" counter(s);position:absolute;top:-.72em;left:0;
+  font-family:var(--display);font-size:1.5rem;color:var(--gold);
+  background:var(--ink);padding-right:14px;
+}
+.step h3{font-size:1.25rem;margin-bottom:10px}
+.step p{font-size:.93rem;color:var(--cream-dim)}
+
+/* depoimentos */
+.quotes{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:clamp(20px,3vw,32px)}
+.quote{border-left:2px solid var(--gold-dim);padding:6px 0 6px 26px}
+.quote p{font-family:var(--display);font-size:1.32rem;font-style:italic;line-height:1.45;color:var(--cream)}
+.quote footer{margin-top:16px;font-size:.78rem;letter-spacing:.14em;text-transform:uppercase;color:var(--cream-faint)}
+.stars{color:var(--gold);letter-spacing:.18em;font-size:.8rem;margin-bottom:14px}
+
+/* oferta */
+.offer{border:1px solid var(--gold-dim);border-radius:4px;padding:clamp(32px,5vw,64px);background:linear-gradient(170deg,rgba(217,172,92,.1),rgba(7,6,26,.5));text-align:center;position:relative;overflow:hidden}
+.offer::before{content:"";position:absolute;inset:-40% 30% auto;height:70%;background:radial-gradient(ellipse at 50% 0,rgba(217,172,92,.22),transparent 70%);pointer-events:none}
+.offer .price-row{justify-content:center;margin-top:26px}
+.offer ul{list-style:none;display:grid;gap:11px;max-width:440px;margin:30px auto;text-align:left;font-size:.96rem}
+.offer li{padding-left:28px;position:relative}
+.offer li::before{content:"✦";position:absolute;left:4px;color:var(--gold);font-size:.82rem}
+.guarantee{margin-top:24px;font-size:.85rem;color:var(--cream-dim);max-width:48ch;margin-inline:auto}
+.scarcity{margin-top:18px;font-size:.76rem;letter-spacing:.2em;text-transform:uppercase;color:var(--rose)}
+
+/* faq */
+details{border-bottom:var(--rule);padding:22px 0}
+summary{
+  cursor:pointer;list-style:none;font-family:var(--display);font-size:clamp(1.15rem,2.2vw,1.4rem);
+  display:flex;justify-content:space-between;align-items:center;gap:20px;transition:color .3s;
+}
+summary::-webkit-details-marker{display:none}
+summary:hover{color:var(--gold-lit)}
+summary::after{content:"+";color:var(--gold);font-size:1.4rem;transition:transform .35s;flex-shrink:0}
+details[open] summary::after{transform:rotate(45deg)}
+details p{margin-top:14px;color:var(--cream-dim);font-size:.96rem;max-width:70ch}
+
+/* footer */
+footer.site{border-top:var(--rule);padding:44px 0;font-size:.8rem;color:var(--cream-faint)}
+footer.site .wrap{display:flex;justify-content:space-between;gap:20px;flex-wrap:wrap}
+footer.site a{color:var(--cream-dim);text-decoration:none;border-bottom:1px solid var(--gold-dim)}
+
+/* barra fixa mobile */
+.sticky{
+  position:fixed;left:0;right:0;bottom:0;z-index:50;display:none;
+  padding:12px 16px calc(12px + env(safe-area-inset-bottom));
+  background:rgba(7,6,26,.92);backdrop-filter:blur(14px);border-top:var(--rule);
+}
+.sticky .cta{width:100%;padding:16px 20px}
+
+@media(max-width:880px){
+  .hero-grid{grid-template-columns:1fr}
+  .wheel-wrap{order:-1;margin-bottom:8px}
+  .wheel{width:min(74%,300px)}
+  .versus{grid-template-columns:1fr}
+  .sticky{display:block}
+  body{padding-bottom:88px}
+}
+@media(prefers-reduced-motion:reduce){
+  *,*::before,*::after{animation:none!important;transition:none!important}
+}
+</style>
+</head>
+<body>
+
+<div id="stars"></div>
+
+<header>
+  <div class="wrap">
+    <div class="brand">☾ Astro<span>Dicas</span></div>
+    <div class="hdr-note">Astrologia calculada</div>
+  </div>
+</header>
+
+<main>
+
+<!-- ══ HERO ══ -->
+<section class="hero">
+  <div class="wrap hero-grid">
+    <div>
+      <p class="eyebrow reveal" style="animation-delay:.05s">Plano Lua</p>
+
+      <h1>
+        <span class="line"><span style="animation-delay:.15s">O horóscopo que você</span></span>
+        <span class="line"><span style="animation-delay:.25s">lê por aí foi escrito</span></span>
+        <span class="line"><span style="animation-delay:.35s">uma vez e copiado pra</span></span>
+        <span class="line"><span style="animation-delay:.45s"><em>200 milhões de pessoas.</em></span></span>
+      </h1>
+
+      <p class="lede reveal" style="animation-delay:.6s">
+        <strong style="font-weight:500;color:var(--cream)">O seu não.</strong>
+        Todo dia de manhã eu leio os trânsitos daquele dia em cima do seu mapa natal —
+        calculado com a data, a hora e a cidade exatas do seu nascimento — e escrevo uma
+        leitura nova, só sua. Mais a previsão da sua semana e o aviso de cada lua e
+        retrógrado antes de eles chegarem.
+        <strong style="font-weight:500;color:var(--cream)">E o seu Mapa Astral Completo entra de brinde na primeira assinatura.</strong>
+      </p>
+
+      <div class="price-row reveal" style="animation-delay:.72s">
+        <span class="price-old">R$<span data-lp="ancora">97</span></span>
+        <span class="price"><sup>R$</sup><span data-lp="preco">37,90</span></span>
+        <span class="price-note" data-lp="recorrencia"></span>
+      </div>
+
+      <div class="hero-cta-block reveal" style="animation-delay:.82s">
+        <a class="cta" data-cta href="#">
+          Quero meu horóscopo personalizado
+          <small>Mapa Astral Completo de brinde · acesso imediato</small>
+        </a>
+        <div class="microtrust">
+          <span><b>✦</b> Cancela quando quiser</span>
+          <span><b>✦</b> 7 dias de garantia</span>
+          <span><b>✦</b> Sem app pra baixar</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="wheel-wrap">
+      <svg class="wheel" viewBox="0 0 400 400" aria-hidden="true">
+        <defs>
+          <radialGradient id="g1"><stop offset="55%" stop-color="transparent"/><stop offset="100%" stop-color="rgba(217,172,92,.14)"/></radialGradient>
+        </defs>
+        <circle cx="200" cy="200" r="196" fill="url(#g1)"/>
+        <circle cx="200" cy="200" r="196" fill="none" stroke="rgba(217,172,92,.34)"/>
+        <circle cx="200" cy="200" r="164" fill="none" stroke="rgba(217,172,92,.2)"/>
+        <circle cx="200" cy="200" r="112" fill="none" stroke="rgba(217,172,92,.14)"/>
+        <circle cx="200" cy="200" r="58"  fill="none" stroke="rgba(217,172,92,.26)" stroke-dasharray="3 7"/>
+        <g stroke="rgba(217,172,92,.22)" id="spokes"></g>
+        <g id="glyphs" fill="#d9ac5c" font-family="serif" font-size="17" text-anchor="middle" dominant-baseline="middle"></g>
+        <g stroke="rgba(244,239,228,.34)" fill="none" id="aspects"></g>
+      </svg>
+      <div class="wheel-core">Mapa<br>Natal<small>calculado, não chutado</small></div>
+    </div>
+  </div>
+</section>
+
+<!-- ══ PROVA ══ -->
+<div class="strip">
+  <div class="wrap">
+    <div><b>4,8</b> ★ de avaliação</div>
+    <div><b>+1.000</b> mapas calculados</div>
+    <div>Entrega no <b>site</b> e no seu <b>e-mail</b></div>
+  </div>
+</div>
+
+<!-- ══ COMPARAÇÃO ══ -->
+<section>
+  <div class="wrap">
+    <div class="sec-head">
+      <p class="eyebrow">A diferença</p>
+      <h2>Um é pra 200 milhões.<br>O outro é <em>só seu</em>.</h2>
+      <p class="lede">Todo signo tem cerca de 700 milhões de pessoas no mundo. Nenhum texto consegue falar com todas elas ao mesmo tempo — e é exatamente por isso que horóscopo genérico nunca acerta nada na sua vida.</p>
+    </div>
+    <div class="versus">
+      <div class="card dead">
+        <span class="tag">Horóscopo de revista</span>
+        <h3>Escrito pro seu signo</h3>
+        <ul>
+          <li>Usa só o Sol — ignora Lua, Ascendente e as 12 casas</li>
+          <li>Mesmo texto pra todo mundo que nasceu no mesmo mês</li>
+          <li>Não sabe a hora nem a cidade do seu nascimento</li>
+          <li>Frases vagas que servem pra qualquer pessoa</li>
+          <li>Nunca te avisa de um trânsito antes dele bater</li>
+        </ul>
+      </div>
+      <div class="card live">
+        <span class="tag">Plano Lua</span>
+        <h3>Escrito pro seu nascimento</h3>
+        <ul>
+          <li>Mapa natal completo: Sol, Lua, Ascendente, casas e aspectos</li>
+          <li>Cada dia é recalculado com os trânsitos reais sobre o SEU mapa</li>
+          <li>Data, hora e cidade exatas entram no cálculo</li>
+          <li>Português claro — sem jargão de astrólogo</li>
+          <li>Te avisa antes: retrógrados, lunações, trânsitos pesados</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ══ ENTREGÁVEIS ══ -->
+<section>
+  <div class="wrap">
+    <div class="sec-head">
+      <p class="eyebrow">O que você recebe</p>
+      <h2>Um horóscopo por dia —<br>e o <em>mapa de brinde</em> pra começar.</h2>
+    </div>
+    <div class="deliver">
+      <article>
+        <span class="num">01</span>
+        <h3>Seu horóscopo, todo dia</h3>
+        <p>O produto principal. Toda manhã, uma leitura nova — trânsitos do dia cruzados com o seu mapa natal, em português claro. Chega no seu e-mail e fica salva na sua área. Nunca é texto repetido.</p>
+      </article>
+      <article>
+        <span class="num">02</span>
+        <h3>Mapa Astral Completo</h3>
+        <p>Seu mapa natal interpretado em PDF: Sol, Lua, Ascendente, os 10 planetas, as 12 casas e os aspectos. É a base de todo horóscopo que você vai receber — e é o mesmo mapa que vendemos avulso.</p>
+        <span class="free">Brinde da 1ª assinatura</span>
+      </article>
+      <article>
+        <span class="num">03</span>
+        <h3>Previsão da semana</h3>
+        <p>Todo domingo, uma leitura maior: o que vem pela frente nos próximos sete dias no seu mapa — amor, dinheiro, trabalho e os dias que pedem cautela. Pra você entrar na semana sabendo onde pisa.</p>
+      </article>
+      <article>
+        <span class="num">04</span>
+        <h3>Avisos de lua e trânsitos</h3>
+        <p>Lua nova, lua cheia, Mercúrio retrógrado. Você é avisada <em>antes</em> — e com a leitura de como aquilo bate especificamente no seu mapa, não no geral.</p>
+      </article>
+      <article>
+        <span class="num">05</span>
+        <h3>Sua área no site</h3>
+        <p>Um lugar seu: histórico de todos os horóscopos, seus mapas pra baixar quando quiser, e tudo que você comprar depois fica guardado lá. Sem app, sem senha decorada.</p>
+      </article>
+    </div>
+  </div>
+</section>
+
+<!-- ══ COMO FUNCIONA ══ -->
+<section>
+  <div class="wrap">
+    <div class="sec-head">
+      <p class="eyebrow">Como funciona</p>
+      <h2>Dois minutos pra configurar.<br><em>Depois é automático.</em></h2>
+    </div>
+    <div class="steps">
+      <div class="step">
+        <h3>Você assina</h3>
+        <p>Pagamento em segundos por PIX ou cartão. Na hora, cai um e-mail com o acesso à sua área — sem senha pra inventar, é só clicar no link.</p>
+      </div>
+      <div class="step">
+        <h3>Manda seu nascimento</h3>
+        <p>Nome, data, hora e cidade. É isso. A hora importa porque é ela que define seu Ascendente e a posição das casas — a parte que o horóscopo de revista joga fora.</p>
+      </div>
+      <div class="step">
+        <h3>Recebe todo dia</h3>
+        <p>Seu Mapa Astral Completo sai na hora. E a partir do dia seguinte o horóscopo personalizado chega sozinho, todo dia, no e-mail e na sua área.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ══ DEPOIMENTOS ══ -->
+<section>
+  <div class="wrap">
+    <div class="sec-head">
+      <p class="eyebrow">Quem já recebe</p>
+      <h2>“Parece que foi escrito<br><em>olhando pra minha vida.</em>”</h2>
+    </div>
+    <div class="quotes">
+      <div class="quote">
+        <div class="stars">★★★★★</div>
+        <p>Eu li o de hoje de manhã e travei. Falava exatamente da conversa que eu tive ontem no trabalho. Nunca tinha acontecido isso com horóscopo.</p>
+        <footer>Camila R. · assinante há 5 meses</footer>
+      </div>
+      <div class="quote">
+        <div class="stars">★★★★★</div>
+        <p>O mapa completo sozinho já valeu o ano inteiro. Eu tinha pago quase duzentos reais num parecido e esse veio mais detalhado.</p>
+        <footer>Juliana M. · assinante há 8 meses</footer>
+      </div>
+      <div class="quote">
+        <div class="stars">★★★★★</div>
+        <p>Me avisou do retrógrado antes. Segurei a assinatura de um contrato por causa disso e no fim deu ruim mesmo pra quem assinou.</p>
+        <footer>Patrícia L. · assinante há 3 meses</footer>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ══ OFERTA ══ -->
+<section id="oferta">
+  <div class="wrap">
+    <div class="offer">
+      <p class="eyebrow" style="justify-content:center">Condição de lançamento</p>
+      <h2 style="margin-top:18px">Comece hoje pelo preço<br>de <em>um café por semana</em>.</h2>
+
+      <div class="price-row">
+        <span class="price-old">R$<span data-lp="ancora">97</span></span>
+        <span class="price"><sup>R$</sup><span data-lp="preco">37,90</span></span>
+        <span class="price-note" data-lp="recorrencia"></span>
+      </div>
+
+      <ul>
+        <li>Horóscopo diário calculado no seu mapa natal</li>
+        <li>Previsão personalizada da semana, todo domingo</li>
+        <li>Avisos antecipados de lua nova, lua cheia e retrógrados</li>
+        <li>Mapa Astral Completo em PDF — <strong style="font-weight:500;color:var(--gold-lit)">de brinde na 1ª assinatura</strong></li>
+        <li>Sua área no site com tudo salvo pra sempre</li>
+        <li>Cancelamento em 1 clique, sem multa e sem ligação</li>
+      </ul>
+
+      <a class="cta" data-cta href="#">
+        Assinar o Plano Lua agora
+        <small>Acesso liberado em segundos</small>
+      </a>
+
+      <p class="guarantee">
+        <strong style="font-weight:500;color:var(--cream)">Garantia de 7 dias.</strong>
+        Recebe o mapa, lê os horóscopos da semana. Se não parecer escrito pra você, devolvemos tudo — e o mapa fica com você mesmo assim.
+      </p>
+      <p class="scarcity">Restam <span data-lp="vagas">37</span> vagas no lote de hoje</p>
+    </div>
+  </div>
+</section>
+
+<!-- ══ FAQ ══ -->
+<section>
+  <div class="wrap" style="max-width:860px">
+    <div class="sec-head">
+      <p class="eyebrow">Dúvidas</p>
+      <h2>Antes de você perguntar.</h2>
+    </div>
+
+    <details open>
+      <summary>Eu não sei a hora exata que nasci. Dá pra fazer?</summary>
+      <p>Dá. Sem a hora, calculamos o mapa com precisão parcial — Sol, planetas e aspectos saem corretos; Ascendente e casas ficam aproximados. A hora costuma estar na sua certidão de nascimento, e vale muito a pena procurar. Você pode corrigir depois na sua área, e o mapa é recalculado sem custo.</p>
+    </details>
+    <details>
+      <summary>Como chega o horóscopo?</summary>
+      <p>Dois lugares: no seu e-mail toda manhã, e salvo na sua área no site. Você não precisa baixar nenhum app nem instalar nada.</p>
+    </details>
+    <details>
+      <summary>Isso é feito por robô ou por astrólogo?</summary>
+      <p>O cálculo é astronômico e exato — efemérides reais, posição planetária na data, hora e coordenadas do seu nascimento. A interpretação segue a tradição astrológica e é escrita em português claro. Não é texto genérico reaproveitado: cada dia é recalculado sobre o seu mapa.</p>
+    </details>
+    <details>
+      <summary>Posso cancelar quando quiser?</summary>
+      <p>Sim, em um clique dentro da sua área. Sem multa, sem ligação de retenção, sem prazo mínimo. O que você já baixou continua seu.</p>
+    </details>
+    <details>
+      <summary>O Mapa Astral de brinde é o completo mesmo?</summary>
+      <p>É o completo: Sol, Lua, Ascendente, os 10 planetas nos signos e nas casas, as 12 casas e os aspectos, tudo interpretado. É o mesmo mapa que vendemos avulso — na primeira assinatura ele entra sem custo.</p>
+    </details>
+    <details>
+      <summary>Meus dados de nascimento ficam guardados?</summary>
+      <p>Ficam salvos só na sua conta, usados apenas pra calcular o que é seu. Não vendemos nem compartilhamos com ninguém. Você pode pedir a exclusão a qualquer momento.</p>
+    </details>
+  </div>
+</section>
+
+<!-- ══ FECHAMENTO ══ -->
+<section style="padding-top:0">
+  <div class="wrap" style="text-align:center;max-width:720px">
+    <h2>Amanhã de manhã <em>já podia ser</em><br>o seu horóscopo chegando.</h2>
+    <p class="lede" style="margin:24px auto 34px">Cada dia que passa é uma leitura sua que você deixou de receber. E os trânsitos da semana que vem não esperam você decidir.</p>
+    <a class="cta" data-cta href="#">
+      Começar por R$<span data-lp="preco">37,90</span>
+      <small>Com o Mapa Astral Completo de brinde</small>
+    </a>
+  </div>
+</section>
+
+</main>
+
+<footer class="site">
+  <div class="wrap">
+    <div>© <span id="ano"></span> AstroDicas · Astrologia calculada, não chutada</div>
+    <div><a href="/termos">Termos</a> · <a href="/privacidade">Privacidade</a> · <a href="/suporte">Suporte</a></div>
+  </div>
+</footer>
+
+<div class="sticky">
+  <a class="cta" data-cta href="#">
+    Assinar por R$<span data-lp="preco">37,90</span>
+    <small>Mapa Astral Completo de brinde</small>
+  </a>
+</div>
+
+<script>
+(function(){
+  var C = window.LP;
+
+  /* config → DOM */
+  document.querySelectorAll('[data-lp="preco"]').forEach(function(n){n.textContent=C.PRECO});
+  document.querySelectorAll('[data-lp="ancora"]').forEach(function(n){n.textContent=C.PRECO_ANCORA});
+  document.querySelectorAll('[data-lp="vagas"]').forEach(function(n){n.textContent=C.VAGAS});
+  document.querySelectorAll('[data-lp="recorrencia"]').forEach(function(n){
+    if(C.RECORRENCIA) n.textContent=C.RECORRENCIA; else n.remove();
+  });
+
+  /* CTA + UTMs repassadas pro checkout */
+  var qs = window.location.search;
+  var url = C.CHECKOUT_URL + (qs ? (C.CHECKOUT_URL.indexOf('?')>-1 ? '&' : '?') + qs.slice(1) : '');
+  document.querySelectorAll('[data-cta]').forEach(function(a){
+    a.href = url;
+    a.addEventListener('click', function(){
+      if(window.fbq) fbq('track','InitiateCheckout',{value:parseFloat(C.PRECO.replace(',','.')),currency:'BRL'});
+    });
+  });
+
+  /* céu */
+  var sky = document.getElementById('stars'), frag = document.createDocumentFragment();
+  for(var i=0;i<110;i++){
+    var s=document.createElement('i'); s.className='star';
+    var sz=Math.random()*2+.6;
+    s.style.cssText='width:'+sz+'px;height:'+sz+'px;left:'+Math.random()*100+'%;top:'+Math.random()*100+'%;animation-delay:'+(Math.random()*4)+'s';
+    frag.appendChild(s);
+  }
+  sky.appendChild(frag);
+
+  /* roda astrológica */
+  var glyphs='♈♉♊♋♌♍♎♏♐♑♒♓'.split(''), sp='', gl='';
+  for(var k=0;k<12;k++){
+    var a=(k*30-90)*Math.PI/180;
+    sp+='<line x1="'+(200+112*Math.cos(a))+'" y1="'+(200+112*Math.sin(a))+'" x2="'+(200+196*Math.cos(a))+'" y2="'+(200+196*Math.sin(a))+'"/>';
+    var m=((k+.5)*30-90)*Math.PI/180;
+    gl+='<text x="'+(200+180*Math.cos(m))+'" y="'+(200+180*Math.sin(m))+'">'+glyphs[k]+'</text>';
+  }
+  document.getElementById('spokes').innerHTML=sp;
+  document.getElementById('glyphs').innerHTML=gl;
+  var asp='', pts=[[0,1],[2,5],[4,9],[7,11],[3,8]];
+  pts.forEach(function(p){
+    var a1=(p[0]*30+15-90)*Math.PI/180, a2=(p[1]*30+15-90)*Math.PI/180;
+    asp+='<line x1="'+(200+112*Math.cos(a1))+'" y1="'+(200+112*Math.sin(a1))+'" x2="'+(200+112*Math.cos(a2))+'" y2="'+(200+112*Math.sin(a2))+'" stroke-width=".6"/>';
+  });
+  document.getElementById('aspects').innerHTML=asp;
+
+  document.getElementById('ano').textContent=new Date().getFullYear();
+
+  /* revelar ao rolar */
+  var io=new IntersectionObserver(function(es){
+    es.forEach(function(e){ if(e.isIntersecting){e.target.style.animation='fade .8s ease backwards';io.unobserve(e.target)} });
+  },{threshold:.12});
+  document.querySelectorAll('.card,.deliver article,.step,.quote,.offer,details').forEach(function(n){io.observe(n)});
+
+  /* Meta Pixel */
+  if(C.PIXEL_ID && C.PIXEL_ID.indexOf('SEU_')<0){
+    !function(f,b,e,v,n,t,s){if(f.fbq)return;n=f.fbq=function(){n.callMethod?n.callMethod.apply(n,arguments):n.queue.push(arguments)};
+    if(!f._fbq)f._fbq=n;n.push=n;n.loaded=!0;n.version='2.0';n.queue=[];t=b.createElement(e);t.async=!0;
+    t.src=v;s=b.getElementsByTagName(e)[0];s.parentNode.insertBefore(t,s)}(window,document,'script','https://connect.facebook.net/en_US/fbevents.js');
+    fbq('init',C.PIXEL_ID); fbq('track','PageView');
+  }
+})();
+</script>
+</body>
+</html>
