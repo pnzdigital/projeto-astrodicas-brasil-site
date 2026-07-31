@@ -426,6 +426,17 @@
     .profile-form .dialog-actions { margin-top: 0; }
     .profile-trigger { color: var(--gold-lit); text-decoration: underline; text-decoration-color: var(--gold-line); text-underline-offset: 3px; }
     .portal-mode { margin: 12px 0 0; padding: 9px 11px; border: 1px solid var(--gold-line); color: var(--cream-faint); font-size: 11px; }
+    .dashboard-host .app-shell { display: none; }
+    .dashboard-host .toast { display: none; }
+    .dashboard-auth-dialog { width: min(470px, calc(100vw - 32px)); }
+    .dashboard-auth-dialog .dialog-inner { padding: 35px; }
+    .dashboard-auth-dialog .dialog-close { display: none; }
+    .dashboard-auth-dialog::backdrop { background: rgba(3, 2, 15, .96); backdrop-filter: blur(12px); }
+    .dashboard-auth-dialog .portal-mode { color: var(--cream-dim); }
+    .dashboard-auth-brand { display: flex; align-items: center; gap: 10px; margin-bottom: 28px; color: var(--gold-lit); font: 600 25px/1 var(--display); }
+    .dashboard-auth-brand span { display: grid; width: 30px; height: 30px; place-items: center; border: 1px solid var(--gold); border-radius: 50%; font: 600 16px var(--display); }
+    .dashboard-auth-caption { margin: -1px 0 20px; color: var(--cream-faint); font-size: 11px; letter-spacing: .13em; text-transform: uppercase; }
+    @media (max-width: 520px) { .dashboard-auth-dialog .dialog-inner { padding: 26px 21px; } }
     @media print {
       body { color: #111; background: #fff; }
       body::before, .sidebar, .topbar, .top-actions, .mobile-nav, .hero-visual, .button, .upsell, .toast { display: none !important; }
@@ -688,6 +699,8 @@
   <dialog id="account-dialog" aria-labelledby="account-title">
     <div class="dialog-inner">
       <button class="dialog-close" type="button" aria-label="Fechar">×</button>
+      <div class="dashboard-auth-brand"><span>☾</span>AstroDicas</div>
+      <p class="dashboard-auth-caption">Área segura do seu céu · canal web</p>
       <p class="eyebrow">Sua conta · canal web</p>
       <h2 id="account-title">Entrar no AstroDicas</h2>
       <p id="account-description">Seu acesso é pessoal e fica separado de qualquer compra ou conversa feita pelo Telegram.</p>
@@ -759,10 +772,13 @@
      * o conteúdo e o checkout por meio de window.PORTAL_CONFIG sem alterar a UI.
      */
     const IS_ARGENTINA = window.location.pathname === '/es' || window.location.pathname.startsWith('/es/');
+    const DASHBOARD_HOST = 'dash.astrodicas.pnzdigital.com.br';
+    const IS_DASHBOARD = window.location.hostname === DASHBOARD_HOST || window.location.hostname.startsWith('dash.');
     const CONFIG_URL = IS_ARGENTINA ? '/portal-config-ar.js' : './portal-config.js';
     const { default: PORTAL_CONFIG } = await import(CONFIG_URL);
     window.PORTAL_CONFIG = PORTAL_CONFIG;
     const DEMO_PAID = new URLSearchParams(window.location.search).get('demo') === 'paid';
+    document.body.classList.toggle('dashboard-host', IS_DASHBOARD && !DEMO_PAID);
     const ACCESS_STATES = Object.freeze({ available: 'available', locked: 'locked', inProgress: 'in_progress', new: 'new', pending: 'pending', expired: 'expired', revoked: 'revoked' });
     const USER_ACCESS = Object.freeze({
       'site:content:boas_vindas': ACCESS_STATES.new,
@@ -933,11 +949,13 @@
       document.getElementById('active-count').textContent = String(active).padStart(2, '0');
       document.getElementById('total-count').textContent = String(LIBRARY_ITEMS.length).padStart(2, '0');
       document.querySelector('[href="#entregaveis"]').textContent = `${String(active).padStart(2, '0')} conteúdos ativos`;
+      applySpanishPortalCopy();
     }
     function renderOffers() {
       document.getElementById('offer-grid').innerHTML = OFFERS.map((offer) => `<article class="offer" data-offer="${offer.id}"><div class="offer-kicker">${offer.kicker}</div><h3>${offer.title}</h3><p>${offer.description}</p><span class="offer-price">${offer.price} <small>${offer.cadence}</small></span><button class="button small" type="button" data-offer-checkout="${offer.checkoutKey}" data-offer-title="${offer.title}">${offer.button} →</button></article>`).join('');
       const upsell = OFFERS.filter((offer) => offer.id !== 'site:plano-lua').slice(0, 3);
       document.getElementById('upsell-list').innerHTML = upsell.map((offer) => `<div class="upsell-item"><b>✦</b><span>${offer.title}</span></div>`).join('');
+      applySpanishPortalCopy();
     }
     function renderUser() {
       const name = appState.user?.name || 'Marina Alves';
@@ -946,6 +964,18 @@
       document.querySelector('main h1').textContent = `Bom dia, ${firstName}.`;
       document.querySelector('.avatar').textContent = initials;
       document.querySelector('.sign strong').textContent = `${firstName} · Libra`;
+    }
+    function applySpanishPortalCopy() {
+      if (!IS_ARGENTINA) return;
+      const replacements = {
+        'Seu portal': 'Tu portal', 'Visão geral': 'Vista general', 'Meus entregáveis': 'Mis entregas', 'Horóscopo diário': 'Horóscopo diario', 'Próximos envios': 'Próximos envíos', 'Explorar produtos': 'Explorar productos', 'Ajuda': 'Ayuda', 'Central de ajuda': 'Centro de ayuda', 'Configurações': 'Configuración', 'Seu céu, sempre perto.': 'Tu cielo, siempre cerca.', 'Novos conteúdos chegam por e-mail e ficam guardados aqui.': 'Los nuevos contenidos llegan por e-mail y quedan guardados aquí.', 'Ver biblioteca': 'Ver biblioteca', 'Quarta-feira': 'Miércoles', 'Bom dia': 'Buenos días', 'Você está em dia. O próximo envio chega em 2 dias.': 'Estás al día. El próximo envío llega en 2 días.', 'Fale com nosso suporte': 'Hablá con nuestro soporte', 'Seu céu de hoje · Lua crescente': 'Tu cielo de hoy · Luna creciente', 'Um passo de cada vez também é movimento.': 'Un paso a la vez también es movimiento.', 'O céu pede presença nas pequenas decisões. Escolha uma prioridade, proteja sua energia e deixe o resto encontrar o próprio ritmo.': 'El cielo pide presencia en las decisiones pequeñas. Elegí una prioridad, protegé tu energía y dejá que el resto encuentre su propio ritmo.', 'Ler meu horóscopo': 'Leer mi horóscopo', 'Seu plano': 'Tu plan', 'ativo': 'activo', 'Acesso ao portal até': 'Acceso al portal hasta', 'Conteúdos liberados': 'Contenidos disponibles', 'Leituras disponíveis para abrir agora': 'Lecturas disponibles para abrir ahora', 'Próximo envio': 'Próximo envío', 'dias': 'días', 'Seu momento agora': 'Tu momento ahora', 'Ver agenda completa': 'Ver agenda completa', 'Sol, Lua e Ascendente em foco': 'Sol, Luna y Ascendente en foco', 'A clareza chega quando você para de disputar com o tempo.': 'La claridad llega cuando dejás de competir con el tiempo.', 'Hoje, uma conversa honesta vale mais do que uma resposta perfeita. Repare no que seu corpo já sabe antes de pedir opinião para todo mundo.': 'Hoy, una conversación honesta vale más que una respuesta perfecta. Observá lo que tu cuerpo ya sabe antes de pedir opinión a todo el mundo.', 'palavra: presença': 'palabra: presencia', 'cor: rosé': 'color: rosé', 'Abrir leitura completa': 'Abrir lectura completa', 'Seu mapa em camadas': 'Tu mapa por capas', 'Você já desbloqueou as bases. Faltam dois mapas para completar seu painel.': 'Ya desbloqueaste las bases. Faltan dos mapas para completar tu panel.', 'enviada automaticamente por e-mail': 'enviada automáticamente por e-mail', 'disponível para leitura no portal': 'disponible para leer en el portal', 'Minha biblioteca': 'Mi biblioteca', 'conteúdos ativos': 'contenidos activos', 'Explore mais do seu céu': 'Explorá más de tu cielo', 'Ofertas do site': 'Ofertas del sitio', 'Continue de onde parou': 'Continuá desde donde lo dejaste', 'Você estava na parte': 'Estabas en la parte', 'Leitura 03 · 12 min restantes': 'Lectura 03 · faltan 12 min', 'Último acesso hoje, às': 'Último acceso hoy, a las', 'Seu próximo nível': 'Tu próximo nivel', 'Complete seu céu.': 'Completá tu cielo.', 'Escolha uma nova lente para aprofundar a leitura que já começou.': 'Elegí una nueva mirada para profundizar la lectura que ya empezaste.', 'Ver ofertas': 'Ver ofertas', 'Início': 'Inicio', 'Hoje': 'Hoy', 'Biblioteca': 'Biblioteca', 'Upgrade': 'Mejorar', 'Leitura completa': 'Lectura completa', 'Voltar ao portal': 'Volver al portal', 'Salvar leitura': 'Guardar lectura', 'Agora não': 'Ahora no', 'Sua conta · canal web': 'Tu cuenta · canal web', 'Entrar no AstroDicas': 'Entrar a AstroDicas', 'Seu acesso é pessoal e fica separado de qualquer compra ou conversa feita pelo Telegram.': 'Tu acceso es personal y está separado de cualquier compra o conversación hecha por Telegram.', 'Entre ou crie sua conta para salvar dados de nascimento e gerar leituras personalizadas.': 'Entrá o creá tu cuenta para guardar tus datos de nacimiento y generar lecturas personalizadas.', 'Entrar': 'Entrar', 'Criar conta': 'Crear cuenta', 'E-mail': 'E-mail', 'Senha': 'Contraseña', 'Seu nome': 'Tu nombre', 'Criar minha conta': 'Crear mi cuenta', 'Editar dados': 'Editar datos', 'Sair': 'Salir', 'Dados de nascimento': 'Datos de nacimiento', 'Complete seus dados de nascimento antes de gerar a leitura.': 'Completá tus datos de nacimiento antes de generar la lectura.'
+      };
+      const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
+      const nodes = [];
+      while (walker.nextNode()) nodes.push(walker.currentNode);
+      nodes.forEach((node) => { let value = node.nodeValue; Object.entries(replacements).forEach(([from, to]) => { value = value.split(from).join(to); }); node.nodeValue = value; });
+      document.querySelectorAll('[aria-label="Navegação principal"]').forEach((node) => node.setAttribute('aria-label', 'Navegación principal'));
+      document.querySelectorAll('[aria-label="Resumo da conta"]').forEach((node) => node.setAttribute('aria-label', 'Resumen de la cuenta'));
     }
     function syncAccountDialog() {
       const auth = document.getElementById('account-auth');
@@ -958,6 +988,20 @@
       if (appState.authenticated) {
         document.querySelector('[data-account-email]').textContent = appState.user?.email || '—';
         document.querySelector('[data-account-profile]').textContent = profileComplete() ? `${appState.profile.birth_date} · ${appState.profile.birth_city}` : 'Ainda não preenchidos';
+      }
+      enforceDashboardGate();
+    }
+    function enforceDashboardGate() {
+      if (!IS_DASHBOARD || DEMO_PAID) return;
+      const dialog = document.getElementById('account-dialog');
+      const shell = document.querySelector('.app-shell');
+      const needsAuth = !appState.authenticated;
+      shell?.toggleAttribute('inert', needsAuth);
+      dialog?.classList.toggle('dashboard-auth-dialog', needsAuth);
+      if (needsAuth) {
+        if (!dialog?.open) dialog?.showModal();
+      } else if (dialog?.open) {
+        dialog.close();
       }
     }
     function setFormError(name, message = '') { const node = document.querySelector(`[data-form-error="${name}"]`); if (node) node.textContent = message; }
@@ -1043,13 +1087,13 @@
         if (mode === 'register') payload.locale = PORTAL_CONFIG.locale || (IS_ARGENTINA ? 'es-AR' : 'pt-BR');
         const data = await apiRequest(`/api/auth/${mode}`, { method: 'POST', body: JSON.stringify(payload) });
         appState.apiAvailable = true; appState.authenticated = true; appState.user = data.user; await refreshPrivateData();
-        form.closest('dialog')?.close(); renderUser(); syncAccountDialog(); showToast(mode === 'register' ? 'Conta criada. Complete seus dados para começar.' : 'Acesso realizado. Bom reencontro com seu céu.');
+        form.closest('dialog')?.close(); renderUser(); syncAccountDialog(); enforceDashboardGate(); showToast(mode === 'register' ? 'Conta criada. Complete seus dados para começar.' : 'Acesso realizado. Bom reencontro com seu céu.');
       } catch (error) { setFormError(mode, !appState.apiAvailable ? 'A API não está disponível agora. O modo demonstração continua ativo.' : error.message); }
       finally { button.disabled = false; }
     }
     const contentById = Object.fromEntries((PORTAL_CONFIG.content || []).map((entry) => [entry.id, entry]));
     LIBRARY_ITEMS = LIBRARY_ITEMS.map((item) => ({ ...item, ...(contentById[item.id] ? { title: contentById[item.id].title, description: contentById[item.id].summary, downloadable: contentById[item.id].downloadable !== false, downloadUrl: contentById[item.id].download?.url || '' } : {}) }));
-    renderLibrary(); renderOffers(); renderUser(); syncAccountDialog();
+    renderLibrary(); renderOffers(); applySpanishPortalCopy(); renderUser(); syncAccountDialog();
     document.addEventListener('click', (event) => {
       const target = event.target.closest('button, a'); if (!target) return;
       if (target.matches('[data-toast]')) { if (target.getAttribute('href') === '#') event.preventDefault(); showToast(target.dataset.toast); }
@@ -1061,7 +1105,7 @@
       if (target.matches('[data-print-reading]')) { showToast(`Preparando “${target.dataset.printTitle || 'leitura'}” para impressão…`); window.print(); }
       if (target.matches('[data-offer-checkout]')) startCheckout(target.dataset.offerCheckout, target.dataset.offerTitle);
       if (target.matches('[data-checkout-upgrade]')) { startCheckout(target.dataset.checkoutKey, target.dataset.offerTitle || 'seu upgrade'); target.closest('dialog')?.close(); }
-      if (target.matches('[data-logout]')) { apiRequest('/api/auth/logout', { method: 'POST', body: '{}' }).catch(() => {}); appState.authenticated = false; appState.user = null; appState.profile = null; appState.entitlements.clear(); appState.readings.clear(); applyRemoteState(); renderUser(); syncAccountDialog(); target.closest('dialog')?.close(); showToast('Você saiu da sua conta.'); }
+      if (target.matches('[data-logout]')) { apiRequest('/api/auth/logout', { method: 'POST', body: '{}' }).catch(() => {}); appState.authenticated = false; appState.user = null; appState.profile = null; appState.entitlements.clear(); appState.readings.clear(); applyRemoteState(); renderUser(); syncAccountDialog(); enforceDashboardGate(); target.closest('dialog')?.close(); showToast('Você saiu da sua conta.'); }
       if (target.matches('[data-scroll]')) { document.getElementById(target.dataset.scroll)?.scrollIntoView({ behavior: 'smooth', block: 'start' }); document.querySelectorAll('.mobile-nav button').forEach((item) => item.classList.toggle('active', item === target)); }
     });
     document.addEventListener('submit', (event) => { if (event.target.matches('[data-auth-form]')) { event.preventDefault(); submitAuth(event.target, event.target.dataset.authForm); } if (event.target.matches('#profile-form')) { event.preventDefault(); saveProfile(event.target); } });
