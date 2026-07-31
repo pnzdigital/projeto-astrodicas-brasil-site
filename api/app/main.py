@@ -1,7 +1,7 @@
 import hashlib
 import hmac
 import os
-from datetime import date, time
+from datetime import date, datetime, time, timezone
 from pathlib import Path
 
 from fastapi import Cookie, Depends, FastAPI, HTTPException, Request, Response, status
@@ -171,13 +171,14 @@ def generate(content_id: str, site_session: str | None = Cookie(default=None), d
     profile = db.get(Profile, user.id)
     if not profile or not profile.birth_date or not profile.birth_city:
         raise HTTPException(status_code=422, detail="Complete seus dados de nascimento antes de gerar a leitura.")
-    existing = db.scalar(select(Reading).where(Reading.user_id == user.id, Reading.content_id == content_id, Reading.status == "ready"))
-    if existing:
+    snapshot = profile_to_dict(profile)
+    existing = db.scalar(select(Reading).where(Reading.user_id == user.id, Reading.content_id == content_id, Reading.status == "ready").order_by(Reading.created_at.desc()))
+    if existing and reading_is_current(existing, content_id, snapshot):
         return {"reading": reading_to_dict(existing)}
     product_id = content_product(content_id)
     if product_id and not db.scalar(select(Entitlement).where(Entitlement.user_id == user.id, Entitlement.product_id == product_id, Entitlement.status == "available")):
         raise HTTPException(status_code=403, detail="Este conteúdo ainda não está liberado para sua conta.")
-    reading = Reading(user_id=user.id, content_id=content_id, product_id=product_id, status="in_progress", title=content_title(content_id), input_snapshot=profile_to_dict(profile))
+    reading = Reading(user_id=user.id, content_id=content_id, product_id=product_id, status="in_progress", title=content_title(content_id), input_snapshot=snapshot)
     db.add(reading)
     db.commit()
     reading.body_html = generate_reading(content_id, reading.title, profile, user.locale)
@@ -234,6 +235,22 @@ def content_product(content_id: str) -> str | None:
 
 def content_title(content_id: str) -> str:
     return {"site:content:horoscopo_diario": "Horóscopo diário", "site:content:mapa_astral_completo": "Mapa Astral Completo", "site:content:mapa_do_amor_sinastria": "Mapa do Amor / Sinastria", "site:content:mapa_da_carreira": "Mapa da Carreira", "site:content:mapa_da_prosperidade": "Mapa da Prosperidade"}.get(content_id, "Leitura AstroDicas")
+
+
+def reading_is_current(reading: Reading, content_id: str, snapshot: dict) -> bool:
+    if reading.input_snapshot != snapshot:
+        return False
+    created = reading.created_at
+    if created.tzinfo is None:
+        created = created.replace(tzinfo=timezone.utc)
+    now = datetime.now(timezone.utc)
+    if content_id == "site:content:horoscopo_diario":
+        return created.date() == now.date()
+    if content_id == "site:content:previsao_semanal":
+        return created.isocalendar()[:2] == now.isocalendar()[:2]
+    if content_id in {"site:content:guia_do_mes", "site:content:calendario_lunar"}:
+        return (created.year, created.month) == (now.year, now.month)
+    return True
 
 
 def profile_to_dict(profile: Profile | None) -> dict | None:

@@ -6,6 +6,7 @@ import httpx
 import pytest
 
 from app.main import app
+from app import engine
 
 
 def register(client):
@@ -104,3 +105,14 @@ async def test_webhook_async_client_accepts_json_body():
             json={"event_id": "evt", "email": "ana@example.com", "product_id": "site:x"},
         )
     assert response.status_code == 404
+
+
+def test_minimax_output_is_escaped_and_formatted(monkeypatch):
+    monkeypatch.setenv("MINIMAX_API_KEY", "test-key")
+    monkeypatch.setattr(engine, "_call_minimax", lambda prompt: "Primeiro & direto.\n\nSegundo <seguro>.\n\nTerceiro caminho.")
+
+    result = engine.generate_reading("site:content:horoscopo_diario", "Horóscopo diário", None)
+
+    assert result.count("<p>") == 3
+    assert "Primeiro &amp; direto." in result
+    assert "Segundo &lt;seguro&gt;." in result
