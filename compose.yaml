@@ -32,7 +32,8 @@ services:
 
   portal:
     build:
-      context: ./portal-demo
+      context: .
+      dockerfile: portal-demo/Dockerfile
     depends_on:
       - api
     ports:

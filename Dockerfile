@@ -14,6 +14,7 @@ RUN pip install --no-cache-dir -r requirements.txt
 COPY api/app ./app
 COPY portal-demo/index.html portal-demo/portal-config.js portal-demo/portal-config-ar.js /usr/share/nginx/html/
 COPY portal-demo/sales.html /usr/share/nginx/html/sales.html
+COPY lp-plano-lua /usr/share/nginx/html/lp-plano-lua
 COPY nginx.runtime.conf /etc/nginx/conf.d/default.conf
 RUN rm -f /etc/nginx/sites-enabled/default \
     && mkdir -p /app/data /run/nginx

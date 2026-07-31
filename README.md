@@ -6,8 +6,9 @@ Portal web premium do canal site AstroDicas. O Telegram é um sistema separado.
 
 - Brasil: `/`
 - Argentina: `/es/` com preços em ARS e Mercado Pago como adaptador padrão
-- Ofertas Brasil: `/oferta-lua-1` (Plano Lua) e `/oferta-lua-2` (Plano Lua Premium)
-- Ofertas Argentina: `/es/oferta-lua-1` e `/es/oferta-lua-2`, localizadas em espanhol e ARS
+- Ofertas Brasil: `/oferta-lua-1` (página V1, R$ 27,90/mês) e `/oferta-lua-2` (página V2, R$ 97,00 pagamento único)
+- Ofertas Argentina: `/es/oferta-lua-1` (V1, ARS 8.649/mês) e `/es/oferta-lua-2` (V2, ARS 30.070 pagamento único), usando as mesmas páginas originais localizadas em espanhol argentino
+- As páginas de venda originais ficam em `lp-plano-lua/v1` e `lp-plano-lua/v2`; as quatro rotas públicas apontam diretamente para elas.
 - Área logada: `https://dash.astrodicas.pnzdigital.com.br/`
 
 O checkout usa IDs `site:*` e URLs configuráveis por provedor. Nenhuma
