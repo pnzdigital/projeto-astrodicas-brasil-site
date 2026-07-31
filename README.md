@@ -9,3 +9,26 @@ Portal web premium do canal site AstroDicas. O Telegram é um sistema separado.
 
 O checkout usa IDs `site:*` e URLs configuráveis por provedor. Nenhuma
 credencial, URL ou webhook deve ser colocado neste repositório.
+
+## Separação dos canais
+
+O site e o Telegram pertencem à mesma empresa, mas são duas fontes de venda
+independentes. Este projeto contém somente o canal web: usuários, sessões,
+pedidos, webhooks, acessos e leituras usam o namespace `site:*`. Credenciais,
+banco e regras do Telegram não devem ser importados para este banco.
+
+## Runtime web
+
+- `portal-demo/`: interface premium e variação argentina em `/es/`;
+- `api/`: autenticação, perfil natal, pedidos, permissões e geração de leituras;
+- PostgreSQL: persistência exclusiva do site;
+- MiniMax: geração editorial configurada somente por variáveis do Coolify;
+- Cakto e Mercado Pago: adaptadores de checkout/webhook, trocáveis por produto.
+
+Variáveis de geração: `MINIMAX_API_KEY`, `LLM_BASE_URL`, `LLM_MODEL_TEXT` e
+`MINIMAX_TIMEOUT_SECONDS`. Se o provedor estiver temporariamente indisponível,
+o portal entrega o fallback editorial local sem derrubar a área do cliente.
+
+O horóscopo diário é renovado diariamente e exige três parágrafos substanciais.
+Mapas permanentes são regenerados quando os dados do perfil mudam. O modelo não
+deve inventar posições planetárias ainda não calculadas por um motor astronômico.
