@@ -37,6 +37,11 @@
     ['Termos', 'Términos'],
     ['Privacidade', 'Privacidad'],
     ['Suporte', 'Soporte'],
+    ['Entrega no', 'Entrega en el'],
+    ['na 1ª assinatura', 'con la primera suscripción'],
+    ['mapa de regalo', 'carta de regalo'],
+    ['em PDF', 'en PDF'],
+    ['e o ', 'y la '],
     ['pra sempre', 'para siempre'],
     ['site', 'sitio'],
     ['R$', 'ARS '],
@@ -382,9 +387,12 @@
     if (description) description.content = page === 'v2'
       ? 'Horóscopo diario calculado sobre tu carta natal. Carta Astral Completa de regalo y una guía nueva cada mes.'
       : 'Horóscopo diario calculado sobre tu carta natal, disponible en el sitio y en tu e-mail. Carta Astral Completa de regalo.';
-    document.querySelectorAll('meta[property="og:title"], meta[property="og:description"]').forEach(function (meta) {
-      meta.content = translate(meta.content);
-    });
+    var ogTitle = document.querySelector('meta[property="og:title"]');
+    var ogDescription = document.querySelector('meta[property="og:description"]');
+    if (ogTitle) ogTitle.content = page === 'v2' ? 'Tu horóscopo, no el de tu signo' : 'Plan Luna — tu horóscopo, no el de tu signo';
+    if (ogDescription) ogDescription.content = page === 'v2'
+      ? 'Horóscopo diario calculado sobre tu carta natal. Carta Astral Completa de regalo.'
+      : 'Horóscopo diario calculado sobre tu carta natal. Carta Astral Completa de regalo.';
     translateElement(document.body);
     if (page === 'v1') {
       var wheelCore = document.querySelector('.wheel-core');
