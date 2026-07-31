@@ -317,7 +317,7 @@
     ['Compra garantida', 'Compra garantizada'],
     ['Dados protegidos', 'Datos protegidos'],
     ['Conteúdo de astrologia com finalidade de autoconhecimento e entretenimento. Não substitui orientação médica, psicológica, jurídica ou financeira.', 'Contenido de astrología con fines de autoconocimiento y entretenimiento. No reemplaza orientación médica, psicológica, jurídica ni financiera.'],
-    ['QUERO GARANTIR O MEU', 'QUIERO ASEGURAR EL MÍO'],
+    ['QUERO MEU MAPA E HORÓSCOPO', 'QUIERO MI CARTA Y HORÓSCOPO'],
     ['ESPERE! Vai deixar tudo isso pra trás?', '¡ESPERÁ! ¿Vas a dejar todo esto atrás?'],
     ['Só com o Plano Lua você', 'Solamente con Plan Luna'],
     ['NÃO leva', 'NO recibís'],

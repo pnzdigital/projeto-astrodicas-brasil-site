@@ -116,6 +116,7 @@ header .wrap{display:flex;align-items:center;justify-content:space-between;gap:1
 @keyframes sheen{0%,74%{left:-120%}100%{left:180%}}
 @keyframes pulse{0%,100%{transform:scale(1)}50%{transform:scale(1.018)}}
 .cta:hover{filter:brightness(1.06)}
+.cta:focus-visible{outline:3px solid rgba(255,255,255,.9);outline-offset:3px}
 .cta.ghost{background:transparent;border:1px solid var(--gold-dim);color:var(--gold-lit);box-shadow:none;animation:none;font-weight:600}
 .cta-block{display:flex;flex-direction:column;align-items:center;gap:11px;margin:26px 0}
 .trust{font-size:.78rem;color:var(--cream-faint);display:flex;gap:14px;flex-wrap:wrap;justify-content:center}
@@ -203,7 +204,7 @@ section{padding:clamp(40px,6.5vw,72px) 0}
 .ben i{font-style:normal;color:var(--cream-faint);font-size:.8rem}
 
 /* ── entregáveis ── */
-.deliver{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:13px}
+.deliver{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:13px}
 .deliver article{border:var(--rule);border-radius:10px;padding:22px;background:rgba(255,255,255,.018);transition:transform .3s,border-color .3s}
 .deliver article:hover{transform:translateY(-3px);border-color:var(--gold-dim)}
 .deliver .num{font-family:var(--display);font-size:1.9rem;color:var(--gold-dim);line-height:1;display:block;margin-bottom:9px}
@@ -306,13 +307,17 @@ footer.site p{max-width:58ch;margin:12px auto 0;line-height:1.6}
   animation:stickyIn .5s cubic-bezier(.2,1.1,.3,1)}
 @keyframes stickyIn{from{opacity:0;transform:translateY(20px)}to{opacity:1;transform:none}}
 .sticky .cta{width:auto;max-width:none;padding:15px 26px;
+  min-width:270px;border-radius:999px;padding-right:52px;letter-spacing:.01em;
   box-shadow:0 1px 0 rgba(255,255,255,.4) inset,0 18px 44px -12px rgba(34,197,94,.85),0 0 0 1px rgba(34,197,94,.25)}
+.sticky .cta::after{content:"→";position:absolute;right:20px;top:50%;transform:translateY(-50%);font-size:1.35em;font-weight:500;line-height:1}
 /* mobile: continua pílula no canto direito, só que compacta */
 @media(max-width:700px){
   .sticky{right:12px;bottom:calc(12px + env(safe-area-inset-bottom))}
-  .sticky .cta{padding:12px 18px;font-size:.86rem;max-width:62vw}
+  .sticky .cta{min-width:0;padding:12px 42px 12px 18px;font-size:.86rem;max-width:72vw}
   .sticky .cta small{font-size:.66rem;margin-top:3px}
 }
+@media(max-width:900px){.deliver{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:620px){.deliver{grid-template-columns:1fr}}
 
 /* ── notificações de compra ── */
 #notif{position:fixed;top:14px;right:14px;z-index:80;display:flex;flex-direction:column;gap:8px;
@@ -713,7 +718,7 @@ footer.site p{max-width:58ch;margin:12px auto 0;line-height:1.6}
 </footer>
 
 <div class="sticky">
-  <a class="cta" data-cta="scroll" href="#planos">QUERO GARANTIR O MEU<small>R$<span data-lp="basico">27,90</span>/mês · cancela quando quiser</small></a>
+  <a class="cta" data-cta="scroll" href="#planos">QUERO MEU MAPA E HORÓSCOPO<small>R$<span data-lp="basico">27,90</span>/mês · cancela quando quiser</small></a>
 </div>
 
 <!-- ══ MODAL 1 — ORDER BUMP (clicou no básico) ══ -->
