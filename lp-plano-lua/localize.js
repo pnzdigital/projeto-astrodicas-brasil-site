@@ -174,7 +174,7 @@
     ['para', 'para'],
     ['200 milhões de pessoas.', '200 millones de personas.'],
     ['Por alguém que não sabe a sua hora nem a sua cidade.', 'Por alguien que no conoce tu hora ni tu ciudad.'],
-    ['O seu, eu calculo — e você recebe ainda hoje.', 'El tuyo se calcula para vos y lo recibís hoy.'],
+    ['Aqui eu faço o seu com seu nome, sua data, hora e cidade — e recalculo todo dia para mostrar como os trânsitos batem na sua vida. Você recebe o primeiro ainda hoje.', 'Acá hago el tuyo con tu nombre, tu fecha, hora y ciudad — y lo recalculo cada día para mostrarte cómo los tránsitos impactan en tu vida. Recibís el primero hoy mismo.'],
     ['Mapa Astral Completo agora + um brinde novo todo mês.', 'Carta Astral Completa ahora + un regalo nuevo todos los meses.'],
     ['QUERO MEU HORÓSCOPO PERSONALIZADO', 'QUIERO MI HORÓSCOPO PERSONALIZADO'],
     ['/mês · cancela quando quiser', '/mes · cancelá cuando quieras'],
