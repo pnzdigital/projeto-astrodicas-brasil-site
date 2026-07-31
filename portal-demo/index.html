@@ -774,6 +774,8 @@
     const IS_ARGENTINA = window.location.pathname === '/es' || window.location.pathname.startsWith('/es/');
     const DASHBOARD_HOST = 'dash.astrodicas.pnzdigital.com.br';
     const IS_DASHBOARD = window.location.hostname === DASHBOARD_HOST || window.location.hostname.startsWith('dash.');
+    document.documentElement.lang = IS_ARGENTINA ? 'es-AR' : 'pt-BR';
+    if (IS_ARGENTINA) document.title = 'AstroDicas · Tu portal';
     const CONFIG_URL = IS_ARGENTINA ? '/portal-config-ar.js' : './portal-config.js';
     const { default: PORTAL_CONFIG } = await import(CONFIG_URL);
     window.PORTAL_CONFIG = PORTAL_CONFIG;
