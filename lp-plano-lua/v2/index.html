@@ -432,7 +432,7 @@ footer.site p{max-width:58ch;margin:12px auto 0;line-height:1.6}
       <div class="trust"><span><b>✓</b> Acesso imediato</span><span><b>✓</b> Cancela num clique</span><span><b>✓</b> 7 dias de garantia</span></div>
       <div class="socialproof">
         <span class="av"><i></i><i></i><i></i><i></i></span>
-        <span><strong style="color:var(--gold-lit)">+1.000 mapas calculados</strong> · 4,8 ★</span>
+        <span><strong style="color:var(--gold-lit)">+1.469 mapas calculados</strong> · 4,8 ★</span>
       </div>
     </div>
     </div>
@@ -514,42 +514,42 @@ footer.site p{max-width:58ch;margin:12px auto 0;line-height:1.6}
     <button class="cnav next" aria-label="Próximo">›</button>
     <div class="zaps">
       <div class="zap">
-        <div class="zhead"><i></i><div><b>Camila R.</b><em>assinante há 5 meses</em></div></div>
+        <div class="zhead"><i data-avatar="1"></i><div><b>Camila R.</b><em>assinante há 5 meses</em></div></div>
         <div class="msg">gente eu li o de hoje de manhã e travei 😳<time>08:14</time></div>
         <div class="msg">falava EXATAMENTE da conversa que eu tive ontem no trabalho<time>08:14</time></div>
         <div class="msg">nunca tinha acontecido isso comigo com horóscopo<time>08:15</time></div>
         <div class="rating">★★★★★</div>
       </div>
       <div class="zap">
-        <div class="zhead"><i></i><div><b>Juliana M.</b><em>assinante há 8 meses</em></div></div>
+        <div class="zhead"><i data-avatar="2"></i><div><b>Juliana M.</b><em>assinante há 8 meses</em></div></div>
         <div class="msg">o mapa completo sozinho já pagou o ano inteiro 🙌<time>19:32</time></div>
         <div class="msg">tinha pago quase 200 reais num parecido e esse veio bem mais detalhado<time>19:33</time></div>
         <div class="msg">chegou tudo no e-mail na hora<time>19:33</time></div>
         <div class="rating">★★★★★</div>
       </div>
       <div class="zap">
-        <div class="zhead"><i></i><div><b>Patrícia L.</b><em>assinante há 3 meses</em></div></div>
+        <div class="zhead"><i data-avatar="3"></i><div><b>Patrícia L.</b><em>assinante há 3 meses</em></div></div>
         <div class="msg">me avisou do retrógrado ANTES<time>21:07</time></div>
         <div class="msg">segurei a assinatura de um contrato por causa disso<time>21:07</time></div>
         <div class="msg">no fim deu ruim pra quem assinou 😅 valeu cada centavo<time>21:09</time></div>
         <div class="rating">★★★★★</div>
       </div>
       <div class="zap">
-        <div class="zhead"><i></i><div><b>Rita S.</b><em>assinante há 2 meses</em></div></div>
+        <div class="zhead"><i data-avatar="4"></i><div><b>Rita S.</b><em>assinante há 2 meses</em></div></div>
         <div class="msg">confesso que achei que fosse pouca coisa por esse preço 😅<time>10:41</time></div>
         <div class="msg">mas é MUITA coisa, todo dia chega um texto diferente<time>10:42</time></div>
         <div class="msg">melhor compra que fiz esse ano<time>10:42</time></div>
         <div class="rating">★★★★★</div>
       </div>
       <div class="zap">
-        <div class="zhead"><i></i><div><b>Aline P.</b><em>assinante há 6 meses</em></div></div>
+        <div class="zhead"><i data-avatar="5"></i><div><b>Aline P.</b><em>assinante há 6 meses</em></div></div>
         <div class="msg">o guia do mês chegou hoje e eu já marquei tudo na agenda<time>07:58</time></div>
         <div class="msg">os dias bons pra conversar com meu chefe vieram certinhos<time>07:59</time></div>
         <div class="msg">nunca tinha visto nada assim tão específico<time>07:59</time></div>
         <div class="rating">★★★★★</div>
       </div>
       <div class="zap">
-        <div class="zhead"><i></i><div><b>Fernanda C.</b><em>assinante há 4 meses</em></div></div>
+        <div class="zhead"><i data-avatar="6"></i><div><b>Fernanda C.</b><em>assinante há 4 meses</em></div></div>
         <div class="msg">meu mapa explicou coisa que eu pago terapia pra entender 😅<time>22:15</time></div>
         <div class="msg">a parte do ascendente me deixou sem palavras<time>22:16</time></div>
         <div class="msg">já indiquei pra três amigas<time>22:17</time></div>
@@ -936,13 +936,21 @@ footer.site p{max-width:58ch;margin:12px auto 0;line-height:1.6}
   })();
 
   /* notificações de compra */
-  var NOMES=['Camila','Juliana','Patrícia','Rita','Fernanda','Aline','Bruna','Larissa','Tatiane','Vanessa',
+  var LOCALE_ES=location.pathname.indexOf('/es/')===0,
+      NOMES=LOCALE_ES ? ['Sofía','Valentina','Martina','Lucía','Camila','Julieta','Agustina','Micaela','Catalina','Florencia',
+             'Paula','Victoria','Renata','Pilar','Gabriela','Mariana','Carla','Lola','Amanda','Jazmín'] :
+             ['Camila','Juliana','Patrícia','Rita','Fernanda','Aline','Bruna','Larissa','Tatiane','Vanessa',
              'Débora','Simone', 'Renata','Priscila','Gabriela','Mariana','Carla','Letícia','Amanda','Jéssica'],
       SOBRE=['S.','M.','R.','L.','P.','A.','C.','F.','T.','B.'],
-      CIDADES=['São Paulo, SP','Rio de Janeiro, RJ','Belo Horizonte, MG','Curitiba, PR','Salvador, BA',
+      CIDADES=LOCALE_ES ? ['Buenos Aires, CABA','Córdoba, Córdoba','Rosario, Santa Fe','Mendoza, Mendoza','La Plata, Buenos Aires',
+               'Mar del Plata, Buenos Aires','San Miguel de Tucumán, Tucumán','Salta, Salta','Neuquén, Neuquén','Santa Fe, Santa Fe'] :
+              ['São Paulo, SP','Rio de Janeiro, RJ','Belo Horizonte, MG','Curitiba, PR','Salvador, BA',
                'Porto Alegre, RS','Recife, PE','Fortaleza, CE','Goiânia, GO','Brasília, DF',
                'Campinas, SP','Florianópolis, SC','Manaus, AM','Belém, PA','Natal, RN'],
-      PRODS=[['Plano Lua',68],['Plano Lua Premium',22],['Plano Lua + Mapa do Amor',10]];
+      PRODS=LOCALE_ES ? [['Plan Luna',68],['Plan Luna Premium',22],['Plan Luna + Carta del Amor',10]] :
+             [['Plano Lua',68],['Plano Lua Premium',22],['Plano Lua + Mapa do Amor',10]],
+      NOTIF_VERB=LOCALE_ES ? 'acaba de suscribirse' : 'acabou de assinar',
+      NOTIF_AGO=LOCALE_ES ? 'hace' : 'há';
 
   function pick(a){ return a[Math.floor(Math.random()*a.length)] }
   function prod(){
@@ -956,8 +964,8 @@ footer.site p{max-width:58ch;margin:12px auto 0;line-height:1.6}
     if(document.hidden) return;
     var nome=pick(NOMES), n=document.createElement('div');
     n.className='notif';
-    n.innerHTML='<i>'+nome.charAt(0)+'</i><div><b>'+nome+' '+pick(SOBRE)+' acabou de assinar</b>'+
-                '<span><em>'+prod()+'</em> · '+pick(CIDADES)+' · há '+(Math.floor(Math.random()*9)+1)+' min</span></div>';
+    n.innerHTML='<i>'+nome.charAt(0)+'</i><div><b>'+nome+' '+pick(SOBRE)+' '+NOTIF_VERB+'</b>'+ 
+                '<span><em>'+prod()+'</em> · '+pick(CIDADES)+' · '+NOTIF_AGO+' '+(Math.floor(Math.random()*9)+1)+' min</span></div>';
     box.appendChild(n);
     setTimeout(function(){
       n.classList.add('out');
@@ -969,6 +977,17 @@ footer.site p{max-width:58ch;margin:12px auto 0;line-height:1.6}
     notificar();
     setTimeout(agenda, 9000 + Math.random()*13000);   // 9–22s entre notificações
   }, 4500);
+
+  /* avatares editoriais: stock photos locais, separados por idioma */
+  (function(){
+    var base='/lp-plano-lua/v2/assets/testimonials/', set=LOCALE_ES ? 'es-' : 'br-';
+    document.querySelectorAll('.zap .zhead i[data-avatar]').forEach(function(el){
+      var n=el.getAttribute('data-avatar');
+      el.style.backgroundImage='url("'+base+set+n+'.jpg")';
+      el.style.backgroundSize='cover';
+      el.style.backgroundPosition='center';
+    });
+  })();
 
   /* timer */
   var end=Date.now()+C.TIMER_MIN*60000, el=document.getElementById('timer');
