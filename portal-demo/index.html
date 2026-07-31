@@ -988,12 +988,20 @@
         'Ir para checkout →': 'Ir al checkout →',
         'Ainda não preenchidos': 'Todavía no completados',
         'Modo demonstração: o portal continua navegável sem uma sessão.': 'Modo demostración: el portal sigue navegable sin una sesión.',
-        'Acesso conectado ao portal web.': 'Acceso conectado al portal web.'
+        'Acesso conectado ao portal web.': 'Acceso conectado al portal web.',
+        'Plano Lua': 'Plan Luna',
+        'Calendário lunar de agosto': 'Calendario lunar de agosto',
+        'novo': 'nuevo',
+        'aguardando acesso': 'esperando acceso',
+        'gerando leitura…': 'generando lectura…'
       });
       const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
       const nodes = [];
       while (walker.nextNode()) nodes.push(walker.currentNode);
       nodes.forEach((node) => { let value = node.nodeValue; Object.entries(replacements).forEach(([from, to]) => { value = value.split(from).join(to); }); node.nodeValue = value; });
+      document.querySelectorAll('[data-toast]').forEach((node) => {
+        node.dataset.toast = node.dataset.toast.replace('Todos os seus conteúdos já estão visíveis aqui.', 'Todos tus contenidos ya están visibles aquí.');
+      });
       document.querySelectorAll('[aria-label="Navegação principal"]').forEach((node) => node.setAttribute('aria-label', 'Navegación principal'));
       document.querySelectorAll('[aria-label="Resumo da conta"]').forEach((node) => node.setAttribute('aria-label', 'Resumen de la cuenta'));
     }
