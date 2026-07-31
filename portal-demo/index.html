@@ -991,6 +991,7 @@
         'Acesso conectado ao portal web.': 'Acceso conectado al portal web.',
         'Plano Lua': 'Plan Luna',
         'Upgrade do Plano Lua': 'Mejorar de Plan Luna',
+        'Mejorar do Plan Luna': 'Mejorar de Plan Luna',
         'Produtos disponíveis para compra': 'Productos disponibles para comprar',
         'Calendário lunar de agosto': 'Calendario lunar de agosto',
         'novo': 'nuevo',
@@ -1004,6 +1005,7 @@
       document.querySelectorAll('[data-toast]').forEach((node) => {
         node.dataset.toast = node.dataset.toast.replace('Todos os seus conteúdos já estão visíveis aqui.', 'Todos tus contenidos ya están visibles aquí.');
       });
+      document.querySelectorAll('[aria-label="Produtos disponíveis para compra"]').forEach((node) => node.setAttribute('aria-label', 'Productos disponibles para comprar'));
       document.querySelectorAll('[aria-label="Navegação principal"]').forEach((node) => node.setAttribute('aria-label', 'Navegación principal'));
       document.querySelectorAll('[aria-label="Resumo da conta"]').forEach((node) => node.setAttribute('aria-label', 'Resumen de la cuenta'));
     }
