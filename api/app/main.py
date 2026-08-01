@@ -12,6 +12,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from .db import Base, engine, get_db
+from .astrology import resolve_coordinates
 from .engine import generate_reading
 from .models import Entitlement, Order, Profile, Reading, User, WebhookEvent
 from .security import create_token, decode_token, hash_password, verify_password
@@ -147,6 +148,10 @@ def save_profile(body: ProfileBody, site_session: str | None = Cookie(default=No
     profile = db.get(Profile, user.id) or Profile(user_id=user.id)
     for key, value in body.model_dump().items():
         setattr(profile, key, value)
+    if profile.birth_city and (not profile.birth_latitude or not profile.birth_longitude):
+        coordinates = resolve_coordinates(profile.birth_city, profile.birth_country)
+        if coordinates:
+            profile.birth_latitude, profile.birth_longitude = map(str, coordinates)
     db.add(profile)
     db.commit()
     return {"profile": profile_to_dict(profile)}
@@ -181,7 +186,7 @@ def generate(content_id: str, site_session: str | None = Cookie(default=None), d
     reading = Reading(user_id=user.id, content_id=content_id, product_id=product_id, status="in_progress", title=content_title(content_id), input_snapshot=snapshot)
     db.add(reading)
     db.commit()
-    reading.body_html = generate_reading(content_id, reading.title, profile, user.locale)
+    reading.body_html = generate_reading(content_id, reading.title, profile, user.locale, user.name)
     reading.status = "ready"
     db.commit()
     db.refresh(reading)
@@ -234,7 +239,18 @@ def content_product(content_id: str) -> str | None:
 
 
 def content_title(content_id: str) -> str:
-    return {"site:content:horoscopo_diario": "Horóscopo diário", "site:content:mapa_astral_completo": "Mapa Astral Completo", "site:content:mapa_do_amor_sinastria": "Mapa do Amor / Sinastria", "site:content:mapa_da_carreira": "Mapa da Carreira", "site:content:mapa_da_prosperidade": "Mapa da Prosperidade"}.get(content_id, "Leitura AstroDicas")
+    return {
+        "site:content:horoscopo_diario": "Horóscopo diário",
+        "site:content:guia_do_mes": "Guia do mês",
+        "site:content:mapa_astral_completo": "Mapa Astral Completo",
+        "site:content:mapa_do_amor_sinastria": "Mapa do Amor / Sinastria",
+        "site:content:mapa_da_carreira": "Mapa da Carreira",
+        "site:content:mapa_da_prosperidade": "Mapa da Prosperidade",
+        "site:content:previsao_semanal": "Previsão da semana",
+        "site:content:calendario_lunar": "Calendário Lunar",
+        "site:content:guia_dos_retrogrados": "Guia dos Retrógrados",
+        "site:content:manual_do_ascendente": "Manual do Ascendente",
+    }.get(content_id, "Leitura AstroDicas")
 
 
 def reading_is_current(reading: Reading, content_id: str, snapshot: dict) -> bool:

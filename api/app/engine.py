@@ -7,6 +7,8 @@ from datetime import date
 from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
 
+from .astrology import astrology_context
+
 
 logger = logging.getLogger(__name__)
 
@@ -27,8 +29,9 @@ def sun_sign(birth_date: date | None) -> str:
     return "Capricórnio"
 
 
-def _profile_context(profile) -> dict:
+def _profile_context(profile, customer_name: str = "") -> dict:
     return {
+        "customer_name": customer_name or "não informado",
         "birth_date": profile.birth_date.isoformat() if profile and profile.birth_date else "não informado",
         "birth_time": profile.birth_time.isoformat() if profile and profile.birth_time else "não informado",
         "birth_city": profile.birth_city if profile and profile.birth_city else "não informado",
@@ -39,28 +42,35 @@ def _profile_context(profile) -> dict:
         "partner_birth_date": profile.partner_birth_date.isoformat() if profile and profile.partner_birth_date else "não informado",
         "partner_birth_time": profile.partner_birth_time.isoformat() if profile and profile.partner_birth_time else "não informado",
         "partner_birth_city": profile.partner_birth_city if profile and profile.partner_birth_city else "não informado",
+        "calculated_chart": astrology_context(profile),
     }
 
 
-def _prompt(content_id: str, title: str, profile, locale: str) -> str:
-    context = _profile_context(profile)
+def _prompt(content_id: str, title: str, profile, locale: str, customer_name: str = "") -> str:
+    context = _profile_context(profile, customer_name)
     language = "espanhol rioplatense natural" if locale == "es-AR" else "português brasileiro natural"
     today = date.today().isoformat()
-    daily_rule = (
-        "Escreva exatamente 3 parágrafos substanciais, com 90 a 130 palavras cada. "
-        "O primeiro deve criar identificação emocional imediata, o segundo abordar relações/trabalho e "
-        "o terceiro trazer direção prática. Seja quente, específico e íntimo, sem soar genérico."
-        if content_id == "site:content:horoscopo_diario"
-        else "Escreva uma leitura premium profunda, com 7 a 10 parágrafos e subtítulos curtos quando útil."
-    )
+    rules = {
+        "site:content:horoscopo_diario": "Escreva exatamente 3 parágrafos substanciais, com 90 a 130 palavras cada. Use prioritariamente os trânsitos atuais para o mapa natal. O primeiro cria identificação emocional, o segundo aborda relações e trabalho e o terceiro traz direção prática.",
+        "site:content:mapa_astral_completo": "Escreva uma leitura natal premium com 10 a 14 parágrafos. Cubra tríade principal, planetas pessoais, casas, aspectos dominantes, potenciais e tensões. Use apenas posições presentes no calculated_chart.",
+        "site:content:mapa_do_amor_sinastria": "Escreva 9 a 12 parágrafos sobre padrões afetivos do cliente. Se os dados do parceiro estiverem incompletos, explique com delicadeza que a comparação completa depende deles e não invente posições do parceiro.",
+        "site:content:mapa_da_carreira": "Escreva 8 a 11 parágrafos sobre talentos, rotina, visibilidade, vocação e decisões profissionais, ancorando cada afirmação nas casas, planetas e aspectos calculados.",
+        "site:content:mapa_da_prosperidade": "Escreva 8 a 11 parágrafos sobre recursos, segurança, merecimento e oportunidades, sem prometer ganhos financeiros. Relacione a leitura às posições calculadas.",
+        "site:content:previsao_semanal": "Escreva 7 parágrafos, um para o panorama e seis para temas e decisões da semana, usando os trânsitos atuais calculados.",
+        "site:content:guia_do_mes": "Escreva 8 a 10 parágrafos com temas do mês, momentos de atenção e práticas concretas, usando o céu atual e o mapa natal.",
+        "site:content:calendario_lunar": "Escreva um guia editorial do ciclo lunar atual em 7 a 9 parágrafos. Não invente datas que não estejam nos dados; quando faltarem, trate como guia de uso das fases.",
+        "site:content:guia_dos_retrogrados": "Escreva 7 a 9 parágrafos explicando os planetas retrógrados presentes no céu calculado e como atravessar revisões sem fatalismo.",
+        "site:content:manual_do_ascendente": "Escreva 8 a 10 parágrafos sobre o Ascendente calculado, seu regente simbólico, presença, corpo e primeira impressão. Se não houver Ascendente calculado, explique que a hora exata é necessária.",
+    }
+    content_rule = rules.get(content_id, "Escreva uma leitura premium profunda, com 7 a 10 parágrafos.")
     return f"""Você é a astróloga editorial da AstroDicas. Produza a leitura \"{title}\" em {language}.
 Data de referência: {today}. Identificador: {content_id}.
 Dados autorizados do cliente: {json.dumps(context, ensure_ascii=False)}.
 
-{daily_rule}
-Use somente os dados fornecidos. Não invente ascendente, Lua, casas, aspectos, trânsitos ou posições planetárias
-que não tenham sido calculados. Quando faltar cálculo astronômico, trate o texto como orientação simbólica a
-partir do signo solar e da história da pessoa. Não faça diagnóstico médico, promessa financeira nem previsão
+{content_rule}
+Use o nome do cliente com naturalidade no máximo duas vezes. Use somente os dados fornecidos. Não invente
+Ascendente, Lua, casas, aspectos, trânsitos ou posições planetárias que não tenham sido calculados. Quando faltar
+cálculo astronômico, declare a limitação com linguagem acolhedora. Não faça diagnóstico médico, promessa financeira nem previsão
 fatalista. Não cite inteligência artificial. Não use markdown, listas, HTML ou título; devolva apenas os
 parágrafos, separados por uma linha em branco."""
 
@@ -125,10 +135,10 @@ def _fallback_reading(profile, locale: str) -> str:
     )
 
 
-def generate_reading(content_id: str, title: str, profile, locale: str = "pt-BR") -> str:
+def generate_reading(content_id: str, title: str, profile, locale: str = "pt-BR", customer_name: str = "") -> str:
     if os.getenv("MINIMAX_API_KEY", "").strip():
         try:
-            generated = _paragraphs_to_html(_call_minimax(_prompt(content_id, title, profile, locale)))
+            generated = _paragraphs_to_html(_call_minimax(_prompt(content_id, title, profile, locale, customer_name)))
             if generated:
                 return generated
         except RuntimeError as exc:

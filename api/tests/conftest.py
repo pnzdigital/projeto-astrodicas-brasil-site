@@ -12,6 +12,7 @@ os.environ["DATABASE_URL"] = f"sqlite:///{TEST_DIR / 'test.db'}"
 os.environ["SITE_SECRET_KEY"] = "test-only-secret"
 os.environ["COOKIE_SECURE"] = "0"
 os.environ["SITE_ORIGIN"] = "http://testserver"
+os.environ["GEOCODING_ENABLED"] = "0"
 
 from app.db import Base, engine  # noqa: E402
 from app.main import app  # noqa: E402

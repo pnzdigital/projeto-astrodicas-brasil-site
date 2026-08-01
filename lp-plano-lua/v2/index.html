@@ -234,14 +234,18 @@ section{padding:clamp(40px,6.5vw,72px) 0}
 .cdots button{width:8px;height:8px;border-radius:50%;border:0;cursor:pointer;padding:0;
   background:rgba(246,242,232,.24);transition:background .3s,width .3s}
 .cdots button.on{background:var(--gold);width:22px;border-radius:100px}
-.zap{background:#0b141a;border:1px solid rgba(255,255,255,.07);border-radius:12px;padding:14px;box-shadow:0 20px 44px -22px rgba(0,0,0,.9)}
-.zap .zhead{display:flex;align-items:center;gap:9px;padding-bottom:10px;border-bottom:1px solid rgba(255,255,255,.06);margin-bottom:12px}
-.zap .zhead i{width:30px;height:30px;border-radius:50%;background:linear-gradient(140deg,#7a5cc4,#e0b263);flex-shrink:0}
-.zap .zhead b{font-size:.87rem;font-weight:600;display:block;line-height:1.2}
-.zap .zhead em{font-style:normal;font-size:.68rem;color:#7f8c94;display:block}
-.msg{background:#005c4b;border-radius:9px 9px 9px 2px;padding:8px 11px;font-size:.87rem;line-height:1.45;margin-bottom:7px;max-width:94%;color:#e9edef}
-.msg time{display:block;text-align:right;font-size:.6rem;color:rgba(233,237,239,.5);margin-top:3px}
-.zap .rating{color:var(--gold);font-size:.82rem;letter-spacing:.14em;margin-top:10px;text-align:center}
+.zap{overflow:hidden;background:#efeae2;border:0;border-radius:12px;padding:0 12px 14px;color:#111b21;box-shadow:0 7px 0 rgba(0,0,0,.17)}
+.zap .zstatus{display:flex;align-items:center;justify-content:space-between;margin:0 -12px;padding:7px 13px 5px;background:#f7f5f2;font-size:.58rem;font-weight:700}
+.zap .zhead{display:flex;align-items:center;gap:9px;margin:0 -12px 13px;padding:8px 11px;border-top:1px solid rgba(17,27,33,.06);background:#f7f5f2}
+.zap .zhead .zback{font-size:1.25rem;line-height:1}
+.zap .zhead i{width:34px;height:34px;border-radius:50%;background:linear-gradient(140deg,#7a5cc4,#e0b263);flex-shrink:0}
+.zap .zhead b{font-size:.78rem;font-weight:600;display:block;line-height:1.2}
+.zap .zhead em{font-style:normal;font-size:.59rem;color:#667781;display:block}
+.zap .zhead .zactions{margin-left:auto;font-size:1rem;letter-spacing:.32rem}
+.msg{width:max-content;background:#fff;border-radius:9px 9px 9px 2px;padding:8px 10px 5px;font-size:.76rem;line-height:1.4;margin-bottom:7px;max-width:92%;color:#111b21;box-shadow:0 1px 1px rgba(0,0,0,.08)}
+.msg.reply{margin-left:auto;border-radius:9px 9px 2px 9px;background:#d9fdd3}
+.msg time{display:block;text-align:right;font-size:.54rem;color:#667781;margin-top:3px}
+.zap .rating{color:#8a650e;font-size:.75rem;letter-spacing:.14em;margin-top:10px;text-align:center}
 
 /* ── planos ── */
 .plans{display:grid;grid-template-columns:1fr 1fr;gap:16px;align-items:start}
@@ -306,15 +310,16 @@ footer.site p{max-width:58ch;margin:12px auto 0;line-height:1.6}
 .sticky{position:fixed;right:20px;bottom:20px;z-index:50;width:auto;
   animation:stickyIn .5s cubic-bezier(.2,1.1,.3,1)}
 @keyframes stickyIn{from{opacity:0;transform:translateY(20px)}to{opacity:1;transform:none}}
-.sticky .cta{width:auto;max-width:none;padding:15px 26px;
-  min-width:270px;border-radius:999px;padding-right:52px;letter-spacing:.01em;
+.sticky .cta{width:260px;max-width:calc(100vw - 40px);padding:13px 48px 13px 20px;
+  min-width:0;border-radius:999px;letter-spacing:.01em;
   box-shadow:0 1px 0 rgba(255,255,255,.4) inset,0 18px 44px -12px rgba(34,197,94,.85),0 0 0 1px rgba(34,197,94,.25)}
 .sticky .cta::after{content:"→";position:absolute;right:20px;top:50%;transform:translateY(-50%);font-size:1.35em;font-weight:500;line-height:1}
 /* mobile: continua pílula no canto direito, só que compacta */
 @media(max-width:700px){
   .sticky{right:12px;bottom:calc(12px + env(safe-area-inset-bottom))}
-  .sticky .cta{min-width:0;padding:12px 42px 12px 18px;font-size:.86rem;max-width:72vw}
-  .sticky .cta small{font-size:.66rem;margin-top:3px}
+  .sticky .cta{width:245px;max-width:calc(100vw - 24px);padding:10px 38px 10px 15px;font-size:.76rem}
+  .sticky .cta::after{right:15px;font-size:1.2em}
+  .sticky .cta small{font-size:.61rem;margin-top:3px}
 }
 @media(max-width:900px){.deliver{grid-template-columns:repeat(2,minmax(0,1fr))}}
 @media(max-width:620px){.deliver{grid-template-columns:1fr}}
@@ -981,8 +986,20 @@ footer.site p{max-width:58ch;margin:12px auto 0;line-height:1.6}
   /* avatares editoriais: stock photos locais, separados por idioma */
   (function(){
     var base='/lp-plano-lua/v2/assets/testimonials/', set=LOCALE_ES ? 'es-' : 'br-';
+    document.querySelectorAll('.zap').forEach(function(card,index){
+      var head=card.querySelector('.zhead'), status=document.createElement('div');
+      status.className='zstatus';
+      status.innerHTML='<span>'+['08:14','19:32','21:07','10:41','07:58','22:15'][index]+'</span><span>▮▮ 5G ▰</span>';
+      card.prepend(status);
+      head.insertAdjacentHTML('afterbegin','<span class="zback">‹</span>');
+      head.insertAdjacentHTML('beforeend','<span class="zactions">⌕⌁</span>');
+      var reply=document.createElement('div');
+      reply.className='msg reply';
+      reply.innerHTML=(LOCALE_ES ? 'me alegra mucho que te haya servido 💛' : 'fico muito feliz que fez sentido pra você 💛')+'<time>'+(LOCALE_ES ? '08:18' : '08:18')+' ✓✓</time>';
+      card.querySelector('.rating').before(reply);
+    });
     document.querySelectorAll('.zap .zhead i[data-avatar]').forEach(function(el){
-      var n=el.getAttribute('data-avatar');
+      var n=((parseInt(el.getAttribute('data-avatar'),10)-1)%3)+1;
       el.style.backgroundImage='url("'+base+set+n+'.jpg")';
       el.style.backgroundSize='cover';
       el.style.backgroundPosition='center';

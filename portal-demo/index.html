@@ -6,6 +6,13 @@
   <meta name="theme-color" content="#090822">
   <title>AstroDicas · Seu portal</title>
   <meta name="description" content="Sua área AstroDicas para ler mapas, previsões e conteúdos do seu céu.">
+  <script>
+    (function () {
+      var isDashboard = location.hostname === 'dash.astrodicas.pnzdigital.com.br' || location.hostname.indexOf('dash.') === 0;
+      var isPaidDemo = new URLSearchParams(location.search).get('demo') === 'paid';
+      if (isDashboard && !isPaidDemo) document.documentElement.classList.add('dashboard-auth-pending');
+    })();
+  </script>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@400;500;600;700&family=Jost:wght@400;500;600;700&display=swap" rel="stylesheet">
@@ -426,8 +433,12 @@
     .profile-form .dialog-actions { margin-top: 0; }
     .profile-trigger { color: var(--gold-lit); text-decoration: underline; text-decoration-color: var(--gold-line); text-underline-offset: 3px; }
     .portal-mode { margin: 12px 0 0; padding: 9px 11px; border: 1px solid var(--gold-line); color: var(--cream-faint); font-size: 11px; }
-    .dashboard-host .app-shell { display: none; }
-    .dashboard-host .toast { display: none; }
+    .dashboard-auth-pending .app-shell,
+    .dashboard-auth-pending .mobile-nav,
+    .dashboard-auth-pending .toast,
+    .dashboard-auth-locked .app-shell,
+    .dashboard-auth-locked .mobile-nav,
+    .dashboard-auth-locked .toast { display: none; }
     .dashboard-auth-dialog { width: min(470px, calc(100vw - 32px)); }
     .dashboard-auth-dialog .dialog-inner { padding: 35px; }
     .dashboard-auth-dialog .dialog-close { display: none; }
@@ -547,13 +558,13 @@
       <div class="page">
         <header class="topbar">
           <div>
-            <p class="eyebrow">Quarta-feira, 29 de julho de 2026</p>
-            <h1>Bom dia, Marina.</h1>
+            <p class="eyebrow">Seu céu pessoal</p>
+            <h1>Carregando sua conta.</h1>
           </div>
           <div class="top-actions">
             <button class="icon-button" type="button" aria-label="Notificações" data-toast="Você está em dia. O próximo envio chega em 2 dias.">♧<span class="dot"></span></button>
             <button class="icon-button" type="button" aria-label="Ajuda" data-toast="Fale com nosso suporte: oi@astrodicas.com.br">?</button>
-            <button class="avatar" type="button" aria-label="Abrir perfil" data-dialog="account-dialog">MA</button>
+            <button class="avatar" type="button" aria-label="Abrir perfil" data-dialog="account-dialog">AD</button>
           </div>
         </header>
 
@@ -567,7 +578,7 @@
           <div class="hero-visual" aria-hidden="true">
             <div class="moon-wrap">
               <div class="moon"></div>
-              <div class="moon-label"><strong>Lua em Libra</strong>equilíbrio · trocas · escolhas</div>
+              <div class="moon-label"><strong>Seu céu pessoal</strong>complete seus dados para calcular</div>
             </div>
           </div>
         </section>
@@ -597,8 +608,8 @@
         <section class="content-grid">
           <article class="panel daily-card">
             <div class="daily-top">
-              <div class="sign"><span class="sign-symbol">♎</span><div><strong>Marina · Libra</strong><span>Sol, Lua e Ascendente em foco</span></div></div>
-              <time class="date-chip" datetime="2026-07-29">29 JUL</time>
+              <div class="sign"><span class="sign-symbol">✦</span><div><strong>Sua conta · complete seus dados</strong><span>Sol, Lua e Ascendente em foco</span></div></div>
+              <time class="date-chip" datetime="">Hoje</time>
             </div>
             <h3>A clareza chega quando você para de disputar com o tempo.</h3>
             <p>Hoje, uma conversa honesta vale mais do que uma resposta perfeita. Repare no que seu corpo já sabe antes de pedir opinião para todo mundo.</p>
@@ -780,7 +791,6 @@
     const { default: PORTAL_CONFIG } = await import(CONFIG_URL);
     window.PORTAL_CONFIG = PORTAL_CONFIG;
     const DEMO_PAID = new URLSearchParams(window.location.search).get('demo') === 'paid';
-    document.body.classList.toggle('dashboard-host', IS_DASHBOARD && !DEMO_PAID);
     const ACCESS_STATES = Object.freeze({ available: 'available', locked: 'locked', inProgress: 'in_progress', new: 'new', pending: 'pending', expired: 'expired', revoked: 'revoked' });
     const USER_ACCESS = Object.freeze({
       'site:content:boas_vindas': ACCESS_STATES.new,
@@ -885,7 +895,7 @@
 
     const toast = document.querySelector('.toast');
     const API_BASE = (window.PORTAL_API_URL || document.querySelector('meta[name="portal-api"]')?.content || '').replace(/\/$/, '');
-    const appState = { apiAvailable: false, authenticated: false, user: null, profile: null, entitlements: new Map(), readings: new Map(), pendingContentId: null };
+    const appState = { apiAvailable: false, authenticated: false, authResolved: !IS_DASHBOARD || DEMO_PAID, user: null, profile: null, entitlements: new Map(), readings: new Map(), pendingContentId: null };
     let toastTimer;
     function showToast(message) {
       toast.textContent = message;
@@ -960,13 +970,48 @@
       document.getElementById('upsell-list').innerHTML = upsell.map((offer) => `<div class="upsell-item"><b>✦</b><span>${offer.title}</span></div>`).join('');
       applySpanishPortalCopy();
     }
+    function sunSignFor(value) {
+      if (!value) return null;
+      const parts = String(value).split('-').map(Number);
+      if (parts.length !== 3 || !parts[1] || !parts[2]) return null;
+      const monthDay = parts[1] * 100 + parts[2];
+      const signs = [
+        [120, 'Aquário', 'Acuario', '♒'], [219, 'Peixes', 'Piscis', '♓'], [321, 'Áries', 'Aries', '♈'],
+        [420, 'Touro', 'Tauro', '♉'], [521, 'Gêmeos', 'Géminis', '♊'], [621, 'Câncer', 'Cáncer', '♋'],
+        [723, 'Leão', 'Leo', '♌'], [823, 'Virgem', 'Virgo', '♍'], [923, 'Libra', 'Libra', '♎'],
+        [1023, 'Escorpião', 'Escorpio', '♏'], [1122, 'Sagitário', 'Sagitario', '♐'], [1222, 'Capricórnio', 'Capricornio', '♑']
+      ];
+      let sign = signs[signs.length - 1];
+      signs.forEach((entry) => { if (monthDay >= entry[0]) sign = entry; });
+      return { label: IS_ARGENTINA ? sign[2] : sign[1], symbol: sign[3] };
+    }
     function renderUser() {
-      const name = appState.user?.name || 'Marina Alves';
-      const firstName = name.trim().split(/\s+/)[0] || 'Marina';
-      const initials = name.trim().split(/\s+/).slice(0, 2).map((part) => part[0]).join('').toUpperCase() || 'MA';
-      document.querySelector('main h1').textContent = `${IS_ARGENTINA ? 'Buenos días' : 'Bom dia'}, ${firstName}.`;
+      const rawName = appState.user?.name?.trim() || '';
+      const firstName = rawName.split(/\s+/)[0] || (IS_ARGENTINA ? 'tu cuenta' : 'sua conta');
+      const initials = rawName.split(/\s+/).filter(Boolean).slice(0, 2).map((part) => part[0]).join('').toUpperCase() || 'AD';
+      const hour = new Date().getHours();
+      const greeting = IS_ARGENTINA
+        ? (hour < 12 ? 'Buenos días' : hour < 19 ? 'Buenas tardes' : 'Buenas noches')
+        : (hour < 12 ? 'Bom dia' : hour < 19 ? 'Boa tarde' : 'Boa noite');
+      const sign = sunSignFor(appState.profile?.birth_date);
+      const now = new Date();
+      const locale = IS_ARGENTINA ? 'es-AR' : 'pt-BR';
+      const fullDate = new Intl.DateTimeFormat(locale, { weekday: 'long', day: '2-digit', month: 'long', year: 'numeric' }).format(now);
+      const dateChip = new Intl.DateTimeFormat(locale, { day: '2-digit', month: 'short' }).format(now).replace('.', '').toUpperCase();
+      document.querySelector('main h1').textContent = `${greeting}, ${firstName}.`;
+      document.querySelector('.topbar .eyebrow').textContent = fullDate.charAt(0).toUpperCase() + fullDate.slice(1);
       document.querySelector('.avatar').textContent = initials;
-      document.querySelector('.sign strong').textContent = `${firstName} · Libra`;
+      document.querySelector('.sign strong').textContent = sign
+        ? `${firstName} · ${sign.label}`
+        : `${firstName} · ${IS_ARGENTINA ? 'completá tus datos' : 'complete seus dados'}`;
+      document.querySelector('.sign-symbol').textContent = sign?.symbol || '✦';
+      const chip = document.querySelector('.date-chip');
+      chip.textContent = dateChip;
+      chip.dateTime = now.toISOString().slice(0, 10);
+      const skyLabel = document.querySelector('.moon-label');
+      skyLabel.innerHTML = sign
+        ? `<strong>${IS_ARGENTINA ? 'Sol en' : 'Sol em'} ${sign.label}</strong>${IS_ARGENTINA ? 'tu fecha · tu historia · tu lectura' : 'sua data · sua história · sua leitura'}`
+        : `<strong>${IS_ARGENTINA ? 'Tu cielo personal' : 'Seu céu pessoal'}</strong>${IS_ARGENTINA ? 'completá tus datos para calcularlo' : 'complete seus dados para calcular'}`;
     }
     function applySpanishPortalCopy() {
       if (!IS_ARGENTINA) return;
@@ -1030,10 +1075,22 @@
       enforceDashboardGate();
     }
     function enforceDashboardGate() {
-      if (!IS_DASHBOARD || DEMO_PAID) return;
+      const root = document.documentElement;
+      if (!IS_DASHBOARD || DEMO_PAID) {
+        root.classList.remove('dashboard-auth-pending', 'dashboard-auth-locked');
+        return;
+      }
       const dialog = document.getElementById('account-dialog');
       const shell = document.querySelector('.app-shell');
+      if (!appState.authResolved) {
+        root.classList.add('dashboard-auth-pending');
+        root.classList.remove('dashboard-auth-locked');
+        shell?.setAttribute('inert', '');
+        return;
+      }
       const needsAuth = !appState.authenticated;
+      root.classList.remove('dashboard-auth-pending');
+      root.classList.toggle('dashboard-auth-locked', needsAuth);
       shell?.toggleAttribute('inert', needsAuth);
       dialog?.classList.toggle('dashboard-auth-dialog', needsAuth);
       if (needsAuth) {
@@ -1115,8 +1172,12 @@
         const data = await apiRequest('/api/session');
         appState.apiAvailable = true; appState.authenticated = Boolean(data.authenticated); appState.user = data.user || null;
         if (appState.authenticated) await refreshPrivateData();
+      } catch (error) {
+        appState.apiAvailable = false; appState.authenticated = false; appState.user = null;
+      } finally {
+        appState.authResolved = true;
         renderUser(); syncAccountDialog(); applyRemoteState();
-      } catch (error) { appState.apiAvailable = false; appState.authenticated = false; appState.user = null; renderUser(); syncAccountDialog(); }
+      }
     }
     async function submitAuth(form, mode) {
       const button = form.querySelector('button[type="submit"]'); button.disabled = true; setFormError(mode);
@@ -1124,7 +1185,7 @@
         const payload = Object.fromEntries(new FormData(form).entries());
         if (mode === 'register') payload.locale = PORTAL_CONFIG.locale || (IS_ARGENTINA ? 'es-AR' : 'pt-BR');
         const data = await apiRequest(`/api/auth/${mode}`, { method: 'POST', body: JSON.stringify(payload) });
-        appState.apiAvailable = true; appState.authenticated = true; appState.user = data.user; await refreshPrivateData();
+        appState.apiAvailable = true; appState.authenticated = true; appState.authResolved = true; appState.user = data.user; await refreshPrivateData();
         form.closest('dialog')?.close(); renderUser(); syncAccountDialog(); enforceDashboardGate(); showToast(mode === 'register' ? 'Conta criada. Complete seus dados para começar.' : 'Acesso realizado. Bom reencontro com seu céu.');
       } catch (error) { setFormError(mode, !appState.apiAvailable ? 'A API não está disponível agora. O modo demonstração continua ativo.' : error.message); }
       finally { button.disabled = false; }
@@ -1149,7 +1210,7 @@
     document.addEventListener('submit', (event) => { if (event.target.matches('[data-auth-form]')) { event.preventDefault(); submitAuth(event.target, event.target.dataset.authForm); } if (event.target.matches('#profile-form')) { event.preventDefault(); saveProfile(event.target); } });
     async function saveProfile(form) {
       const button = form.querySelector('button[type="submit"]'); button.disabled = true; setFormError('profile');
-      try { const data = await apiRequest('/api/me/profile', { method: 'PUT', body: JSON.stringify(payloadFromForm(form)) }); appState.profile = data.profile; syncAccountDialog(); document.getElementById('profile-dialog').close(); showToast('Dados salvos. Seu céu está pronto para a próxima leitura.'); const pending = appState.pendingContentId; appState.pendingContentId = null; if (pending) generateReading(LIBRARY_ITEMS.find((item) => item.id === pending)); }
+      try { const data = await apiRequest('/api/me/profile', { method: 'PUT', body: JSON.stringify(payloadFromForm(form)) }); appState.profile = data.profile; renderUser(); syncAccountDialog(); document.getElementById('profile-dialog').close(); showToast('Dados salvos. Seu céu está pronto para a próxima leitura.'); const pending = appState.pendingContentId; appState.pendingContentId = null; if (pending) generateReading(LIBRARY_ITEMS.find((item) => item.id === pending)); }
       catch (error) { setFormError('profile', error.message); }
       finally { button.disabled = false; }
     }
