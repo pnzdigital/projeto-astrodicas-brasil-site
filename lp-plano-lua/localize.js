@@ -401,6 +401,9 @@
       ? 'Horóscopo diario calculado sobre tu carta natal. Carta Astral Completa de regalo.'
       : 'Horóscopo diario calculado sobre tu carta natal. Carta Astral Completa de regalo.';
     translateElement(document.body);
+    document.querySelectorAll('a[href="/termos"], a[href="/privacidade"], a[href="/suporte"]').forEach(function (link) {
+      link.setAttribute('href', '/es' + link.getAttribute('href'));
+    });
     if (page === 'v1') {
       var wheelCore = document.querySelector('.wheel-core');
       if (wheelCore) wheelCore.innerHTML = 'Carta<br>Natal<small>calculada, no improvisada</small>';

@@ -1,0 +1,375 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#080719">
+  <title>AstroDicas · Painel administrativo</title>
+  <meta name="robots" content="noindex, nofollow">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@500;600&family=Jost:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    :root{--ink:#080719;--ink-2:#100d2e;--violet:#1b154b;--gold:#d9ac5c;--gold-lit:#f4d79a;--cream:#f4efe4;--muted:rgba(244,239,228,.7);--faint:rgba(244,239,228,.45);--line:rgba(217,172,92,.24);--bad:#e5788a;--good:#7fd6a0;--display:"Cormorant Garamond",Georgia,serif;--body:"Jost",system-ui,sans-serif}
+    *{box-sizing:border-box}
+    body{margin:0;min-width:320px;background:radial-gradient(circle at 75% -10%,rgba(87,63,180,.32),transparent 34rem),var(--ink);color:var(--cream);font:400 16px/1.6 var(--body);-webkit-font-smoothing:antialiased}
+    a{color:inherit}
+    button,input,select{font:inherit;color:inherit}
+    button:focus-visible,a:focus-visible,input:focus-visible,select:focus-visible{outline:2px solid var(--gold-lit);outline-offset:3px}
+    .wrap{width:min(1160px,calc(100% - 32px));margin:auto}
+    h1,h2,h3{font-family:var(--display);font-weight:500;margin:0}
+    .visually-hidden{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+
+    /* login screen */
+    #login-screen{min-height:100vh;display:grid;place-items:center;padding:24px}
+    .login-card{width:min(360px,100%);padding:34px 30px;border:1px solid var(--line);border-radius:8px;background:rgba(18,14,54,.72);text-align:center}
+    .login-card .brand-mark{display:grid;width:40px;height:40px;margin:0 auto 16px;place-items:center;border:1px solid var(--gold);border-radius:50%;font:600 18px var(--body);color:var(--gold-lit)}
+    .login-card h1{font-size:26px;margin-bottom:6px}
+    .login-card p{color:var(--muted);font-size:13px;margin:0 0 22px}
+    .field{text-align:left;margin-bottom:16px}
+    label{display:block;margin-bottom:6px;font-size:12px;color:var(--muted)}
+    input[type=password]{width:100%;min-height:44px;padding:0 12px;border:1px solid var(--line);border-radius:5px;background:rgba(8,7,25,.6);color:var(--cream)}
+    .button{display:inline-flex;width:100%;min-height:44px;align-items:center;justify-content:center;gap:8px;border:1px solid var(--gold);border-radius:5px;color:#181006;background:var(--gold);font-weight:700;cursor:pointer;transition:transform .15s ease,background .15s ease}
+    .button:hover{transform:translateY(-1px);background:var(--gold-lit)}
+    .button.small{width:auto;min-height:36px;padding:0 14px;font-size:12px}
+    .button.secondary{color:var(--gold-lit);background:transparent}
+    .error-msg{margin-top:12px;color:var(--bad);font-size:12px;min-height:16px}
+
+    /* app shell */
+    #app-screen{display:none}
+    header.top{position:sticky;top:0;z-index:10;border-bottom:1px solid var(--line);background:rgba(8,7,25,.94)}
+    header.top .wrap{display:flex;min-height:64px;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap;padding:10px 0}
+    .brand{display:inline-flex;align-items:center;gap:9px;color:var(--gold-lit);font:600 22px var(--display)}
+    .brand .brand-mark{display:grid;width:26px;height:26px;place-items:center;border:1px solid var(--gold);border-radius:50%;font:600 12px var(--body)}
+    main{padding:32px 0 60px}
+    .cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:14px;margin-bottom:28px}
+    .card{padding:22px;border:1px solid var(--line);border-radius:8px;background:rgba(18,14,54,.6)}
+    .card .label{color:var(--gold);font-size:11px;font-weight:700;letter-spacing:.1em;text-transform:uppercase}
+    .card .value{margin-top:10px;font:600 32px var(--display);color:var(--gold-lit)}
+    .card .sub{margin-top:6px;color:var(--muted);font-size:12px}
+
+    section.panel{margin-bottom:28px;padding:22px;border:1px solid var(--line);border-radius:8px;background:rgba(18,14,54,.4)}
+    section.panel > h2{font-size:20px;margin-bottom:16px}
+
+    .bars{display:flex;align-items:flex-end;gap:3px;height:140px;padding-top:10px}
+    .bars .bar-col{flex:1;min-width:6px;display:flex;flex-direction:column;align-items:center;justify-content:flex-end;height:100%}
+    .bars .bar{width:100%;background:linear-gradient(180deg,var(--gold-lit),var(--gold));border-radius:2px 2px 0 0;min-height:2px}
+    .bars .bar-col:hover .bar{background:var(--gold-lit)}
+    .bars-labels{display:flex;justify-content:space-between;margin-top:6px;color:var(--faint);font-size:10px}
+
+    table{width:100%;border-collapse:collapse;font-size:13px}
+    caption{text-align:left;color:var(--muted);font-size:12px;margin-bottom:10px}
+    th,td{padding:10px 8px;text-align:left;border-bottom:1px solid rgba(244,239,228,.08)}
+    th{color:var(--gold);font-size:11px;font-weight:700;letter-spacing:.06em;text-transform:uppercase}
+    tbody tr:hover{background:rgba(217,172,92,.06)}
+    .table-scroll{overflow-x:auto}
+    .pill{display:inline-block;padding:3px 9px;border-radius:100px;font-size:11px;font-weight:600}
+    .pill.paid,.pill.approved{color:#0d3a20;background:var(--good)}
+    .pill.pending{color:#4a3300;background:#f0c96a}
+    .pill.rejected,.pill.cancelled,.pill.refunded{color:#4a0f18;background:var(--bad)}
+
+    .filters-row{display:flex;flex-wrap:wrap;gap:12px;margin-bottom:18px;align-items:end}
+    .filters-row .field{margin:0;min-width:150px}
+    select{min-height:38px;padding:0 10px;border:1px solid var(--line);border-radius:5px;background:rgba(8,7,25,.6)}
+
+    .pager{display:flex;justify-content:flex-end;gap:8px;margin-top:14px}
+    #status-msg{color:var(--muted);font-size:13px;padding:40px 0;text-align:center}
+    @media(max-width:640px){.cards{grid-template-columns:1fr 1fr}.card .value{font-size:24px}}
+  </style>
+</head>
+<body>
+  <section id="login-screen">
+    <form class="login-card" id="login-form" aria-labelledby="login-title">
+      <div class="brand-mark" aria-hidden="true">✦</div>
+      <h1 id="login-title">Painel administrativo</h1>
+      <p>Acesso restrito à equipe AstroDicas.</p>
+      <div class="field">
+        <label for="admin-password">Senha</label>
+        <input type="password" id="admin-password" name="password" autocomplete="current-password" required>
+      </div>
+      <button class="button" type="submit">Entrar</button>
+      <p class="error-msg" id="login-error" role="alert"></p>
+    </form>
+  </section>
+
+  <div id="app-screen">
+    <header class="top">
+      <div class="wrap">
+        <span class="brand"><span class="brand-mark">✦</span>AstroDicas · Admin</span>
+        <button class="button secondary small" id="logout-btn" type="button">Sair</button>
+      </div>
+    </header>
+    <main class="wrap">
+      <p id="status-msg" hidden>Carregando…</p>
+      <div id="dashboard" hidden>
+        <div class="cards" id="summary-cards"></div>
+
+        <section class="panel" aria-labelledby="chart-title">
+          <h2 id="chart-title">Vendas · últimos 30 dias</h2>
+          <div class="bars" id="chart-bars" role="img" aria-label="Gráfico de barras de vendas diárias dos últimos 30 dias"></div>
+          <div class="bars-labels" id="chart-labels" aria-hidden="true"></div>
+        </section>
+
+        <section class="panel" aria-labelledby="product-title">
+          <h2 id="product-title">Total por produto</h2>
+          <div class="table-scroll">
+            <table>
+              <caption class="visually-hidden">Total de vendas e receita por produto</caption>
+              <thead><tr><th scope="col">Produto</th><th scope="col">Vendas</th><th scope="col">Receita</th></tr></thead>
+              <tbody id="product-rows"></tbody>
+            </table>
+          </div>
+        </section>
+
+        <section class="panel" aria-labelledby="sales-title">
+          <h2 id="sales-title">Vendas</h2>
+          <form class="filters-row" id="filters-form">
+            <div class="field">
+              <label for="filter-market">Mercado</label>
+              <select id="filter-market">
+                <option value="">Todos</option>
+                <option value="BR">Brasil (BRL)</option>
+                <option value="AR">Argentina (ARS)</option>
+              </select>
+            </div>
+            <div class="field">
+              <label for="filter-status">Status</label>
+              <select id="filter-status">
+                <option value="">Todos</option>
+                <option value="paid">Pago</option>
+                <option value="approved">Aprovado</option>
+                <option value="pending">Pendente</option>
+                <option value="rejected">Rejeitado</option>
+                <option value="cancelled">Cancelado</option>
+                <option value="refunded">Reembolsado</option>
+              </select>
+            </div>
+            <button class="button small" type="submit">Filtrar</button>
+          </form>
+          <div class="table-scroll">
+            <table>
+              <caption class="visually-hidden">Lista de vendas, mais recentes primeiro</caption>
+              <thead>
+                <tr>
+                  <th scope="col">Data</th>
+                  <th scope="col">Cliente</th>
+                  <th scope="col">Produto</th>
+                  <th scope="col">Status</th>
+                  <th scope="col">Provedor</th>
+                  <th scope="col">Mercado</th>
+                  <th scope="col">Valor</th>
+                </tr>
+              </thead>
+              <tbody id="sales-rows"></tbody>
+            </table>
+          </div>
+          <div class="pager">
+            <button class="button secondary small" id="prev-page" type="button">← Anteriores</button>
+            <button class="button secondary small" id="next-page" type="button">Próximas →</button>
+          </div>
+        </section>
+      </div>
+    </main>
+  </div>
+
+  <script type="module">
+    const API = '/api/admin';
+    const loginScreen = document.getElementById('login-screen');
+    const appScreen = document.getElementById('app-screen');
+    const statusMsg = document.getElementById('status-msg');
+    const dashboard = document.getElementById('dashboard');
+    const loginError = document.getElementById('login-error');
+
+    const state = { limit: 20, offset: 0, market: '', status: '' };
+
+    async function api(path, options = {}) {
+      const response = await fetch(API + path, { credentials: 'include', headers: { 'Content-Type': 'application/json' }, ...options });
+      if (response.status === 401) throw new Error('unauthorized');
+      if (!response.ok) throw new Error('request-failed');
+      return response.json();
+    }
+
+    function showApp() {
+      loginScreen.style.display = 'none';
+      appScreen.style.display = 'block';
+    }
+
+    function showLogin() {
+      appScreen.style.display = 'none';
+      loginScreen.style.display = 'grid';
+    }
+
+    async function checkSession() {
+      try {
+        const { authenticated } = await api('/session');
+        if (authenticated) {
+          showApp();
+          loadDashboard();
+        } else {
+          showLogin();
+        }
+      } catch {
+        showLogin();
+      }
+    }
+
+    document.getElementById('login-form').addEventListener('submit', async (event) => {
+      event.preventDefault();
+      loginError.textContent = '';
+      const password = document.getElementById('admin-password').value;
+      try {
+        const response = await fetch(API + '/login', {
+          method: 'POST',
+          credentials: 'include',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ password }),
+        });
+        if (response.status === 401) { loginError.textContent = 'Senha incorreta.'; return; }
+        if (response.status === 503) { loginError.textContent = 'Login não configurado no servidor.'; return; }
+        if (!response.ok) { loginError.textContent = 'Erro ao entrar. Tente novamente.'; return; }
+        showApp();
+        loadDashboard();
+      } catch {
+        loginError.textContent = 'Falha de conexão. Tente novamente.';
+      }
+    });
+
+    document.getElementById('logout-btn').addEventListener('click', async () => {
+      await api('/logout', { method: 'POST' }).catch(() => {});
+      showLogin();
+    });
+
+    document.getElementById('filters-form').addEventListener('submit', (event) => {
+      event.preventDefault();
+      state.market = document.getElementById('filter-market').value;
+      state.status = document.getElementById('filter-status').value;
+      state.offset = 0;
+      loadSales();
+    });
+
+    document.getElementById('prev-page').addEventListener('click', () => {
+      state.offset = Math.max(0, state.offset - state.limit);
+      loadSales();
+    });
+    document.getElementById('next-page').addEventListener('click', () => {
+      state.offset += state.limit;
+      loadSales();
+    });
+
+    function formatAmount(minor, currency) {
+      const whole = Math.floor(Math.abs(minor) / 100);
+      const cents = Math.abs(minor) % 100;
+      const grouped = whole.toLocaleString('pt-BR');
+      return currency === 'ARS' ? `ARS ${grouped},${String(cents).padStart(2, '0')}` : `R$ ${grouped},${String(cents).padStart(2, '0')}`;
+    }
+
+    function renderCards(summary) {
+      const container = document.getElementById('summary-cards');
+      container.innerHTML = '';
+      const markets = summary.revenue_by_market || {};
+      for (const code of ['BR', 'AR']) {
+        const bucket = markets[code];
+        const card = document.createElement('div');
+        card.className = 'card';
+        card.innerHTML = `<div class="label">Receita ${code === 'BR' ? 'Brasil' : 'Argentina'}</div><div class="value">${bucket ? bucket.revenue_label || (code === 'BR' ? 'R$ 0,00' : 'ARS 0') : (code === 'BR' ? 'R$ 0,00' : 'ARS 0')}</div><div class="sub">${bucket ? bucket.sales_count : 0} vendas pagas · ${bucket ? bucket.orders_count : 0} pedidos</div>`;
+        container.appendChild(card);
+      }
+      const usersCard = document.createElement('div');
+      usersCard.className = 'card';
+      usersCard.innerHTML = `<div class="label">Usuários</div><div class="value">${summary.users_count}</div><div class="sub">cadastrados no portal</div>`;
+      container.appendChild(usersCard);
+      const entCard = document.createElement('div');
+      entCard.className = 'card';
+      entCard.innerHTML = `<div class="label">Acessos ativos</div><div class="value">${summary.active_entitlements}</div><div class="sub">entitlements disponíveis</div>`;
+      container.appendChild(entCard);
+    }
+
+    function renderChart(series) {
+      const bars = document.getElementById('chart-bars');
+      const labels = document.getElementById('chart-labels');
+      bars.innerHTML = '';
+      labels.innerHTML = '';
+      const max = Math.max(1, ...series.map((d) => d.sales_count));
+      series.forEach((day, index) => {
+        const col = document.createElement('div');
+        col.className = 'bar-col';
+        col.title = `${day.date}: ${day.sales_count} vendas`;
+        const bar = document.createElement('div');
+        bar.className = 'bar';
+        bar.style.height = `${(day.sales_count / max) * 100}%`;
+        col.appendChild(bar);
+        bars.appendChild(col);
+        if (index === 0 || index === series.length - 1) {
+          const label = document.createElement('span');
+          label.textContent = day.date.slice(5);
+          labels.appendChild(label);
+        }
+      });
+    }
+
+    function renderProducts(byProduct) {
+      const tbody = document.getElementById('product-rows');
+      tbody.innerHTML = '';
+      const entries = Object.entries(byProduct || {}).sort((a, b) => b[1].sales_count - a[1].sales_count);
+      for (const [productId, data] of entries) {
+        const revenueText = Object.entries(data.revenue_minor_by_currency || {})
+          .map(([currency, minor]) => formatAmount(minor, currency))
+          .join(' + ');
+        const row = document.createElement('tr');
+        row.innerHTML = `<td>${productId}</td><td>${data.sales_count}</td><td>${revenueText}</td>`;
+        tbody.appendChild(row);
+      }
+    }
+
+    function renderSales(payload) {
+      const tbody = document.getElementById('sales-rows');
+      tbody.innerHTML = '';
+      for (const sale of payload.sales) {
+        const row = document.createElement('tr');
+        const date = new Date(sale.created_at).toLocaleString('pt-BR');
+        row.innerHTML = `
+          <td>${date}</td>
+          <td>${sale.customer_email || '—'}</td>
+          <td>${sale.title || sale.product_id}</td>
+          <td><span class="pill ${sale.status}">${sale.status}</span></td>
+          <td>${sale.provider}</td>
+          <td>${sale.market}</td>
+          <td>${sale.amount_label}</td>`;
+        tbody.appendChild(row);
+      }
+      document.getElementById('prev-page').disabled = state.offset === 0;
+      document.getElementById('next-page').disabled = state.offset + state.limit >= payload.total;
+    }
+
+    async function loadSales() {
+      const params = new URLSearchParams({ limit: state.limit, offset: state.offset });
+      if (state.market) params.set('market', state.market);
+      if (state.status) params.set('status', state.status);
+      const payload = await api('/sales?' + params.toString());
+      renderSales(payload);
+    }
+
+    async function loadDashboard() {
+      statusMsg.hidden = false;
+      dashboard.hidden = true;
+      try {
+        const summary = await api('/summary');
+        renderCards(summary);
+        renderChart(summary.daily_series);
+        renderProducts(summary.by_product);
+        await loadSales();
+        statusMsg.hidden = true;
+        dashboard.hidden = false;
+      } catch (error) {
+        if (error.message === 'unauthorized') {
+          showLogin();
+        } else {
+          statusMsg.textContent = 'Não foi possível carregar o painel. Tente novamente.';
+        }
+      }
+    }
+
+    checkSession();
+  </script>
+</body>
+</html>

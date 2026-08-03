@@ -14,10 +14,15 @@
 <!-- ═══════════ CONFIG — editar só aqui ═══════════ -->
 <script>
 window.LP = {
-  CHECKOUT_BASICO:   "https://pay.cakto.com.br/BASICO",
-  CHECKOUT_COMPLETO: "https://pay.cakto.com.br/COMPLETO",       // pagamento ÚNICO
-  CHECKOUT_BUMP:     "https://pay.cakto.com.br/COMPLETO-BUMP",   // Premium com desconto (order bump)
-  CHECKOUT_EXIT:     "https://pay.cakto.com.br/BASICO-EXIT",     // Plano Lua com desconto (saída)
+  CHECKOUT_BASICO:   "[[PREENCHER: link Cakto V1]]",
+  CHECKOUT_COMPLETO: "[[PREENCHER: link Cakto V2]]",       // pagamento ÚNICO
+  CHECKOUT_BUMP:     "[[PREENCHER: link Cakto V2]]",       // Premium com desconto (order bump)
+  CHECKOUT_EXIT:     "[[PREENCHER: link Cakto V1]]",       // Plano Lua com desconto (saída)
+  // SKUs do checkout interno (AR/Mercado Pago) — preço oficial vem do servidor, sem desconto de bump/exit.
+  PRODUCT_BASICO:    "site:plano_lua",
+  PRODUCT_COMPLETO:  "site:oferta_plano_lua_premium",
+  PRODUCT_BUMP:      "site:oferta_plano_lua_premium_bump",
+  PRODUCT_EXIT:      "site:oferta_plano_lua_exit",
   PIXEL_ID:          "SEU_PIXEL_ID",
 
   // Cada valor é um produto separado na Cakto.
@@ -37,10 +42,6 @@ window.LP = {
   VIDEO_VERTICAL: true            // true = 9:16 (stories/reels) | false = 16:9
 };
 if (location.pathname.startsWith('/es/')) Object.assign(window.LP, {
-  CHECKOUT_BASICO: "",
-  CHECKOUT_COMPLETO: "",
-  CHECKOUT_BUMP: "",
-  CHECKOUT_EXIT: "",
   BASICO: "8.649",
   BASICO_DE: "20.770",
   COMPLETO: "30.070",
@@ -231,8 +232,9 @@ section{padding:clamp(40px,6.5vw,72px) 0}
 @media(max-width:1120px){.cnav.prev{left:2px}.cnav.next{right:2px}}
 @media(max-width:620px){.cnav{display:none}}
 .cdots{display:flex;gap:7px;justify-content:center;margin-top:18px}
-.cdots button{width:8px;height:8px;border-radius:50%;border:0;cursor:pointer;padding:0;
+.cdots button{position:relative;width:8px;height:8px;border-radius:50%;border:0;cursor:pointer;padding:0;
   background:rgba(246,242,232,.24);transition:background .3s,width .3s}
+.cdots button:before{content:"";position:absolute;inset:-18px}
 .cdots button.on{background:var(--gold);width:22px;border-radius:100px}
 .zap{overflow:hidden;background:#efeae2;border:0;border-radius:12px;padding:0 12px 14px;color:#111b21;box-shadow:0 7px 0 rgba(0,0,0,.17)}
 .zap .zstatus{display:flex;align-items:center;justify-content:space-between;margin:0 -12px;padding:7px 13px 5px;background:#f7f5f2;font-size:.58rem;font-weight:700}
@@ -786,15 +788,22 @@ footer.site p{max-width:58ch;margin:12px auto 0;line-height:1.6}
   });
 
   /* checkout + repasse de UTM */
+  var isEs = location.pathname.startsWith('/es/');
   var qs = window.location.search.slice(1);
   function link(u){ return u + (qs ? (u.indexOf('?')>-1?'&':'?') + qs : ''); }
   function num(s){ return parseFloat(String(s).replace('.','').replace(',','.')); }
-  function go(u,v){
-    if(!u || /BASICO|COMPLETO|BUMP|EXIT/.test(u)){
-      alert(location.pathname.startsWith('/es/') ? 'Mercado Pago está siendo conectado. El pago seguro estará disponible muy pronto.' : 'O checkout seguro está sendo conectado e ficará disponível em breve.');
+  function go(u,v,productId){
+    if (isEs) {
+      /* AR: checkout interno (Mercado Pago transparente) — preço oficial vem do servidor */
+      if (window.fbq) fbq('track', 'InitiateCheckout', { value: v, currency: 'ARS' });
+      window.location.href = link('/es/checkout?product=' + encodeURIComponent(productId));
       return;
     }
-    if(window.fbq) fbq('track','InitiateCheckout',{value:v,currency:location.pathname.startsWith('/es/')?'ARS':'BRL'});
+    if(!u || u.indexOf('[[PREENCHER')>-1){
+      alert('O checkout seguro está sendo conectado e ficará disponível em breve.');
+      return;
+    }
+    if(window.fbq) fbq('track','InitiateCheckout',{value:v,currency:'BRL'});
     window.location.href = link(u);
   }
 
@@ -809,10 +818,10 @@ footer.site p{max-width:58ch;margin:12px auto 0;line-height:1.6}
       if(t==='scroll') return;                       // âncora: rola até os planos
       e.preventDefault();
       if(t==='basico')            open('mBump');     // clicou no básico → oferta do premium
-      else if(t==='completo')     go(C.CHECKOUT_COMPLETO, num(C.COMPLETO));
-      else if(t==='bump')         go(C.CHECKOUT_BUMP,     num(C.BUMP));
-      else if(t==='basico-direto')go(C.CHECKOUT_BASICO,   num(C.BASICO));
-      else if(t==='exit')         go(C.CHECKOUT_EXIT,     num(C.EXIT));
+      else if(t==='completo')     go(C.CHECKOUT_COMPLETO, num(C.COMPLETO), C.PRODUCT_COMPLETO);
+      else if(t==='bump')         go(C.CHECKOUT_BUMP,     num(C.BUMP),     C.PRODUCT_BUMP);
+      else if(t==='basico-direto')go(C.CHECKOUT_BASICO,   num(C.BASICO),   C.PRODUCT_BASICO);
+      else if(t==='exit')         go(C.CHECKOUT_EXIT,     num(C.EXIT),     C.PRODUCT_EXIT);
     });
   });
 

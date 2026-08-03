@@ -1,0 +1,63 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#080719">
+  <meta name="robots" content="noindex">
+  <title>AstroDicas · Compra confirmada</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@500;600&family=Jost:wght@400;500;600&display=swap" rel="stylesheet">
+  <style>
+    :root{--ink:#080719;--gold:#d9ac5c;--gold-lit:#f4d79a;--cream:#f4efe4;--muted:rgba(244,239,228,.72);--line:rgba(217,172,92,.24);--display:"Cormorant Garamond",Georgia,serif;--body:"Jost",system-ui,sans-serif}
+    *{box-sizing:border-box}body{margin:0;display:grid;min-height:100vh;place-items:center;padding:32px 16px;background:radial-gradient(circle at 70% -10%,rgba(87,63,180,.32),transparent 32rem),var(--ink);color:var(--cream);font:400 16px/1.65 var(--body)}
+    .card{width:min(620px,100%);padding:clamp(28px,5vw,46px);border:1px solid var(--line);background:rgba(18,14,54,.6);text-align:center}
+    .mark{display:grid;width:64px;height:64px;margin:0 auto 22px;place-items:center;border:1px solid var(--gold);border-radius:50%;color:var(--gold-lit);font:500 28px var(--display)}
+    h1{margin:0 0 14px;font:500 clamp(34px,6vw,50px)/1 var(--display);letter-spacing:-.02em}
+    p{margin:0 0 16px;color:var(--muted)}
+    ol{margin:22px 0 26px;padding:0;list-style:none;text-align:left}
+    li{padding:12px 0;border-bottom:1px solid rgba(244,239,228,.1);color:var(--muted);font-size:14px}
+    li:last-child{border-bottom:0}
+    li b{color:var(--cream);font-weight:600}
+    .button{display:inline-flex;min-height:48px;align-items:center;justify-content:center;padding:0 24px;border:1px solid var(--gold);border-radius:5px;color:#181006;background:var(--gold);font-weight:700;text-decoration:none}
+    .button:hover{background:var(--gold-lit)}
+    .ref{margin-top:22px;color:rgba(244,239,228,.45);font-size:12px}
+    a:focus-visible,.button:focus-visible{outline:2px solid var(--gold-lit);outline-offset:3px}
+  </style>
+</head>
+<body>
+  <main class="card">
+    <div class="mark" aria-hidden="true">✦</div>
+    <h1 id="title">Sua compra está confirmada.</h1>
+    <p id="lede">Seu acesso ao portal AstroDicas foi liberado. Enviamos os detalhes para o seu e-mail.</p>
+    <ol>
+      <li id="step-1"><b>1.</b> Abra o e-mail de confirmação e use o link de acesso.</li>
+      <li id="step-2"><b>2.</b> Complete data, hora e cidade de nascimento no seu perfil.</li>
+      <li id="step-3"><b>3.</b> Sua leitura é gerada na hora e fica guardada na sua área.</li>
+    </ol>
+    <a class="button" id="portal-link" href="https://dash.astrodicas.pnzdigital.com.br/">Entrar na minha área →</a>
+    <p class="ref" id="reference"></p>
+    <nav class="ref" aria-label="Links legais" id="legal-links" style="margin-top:10px"><a href="/termos" id="legal-termos">Termos</a> · <a href="/privacidade" id="legal-privacidade">Privacidade</a> · <a href="/suporte" id="legal-suporte">Suporte</a></nav>
+  </main>
+  <script>
+    const isEs = location.pathname.startsWith('/es');
+    if (isEs) {
+      document.documentElement.lang = 'es-AR';
+      document.title = 'AstroDicas · Tu compra está confirmada';
+      document.getElementById('title').textContent = 'Tu compra está confirmada.';
+      document.getElementById('lede').textContent = 'Tu acceso al portal AstroDicas quedó habilitado. Te enviamos los detalles por e-mail.';
+      document.getElementById('step-1').innerHTML = '<b>1.</b> Abrí el e-mail de confirmación y usá el enlace de acceso.';
+      document.getElementById('step-2').innerHTML = '<b>2.</b> Completá fecha, hora y ciudad de nacimiento en tu perfil.';
+      document.getElementById('step-3').innerHTML = '<b>3.</b> Tu lectura se genera al instante y queda guardada en tu área.';
+      document.getElementById('portal-link').textContent = 'Entrar a mi área →';
+      document.getElementById('legal-termos').textContent = 'Términos';
+      document.getElementById('legal-privacidade').textContent = 'Privacidad';
+      document.getElementById('legal-suporte').textContent = 'Soporte';
+      document.querySelectorAll('#legal-links a').forEach((link) => { link.href = '/es' + link.getAttribute('href'); });
+    }
+    const order = new URLSearchParams(location.search).get('order');
+    if (order) document.getElementById('reference').textContent = (isEs ? 'Referencia: ' : 'Referência: ') + order;
+  </script>
+</body>
+</html>

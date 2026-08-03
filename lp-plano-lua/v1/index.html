@@ -15,7 +15,8 @@
 <!-- ═══════════════ CONFIG — editar só aqui ═══════════════ -->
 <script>
 window.LP = {
-  CHECKOUT_URL: "https://pay.cakto.com.br/SEU-PRODUTO",   // ← link do checkout Cakto
+  CHECKOUT_URL: "[[PREENCHER: link Cakto V1]]",            // ← link do checkout Cakto (BR)
+  PRODUCT_ID:   "site:plano_lua",                          // ← SKU do checkout interno (AR/Mercado Pago)
   PIXEL_ID:     "SEU_PIXEL_ID",                            // ← Meta Pixel
   PRECO:        "27,90",
   PRECO_ANCORA: "67",
@@ -23,7 +24,6 @@ window.LP = {
   VAGAS:        37
 };
 if (location.pathname.startsWith('/es/')) Object.assign(window.LP, {
-  CHECKOUT_URL: "",
   PRECO: "8.649",
   PRECO_ANCORA: "20.770",
   RECORRENCIA: "/mes · cancelá cuando quieras"
@@ -567,19 +567,32 @@ footer.site a{color:var(--cream-dim);text-decoration:none;border-bottom:1px soli
   });
 
   /* CTA + UTMs repassadas pro checkout */
+  var isEs = location.pathname.startsWith('/es/');
   var qs = window.location.search;
-  var url = C.CHECKOUT_URL + (qs ? (C.CHECKOUT_URL.indexOf('?')>-1 ? '&' : '?') + qs.slice(1) : '');
-  document.querySelectorAll('[data-cta]').forEach(function(a){
-    a.href = url;
-    a.addEventListener('click', function(e){
-      if(!C.CHECKOUT_URL || C.CHECKOUT_URL.indexOf('SEU-PRODUTO')>-1){
-        e.preventDefault();
-        alert(location.pathname.startsWith('/es/') ? 'Mercado Pago está siendo conectado. El pago seguro estará disponible muy pronto.' : 'O checkout seguro está sendo conectado e ficará disponível em breve.');
-        return;
-      }
-      if(window.fbq) fbq('track','InitiateCheckout',{value:parseFloat(C.PRECO.replace('.','').replace(',','.')),currency:location.pathname.startsWith('/es/')?'ARS':'BRL'});
+  if (isEs) {
+    /* AR: checkout interno (Mercado Pago transparente) */
+    var internalUrl = '/es/checkout?product=' + encodeURIComponent(C.PRODUCT_ID) + (qs ? '&' + qs.slice(1) : '');
+    document.querySelectorAll('[data-cta]').forEach(function(a){
+      a.href = internalUrl;
+      a.addEventListener('click', function(){
+        if (window.fbq) fbq('track', 'InitiateCheckout', { value: parseFloat(C.PRECO.replace('.', '').replace(',', '.')), currency: 'ARS' });
+      });
     });
-  });
+  } else {
+    /* BR: link externo Cakto */
+    var url = C.CHECKOUT_URL + (qs ? (C.CHECKOUT_URL.indexOf('?')>-1 ? '&' : '?') + qs.slice(1) : '');
+    document.querySelectorAll('[data-cta]').forEach(function(a){
+      a.href = url;
+      a.addEventListener('click', function(e){
+        if(!C.CHECKOUT_URL || C.CHECKOUT_URL.indexOf('[[PREENCHER')>-1){
+          e.preventDefault();
+          alert('O checkout seguro está sendo conectado e ficará disponível em breve.');
+          return;
+        }
+        if(window.fbq) fbq('track','InitiateCheckout',{value:parseFloat(C.PRECO.replace('.','').replace(',','.')),currency:'BRL'});
+      });
+    });
+  }
 
   /* céu */
   var sky = document.getElementById('stars'), frag = document.createDocumentFragment();

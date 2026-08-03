@@ -11,6 +11,9 @@
       var isDashboard = location.hostname === 'dash.astrodicas.pnzdigital.com.br' || location.hostname.indexOf('dash.') === 0;
       var isPaidDemo = new URLSearchParams(location.search).get('demo') === 'paid';
       if (isDashboard && !isPaidDemo) document.documentElement.classList.add('dashboard-auth-pending');
+      // Botões de leitura dependem do módulo carregar (import de config + bootstrap).
+      // Sem isso, cliques antes do listener anexar eram engolidos em silêncio.
+      document.documentElement.classList.add('app-booting');
     })();
   </script>
   <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -436,9 +439,15 @@
     .dashboard-auth-pending .app-shell,
     .dashboard-auth-pending .mobile-nav,
     .dashboard-auth-pending .toast,
+    .dashboard-demo-pending .app-shell,
+    .dashboard-demo-pending .mobile-nav,
+    .dashboard-demo-pending .toast,
     .dashboard-auth-locked .app-shell,
     .dashboard-auth-locked .mobile-nav,
     .dashboard-auth-locked .toast { display: none; }
+    .boot-status { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+    .app-booting .app-shell { opacity: .5; pointer-events: none; cursor: wait; transition: opacity .2s ease; }
+    @media (prefers-reduced-motion: reduce) { .app-booting .app-shell { transition: none; } }
     .dashboard-auth-dialog { width: min(470px, calc(100vw - 32px)); }
     .dashboard-auth-dialog .dialog-inner { padding: 35px; }
     .dashboard-auth-dialog .dialog-close { display: none; }
@@ -529,7 +538,9 @@
   </style>
 </head>
 <body>
-  <div class="app-shell">
+  <p class="boot-status" id="boot-status" role="status" aria-live="polite">Carregando seu portal…</p>
+  <div class="app-shell" id="app-shell">
+  <script>document.getElementById('app-shell').setAttribute('inert', '');</script>
     <aside class="sidebar" aria-label="Navegação principal">
       <a class="brand" href="#" aria-label="AstroDicas, início"><span class="brand-mark">✦</span>AstroDicas</a>
       <div class="nav-label">Seu portal</div>
@@ -1067,7 +1078,9 @@
         : (IS_ARGENTINA ? 'Entrá o creá tu cuenta para guardar tus datos de nacimiento y generar lecturas personalizadas.' : 'Entre ou crie sua conta para salvar dados de nascimento e gerar leituras personalizadas.');
       document.getElementById('portal-mode-note').textContent = appState.apiAvailable
         ? (IS_ARGENTINA ? 'Acceso conectado al portal web.' : 'Acesso conectado ao portal web.')
-        : (IS_ARGENTINA ? 'Modo demostración: el portal sigue navegable sin una sesión.' : 'Modo demonstração: o portal continua navegável sem uma sessão.');
+        : (appState.demo
+          ? (IS_ARGENTINA ? 'Modo demostración habilitado por el backend.' : 'Modo demonstração habilitado pelo backend.')
+          : (IS_ARGENTINA ? 'Iniciá sesión para ver tu portal.' : 'Faça login para acessar seu portal.'));
       if (appState.authenticated) {
         document.querySelector('[data-account-email]').textContent = appState.user?.email || '—';
         document.querySelector('[data-account-profile]').textContent = profileComplete() ? `${appState.profile.birth_date} · ${appState.profile.birth_city}` : (IS_ARGENTINA ? 'Todavía no completados' : 'Ainda não preenchidos');
@@ -1076,12 +1089,13 @@
     }
     function enforceDashboardGate() {
       const root = document.documentElement;
+      const shell = document.querySelector('.app-shell');
       if (!IS_DASHBOARD || DEMO_PAID) {
         root.classList.remove('dashboard-auth-pending', 'dashboard-auth-locked');
+        shell?.removeAttribute('inert');
         return;
       }
       const dialog = document.getElementById('account-dialog');
-      const shell = document.querySelector('.app-shell');
       if (!appState.authResolved) {
         root.classList.add('dashboard-auth-pending');
         root.classList.remove('dashboard-auth-locked');
@@ -1193,6 +1207,8 @@
     const contentById = Object.fromEntries((PORTAL_CONFIG.content || []).map((entry) => [entry.id, entry]));
     LIBRARY_ITEMS = LIBRARY_ITEMS.map((item) => ({ ...item, ...(contentById[item.id] ? { title: contentById[item.id].title, description: contentById[item.id].summary, downloadable: contentById[item.id].downloadable !== false, downloadUrl: contentById[item.id].download?.url || '' } : {}) }));
     renderLibrary(); renderOffers(); applySpanishPortalCopy(); renderUser(); syncAccountDialog();
+    document.documentElement.classList.remove('app-booting');
+    document.getElementById('boot-status').textContent = '';
     document.addEventListener('click', (event) => {
       const target = event.target.closest('button, a'); if (!target) return;
       if (target.matches('[data-toast]')) { if (target.getAttribute('href') === '#') event.preventDefault(); showToast(target.dataset.toast); }
