@@ -1,0 +1,47 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#080719">
+<meta name="robots" content="noindex">
+<title>AstroDicas · Página não encontrada</title>
+<link rel="icon" type="image/svg+xml" href="/assets/icon.svg">
+<link rel="apple-touch-icon" href="/assets/apple-touch-icon.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@500;600&family=Jost:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root{--ink:#080719;--gold:#d9ac5c;--gold-lit:#f4d79a;--cream:#f4efe4;--muted:rgba(244,239,228,.72);--line:rgba(217,172,92,.24);--display:"Cormorant Garamond",Georgia,serif;--body:"Jost",system-ui,sans-serif}
+  @media (prefers-reduced-motion: reduce){*{animation-duration:.001ms !important;animation-iteration-count:1 !important;transition-duration:.001ms !important;scroll-behavior:auto !important}}
+  *{box-sizing:border-box}
+  body{margin:0;display:grid;min-height:100vh;place-items:center;padding:32px 16px;background:radial-gradient(circle at 70% -10%,rgba(87,63,180,.32),transparent 32rem),var(--ink);color:var(--cream);font:400 16px/1.65 var(--body)}
+  a{color:var(--gold-lit)}
+  a:focus-visible,.button:focus-visible{outline:2px solid var(--gold-lit);outline-offset:3px}
+  .card{width:min(560px,100%);padding:clamp(28px,5vw,46px);border:1px solid var(--line);background:rgba(18,14,54,.6);text-align:center}
+  .mark{display:grid;width:64px;height:64px;margin:0 auto 22px;place-items:center;border:1px solid var(--gold);border-radius:50%;color:var(--gold-lit);font:500 26px var(--display)}
+  h1{margin:0 0 14px;font:500 clamp(30px,6vw,46px)/1 var(--display);letter-spacing:-.02em}
+  p{margin:0 0 22px;color:var(--muted)}
+  .button{display:inline-flex;min-height:48px;align-items:center;justify-content:center;padding:0 24px;border:1px solid var(--gold);border-radius:5px;color:#181006;background:var(--gold);font-weight:700;text-decoration:none}
+  .button:hover{background:var(--gold-lit)}
+</style>
+</head>
+<body>
+  <main class="card">
+    <div class="mark" aria-hidden="true">✦</div>
+    <h1 id="title">Essa página não está no seu mapa.</h1>
+    <p id="lede">O endereço mudou, ou nunca existiu por aqui. Volte pro início e encontre sua leitura.</p>
+    <a class="button" id="home-link" href="/">Voltar para o início →</a>
+  </main>
+  <script>
+    if (location.pathname.startsWith('/es/')) {
+      document.documentElement.lang = 'es-AR';
+      document.title = 'AstroDicas · Página no encontrada';
+      document.getElementById('title').textContent = 'Esa página no está en tu mapa.';
+      document.getElementById('lede').textContent = 'La dirección cambió, o nunca existió acá. Volvé al inicio y encontrá tu lectura.';
+      document.getElementById('home-link').textContent = 'Volver al inicio →';
+      document.getElementById('home-link').href = '/es';
+    }
+  </script>
+</body>
+</html>

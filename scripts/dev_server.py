@@ -73,6 +73,27 @@ for route in ("/suporte", "/es/suporte"):
 if IS_DASH:
     app.get("/admin")(lambda: page(PORTAL / "admin.html"))
 
+
+@app.get("/robots.txt", response_class=PlainTextResponse)
+def robots() -> str:
+    return (PORTAL / ("robots-dash.txt" if IS_DASH else "robots.txt")).read_text()
+
+
+from fastapi import HTTPException  # noqa: E402
+
+
+@app.get("/sitemap.xml")
+def sitemap():
+    if IS_DASH:
+        raise HTTPException(status_code=404)
+    return FileResponse(PORTAL / "sitemap.xml", media_type="application/xml")
+
+
+@app.exception_handler(404)
+async def not_found(request, exc):
+    return FileResponse(PORTAL / "404.html", status_code=404)
+
+
 app.mount("/lp-plano-lua", StaticFiles(directory=LANDING), name="landing")
 app.mount("/", StaticFiles(directory=PORTAL), name="portal")
 

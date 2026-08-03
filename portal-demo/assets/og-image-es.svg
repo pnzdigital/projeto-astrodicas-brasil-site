@@ -1,0 +1,17 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 630">
+  <defs>
+    <radialGradient id="bg" cx="78%" cy="-10%" r="80%">
+      <stop offset="0%" stop-color="#573fb4" stop-opacity=".32"/>
+      <stop offset="100%" stop-color="#080719" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+  <rect width="1200" height="630" fill="#080719"/>
+  <rect width="1200" height="630" fill="url(#bg)"/>
+  <circle cx="960" cy="200" r="115" fill="#d9ac5c"/>
+  <circle cx="1005" cy="165" r="115" fill="#080719"/>
+  <circle cx="150" cy="120" r="2.4" fill="#f4d79a"/>
+  <circle cx="220" cy="480" r="1.8" fill="#f4d79a"/>
+  <circle cx="1080" cy="470" r="2" fill="#f4d79a"/>
+  <text x="100" y="330" font-family="Georgia, 'Cormorant Garamond', serif" font-size="88" fill="#f4efe4" font-weight="500">AstroDicas Argentina</text>
+  <text x="100" y="390" font-family="Georgia, 'Cormorant Garamond', serif" font-size="34" fill="#d9ac5c" font-style="italic">Lecturas hechas para tu cielo</text>
+</svg>

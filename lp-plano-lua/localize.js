@@ -400,6 +400,19 @@
     if (ogDescription) ogDescription.content = page === 'v2'
       ? 'Horóscopo diario calculado sobre tu carta natal. Carta Astral Completa de regalo.'
       : 'Horóscopo diario calculado sobre tu carta natal. Carta Astral Completa de regalo.';
+    var esUrl = 'https://astrodicas.pnzdigital.com.br/es/' + (page === 'v2' ? 'oferta-lua-2' : 'oferta-lua-1');
+    var canonical = document.querySelector('link[rel="canonical"]');
+    if (canonical) canonical.href = esUrl;
+    var ogUrl = document.querySelector('meta[property="og:url"]');
+    if (ogUrl) ogUrl.content = esUrl;
+    var ogImage = document.querySelector('meta[property="og:image"]');
+    if (ogImage) ogImage.content = 'https://astrodicas.pnzdigital.com.br/assets/og-image-es.png';
+    var twitterTitle = document.querySelector('meta[name="twitter:title"]');
+    var twitterDescription = document.querySelector('meta[name="twitter:description"]');
+    var twitterImage = document.querySelector('meta[name="twitter:image"]');
+    if (twitterTitle && ogTitle) twitterTitle.content = ogTitle.content;
+    if (twitterDescription && ogDescription) twitterDescription.content = ogDescription.content;
+    if (twitterImage) twitterImage.content = 'https://astrodicas.pnzdigital.com.br/assets/og-image-es.png';
     translateElement(document.body);
     document.querySelectorAll('a[href="/termos"], a[href="/privacidade"], a[href="/suporte"]').forEach(function (link) {
       link.setAttribute('href', '/es' + link.getAttribute('href'));

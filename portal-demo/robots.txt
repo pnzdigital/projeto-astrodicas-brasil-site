@@ -1,0 +1,9 @@
+User-agent: *
+Allow: /
+Disallow: /checkout
+Disallow: /es/checkout
+Disallow: /obrigado
+Disallow: /es/obrigado
+Disallow: /admin
+
+Sitemap: https://astrodicas.pnzdigital.com.br/sitemap.xml

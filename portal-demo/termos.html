@@ -5,7 +5,20 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="theme-color" content="#080719">
 <meta name="robots" content="index, follow">
-<title>AstroDicas · Termos de Uso</title>
+<title id="meta-title">AstroDicas · Termos de Uso</title>
+<meta name="description" id="meta-description" content="Termos de uso do site AstroDicas: assinatura, pagamento único, direito de arrependimento e cancelamento.">
+<link rel="canonical" id="meta-canonical" href="https://astrodicas.pnzdigital.com.br/termos">
+<link rel="alternate" hreflang="pt-BR" href="https://astrodicas.pnzdigital.com.br/termos">
+<link rel="alternate" hreflang="es-AR" href="https://astrodicas.pnzdigital.com.br/es/termos">
+<link rel="alternate" hreflang="x-default" href="https://astrodicas.pnzdigital.com.br/termos">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="AstroDicas">
+<meta property="og:title" id="og-title" content="AstroDicas · Termos de Uso">
+<meta property="og:url" id="og-url" content="https://astrodicas.pnzdigital.com.br/termos">
+<meta property="og:image" content="https://astrodicas.pnzdigital.com.br/assets/og-image.png">
+<link rel="icon" type="image/svg+xml" href="/assets/icon.svg">
+<link rel="icon" type="image/png" sizes="32x32" href="/assets/favicon-32.png">
+<link rel="apple-touch-icon" href="/assets/apple-touch-icon.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@500;600&family=Jost:wght@400;500;600;700&display=swap" rel="stylesheet">
@@ -105,6 +118,10 @@
       if (!isEs) return;
       document.documentElement.lang = 'es-AR';
       document.title = 'AstroDicas · Términos de Uso';
+      document.getElementById('meta-description').content = 'Términos de uso del sitio AstroDicas: suscripción, pago único, derecho de arrepentimiento y cancelación.';
+      document.getElementById('meta-canonical').href = 'https://astrodicas.pnzdigital.com.br/es/termos';
+      document.getElementById('og-title').content = 'AstroDicas · Términos de Uso';
+      document.getElementById('og-url').content = 'https://astrodicas.pnzdigital.com.br/es/termos';
       document.getElementById('lang-br').removeAttribute('aria-current');
       document.getElementById('lang-br').setAttribute('href','/termos');
       document.getElementById('lang-es').setAttribute('aria-current','page');
