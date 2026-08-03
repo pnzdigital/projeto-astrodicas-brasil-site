@@ -5,8 +5,15 @@ import jwt
 from pwdlib import PasswordHash
 
 
-SECRET_KEY = os.getenv("SITE_SECRET_KEY", "change-me-before-production")
+SECRET_KEY = os.getenv("SITE_SECRET_KEY", "")
 ALGORITHM = "HS256"
+
+if len(SECRET_KEY.encode()) < 32:
+    env = os.getenv("ENV", "development")
+    allow_insecure = os.getenv("ALLOW_INSECURE_DEV", "0") == "1"
+    if env == "production" or not allow_insecure:
+        raise RuntimeError("SITE_SECRET_KEY ausente ou curta demais: defina ao menos 32 bytes.")
+    SECRET_KEY = SECRET_KEY or "dev-only-insecure-secret-key-32bytes!!"
 password_hash = PasswordHash.recommended()
 
 

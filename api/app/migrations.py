@@ -1,0 +1,61 @@
+"""Migrações leves de schema para bancos já criados em produção.
+
+`Base.metadata.create_all` cria tabelas novas, mas nunca adiciona colunas a
+uma tabela existente. Como o site já roda no Coolify com dados reais, as
+colunas novas de `site_orders` são aplicadas aqui, de forma idempotente e
+compatível com SQLite e PostgreSQL.
+"""
+
+from __future__ import annotations
+
+import logging
+
+from sqlalchemy import inspect, text
+
+from .db import engine
+
+logger = logging.getLogger(__name__)
+
+# tabela -> (coluna, tipo SQL, default)
+NEW_COLUMNS: dict[str, tuple[tuple[str, str, str], ...]] = {
+    "site_orders": (
+        ("locale", "VARCHAR(10)", "'pt-BR'"),
+        ("market", "VARCHAR(2)", "'BR'"),
+        ("customer_email", "VARCHAR(320)", "''"),
+        ("updated_at", "TIMESTAMP", ""),
+    ),
+}
+
+
+def ensure_schema() -> None:
+    inspector = inspect(engine)
+    existing_tables = set(inspector.get_table_names())
+    for table, columns in NEW_COLUMNS.items():
+        if table not in existing_tables:
+            continue
+        present = {column["name"] for column in inspector.get_columns(table)}
+        for name, sql_type, default in columns:
+            if name in present:
+                continue
+            clause = f"ALTER TABLE {table} ADD COLUMN {name} {sql_type}"
+            if default:
+                clause += f" DEFAULT {default}"
+            try:
+                with engine.begin() as connection:
+                    connection.execute(text(clause))
+                logger.info("Coluna %s.%s criada.", table, name)
+            except Exception as exc:  # pragma: no cover - depende do banco real
+                logger.warning("Não foi possível criar %s.%s: %s", table, name, exc)
+
+    _relax_order_user_id(inspector, existing_tables)
+
+
+def _relax_order_user_id(inspector, existing_tables: set[str]) -> None:
+    """Ordens pendentes existem antes da conta: `user_id` precisa aceitar nulo."""
+    if "site_orders" not in existing_tables or engine.dialect.name != "postgresql":
+        return
+    try:
+        with engine.begin() as connection:
+            connection.execute(text("ALTER TABLE site_orders ALTER COLUMN user_id DROP NOT NULL"))
+    except Exception as exc:  # pragma: no cover - já pode estar nulável
+        logger.debug("user_id de site_orders já aceita nulo: %s", exc)

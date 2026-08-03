@@ -13,6 +13,8 @@ from sqlalchemy.orm import Session
 
 from .db import Base, engine, get_db
 from .astrology import resolve_coordinates
+from . import admin, checkout, migrations, pricing
+from .ratelimit import auth_rate_limit, webhook_rate_limit
 from .engine import generate_reading
 from .models import Entitlement, Order, Profile, Reading, User, WebhookEvent
 from .security import create_token, decode_token, hash_password, verify_password
@@ -32,6 +34,8 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+app.include_router(checkout.router)
+app.include_router(admin.router)
 
 
 class RegisterBody(BaseModel):
@@ -83,10 +87,34 @@ def set_session(response: Response, user: User) -> None:
     response.set_cookie("site_session", create_token(user.id), httponly=True, secure=os.getenv("COOKIE_SECURE", "1") == "1", samesite="lax", max_age=60 * 60 * 24 * 30)
 
 
+def validate_production_config() -> None:
+    """Falha rápido em produção: nunca subir com segredo crítico ausente.
+
+    ``SITE_SECRET_KEY`` já é validado na importação de ``app.security``. Aqui
+    cobrimos os demais segredos que hoje só eram checados por rota (503 tardio):
+    sem eles em produção, o serviço nem deve terminar o startup.
+    """
+    if os.getenv("ENV", "development") != "production":
+        return
+    missing = [
+        name
+        for name in ("MP_WEBHOOK_SECRET", "CAKTO_WEBHOOK_SECRET", "ADMIN_PASSWORD")
+        if not os.getenv(name, "").strip()
+    ]
+    if missing:
+        raise RuntimeError(
+            "Configuração insegura para produção: variáveis ausentes -> " + ", ".join(missing)
+        )
+    if os.getenv("COOKIE_SECURE", "1") != "1":
+        raise RuntimeError("Configuração insegura para produção: COOKIE_SECURE precisa ser 1.")
+
+
 @app.on_event("startup")
 def startup() -> None:
+    validate_production_config()
     Path("data").mkdir(exist_ok=True)
     Base.metadata.create_all(engine)
+    migrations.ensure_schema()
 
 
 @app.get("/api/health")
@@ -94,7 +122,7 @@ def health() -> dict:
     return {"ok": True, "service": "astrodicas-site", "channel": "site"}
 
 
-@app.post("/api/auth/register")
+@app.post("/api/auth/register", dependencies=[Depends(auth_rate_limit)])
 def register(body: RegisterBody, response: Response, db: Session = Depends(get_db)) -> dict:
     email = body.email.lower()
     if db.scalar(select(User).where(User.email == email)):
@@ -111,7 +139,7 @@ def register(body: RegisterBody, response: Response, db: Session = Depends(get_d
     return {"user": {"id": user.id, "email": user.email, "name": user.name, "locale": user.locale}}
 
 
-@app.post("/api/auth/login")
+@app.post("/api/auth/login", dependencies=[Depends(auth_rate_limit)])
 def login(body: LoginBody, response: Response, db: Session = Depends(get_db)) -> dict:
     user = db.scalar(select(User).where(User.email == body.email.lower()))
     if not user or not verify_password(body.password, user.password_hash):
@@ -124,6 +152,28 @@ def login(body: LoginBody, response: Response, db: Session = Depends(get_db)) ->
 def logout(response: Response) -> dict:
     response.delete_cookie("site_session")
     return {"ok": True}
+
+
+def _demo_allowed() -> bool:
+    """Demo só abre vitrine se ALLOW_DEMO=1 e ENV != production."""
+    if os.getenv("ENV", "development") == "production":
+        return False
+    return os.getenv("ALLOW_DEMO", "0") == "1"
+
+
+@app.get("/api/auth-gate")
+def auth_gate(demo: str | None = None) -> dict:
+    """Gate explícito para o portal decidir se libera vitrine de demo.
+
+    - Sem `demo=paid`: 200 com demo=false (não afeta o fluxo).
+    - `demo=paid` + ALLOW_DEMO=1 + ENV != production: 200 com demo=true.
+    - `demo=paid` em qualquer outro caso: 403.
+    """
+    if demo != "paid":
+        return {"demo": False}
+    if not _demo_allowed():
+        raise HTTPException(status_code=403, detail="Demonstração indisponível neste ambiente.")
+    return {"demo": True}
 
 
 @app.get("/api/session")
@@ -193,14 +243,23 @@ def generate(content_id: str, site_session: str | None = Cookie(default=None), d
     return {"reading": reading_to_dict(reading)}
 
 
-@app.post("/api/webhooks/{provider}")
+@app.post("/api/webhooks/{provider}", dependencies=[Depends(webhook_rate_limit)])
 async def webhook(provider: str, body: WebhookBody, request: Request, db: Session = Depends(get_db)) -> dict:
     if provider not in {"cakto", "mercadopago"}:
         raise HTTPException(status_code=404, detail="Provedor não configurado.")
-    secret = os.getenv(f"{provider.upper()}_WEBHOOK_SECRET", "")
+    secret_env = "CAKTO_WEBHOOK_SECRET" if provider == "cakto" else "MP_WEBHOOK_SECRET"
+    secret = os.getenv(secret_env, "").strip()
+    env = os.getenv("ENV", "development")
+    allow_insecure = os.getenv("ALLOW_INSECURE_DEV", "0") == "1"
     signature = request.headers.get("x-site-signature", "")
     raw = await request.body()
-    if secret and not hmac.compare_digest(signature, hmac.new(secret.encode(), raw, hashlib.sha256).hexdigest()):
+    if not secret:
+        if env == "production" or not allow_insecure:
+            raise HTTPException(
+                status_code=503,
+                detail=f"Webhook para {provider} indisponível: segredo não configurado.",
+            )
+    elif not hmac.compare_digest(signature, hmac.new(secret.encode(), raw, hashlib.sha256).hexdigest()):
         raise HTTPException(status_code=401, detail="Assinatura inválida.")
     event = db.scalar(select(WebhookEvent).where(WebhookEvent.provider == provider, WebhookEvent.event_id == body.event_id))
     if event:
@@ -212,13 +271,14 @@ async def webhook(provider: str, body: WebhookBody, request: Request, db: Sessio
         user = User(email=body.email.lower(), password_hash=hash_password(os.urandom(18).hex()), name="Cliente AstroDicas")
         db.add(user)
         db.flush()
-    order = Order(user_id=user.id, provider=provider, external_id=body.external_id or body.event_id, product_id=body.product_id, status=body.status, amount_minor=body.amount_minor, currency=body.currency, raw_payload=body.model_dump(mode="json"))
+    order = Order(user_id=user.id, provider=provider, external_id=body.external_id or body.event_id, product_id=body.product_id, status=body.status, amount_minor=body.amount_minor, currency=body.currency, customer_email=user.email, raw_payload=body.model_dump(mode="json"))
     db.add(order)
-    entitlement = db.scalar(select(Entitlement).where(Entitlement.user_id == user.id, Entitlement.product_id == body.product_id))
-    if not entitlement:
-        db.add(Entitlement(user_id=user.id, product_id=body.product_id, status="available", source="site"))
-    else:
-        entitlement.status = "available"
+    for product_id in pricing.granted_products(body.product_id):
+        entitlement = db.scalar(select(Entitlement).where(Entitlement.user_id == user.id, Entitlement.product_id == product_id))
+        if not entitlement:
+            db.add(Entitlement(user_id=user.id, product_id=product_id, status="available", source="site"))
+        else:
+            entitlement.status = "available"
     db.commit()
     return {"ok": True, "user_id": user.id, "product_id": body.product_id}
 
