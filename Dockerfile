@@ -1,3 +1,7 @@
+# ⚠️ DEPRECATED: This monolithic Dockerfile is not used by compose.yaml.
+# Use api/Dockerfile + portal-demo/Dockerfile instead (see compose.yaml).
+# Kept for reference only.
+
 FROM python:3.12-slim
 
 ENV PYTHONDONTWRITEBYTECODE=1 \
