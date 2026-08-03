@@ -133,7 +133,9 @@ def verify_signature(signature_header: str, request_id: str, data_id: str) -> bo
     timestamp, received = parts.get("ts", ""), parts.get("v1", "")
     if not timestamp or not received:
         return False
-    manifest = f"id:{data_id};request-id:{request_id};ts:{timestamp};"
+    # Doc oficial exige data.id em lowercase no manifest (payment id é sempre
+    # numérico hoje, mas normalizamos aqui para bater com a especificação).
+    manifest = f"id:{data_id.lower()};request-id:{request_id};ts:{timestamp};"
     expected = hmac.new(secret.encode(), manifest.encode(), hashlib.sha256).hexdigest()
     return hmac.compare_digest(expected, received)
 

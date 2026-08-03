@@ -147,6 +147,13 @@ def test_verify_signature_rejects_malformed_header(monkeypatch):
     assert mp.verify_signature("ts=1700000000", "req-1", "778899") is False
 
 
+def test_verify_signature_normalizes_data_id_case_per_mp_docs(monkeypatch):
+    """Doc oficial: o manifest usa data.id em lowercase antes do HMAC."""
+    monkeypatch.setenv("MP_WEBHOOK_SECRET", "clave-secreta")
+    header, request_id = _signature_headers("clave-secreta", "abc123", "req-1")
+    assert mp.verify_signature(header, request_id, "ABC123") is True
+
+
 def test_verify_signature_replay_with_different_data_id_fails(monkeypatch):
     monkeypatch.setenv("MP_WEBHOOK_SECRET", "clave-secreta")
     header, request_id = _signature_headers("clave-secreta", "778899", "req-1")
