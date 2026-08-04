@@ -734,18 +734,18 @@
           <button class="auth-tab active" type="button" data-auth-mode="login" role="tab" aria-selected="true">Entrar</button>
           <button class="auth-tab" type="button" data-auth-mode="register" role="tab" aria-selected="false">Criar conta</button>
         </div>
-        <form class="auth-form" id="login-form" data-auth-form="login">
+        <form class="auth-form" id="login-form" data-auth-form="login" aria-describedby="login-error">
           <div class="field"><label for="login-email">E-mail</label><input id="login-email" name="email" type="email" autocomplete="email" required></div>
           <div class="field"><label for="login-password">Senha</label><input id="login-password" name="password" type="password" autocomplete="current-password" minlength="8" required></div>
-          <p class="form-error" data-form-error="login" role="alert"></p>
-          <div class="dialog-actions"><button class="button small" type="submit">Entrar →</button></div>
+          <p class="form-error" id="login-error" data-form-error="login" role="alert"></p>
+          <div class="dialog-actions"><a class="profile-trigger" href="/reset" data-forgot-link>Esqueceu a senha?</a><button class="button small" type="submit">Entrar →</button></div>
         </form>
-        <form class="auth-form" id="register-form" data-auth-form="register" hidden>
+        <form class="auth-form" id="register-form" data-auth-form="register" hidden aria-describedby="register-error">
           <div class="field"><label for="register-name">Seu nome</label><input id="register-name" name="name" type="text" autocomplete="name" minlength="2" required></div>
           <div class="field"><label for="register-email">E-mail</label><input id="register-email" name="email" type="email" autocomplete="email" required></div>
           <div class="field"><label for="register-password">Senha</label><input id="register-password" name="password" type="password" autocomplete="new-password" minlength="8" required></div>
           <p class="form-help">Use pelo menos 8 caracteres. Você poderá completar seus dados de nascimento depois.</p>
-          <p class="form-error" data-form-error="register" role="alert"></p>
+          <p class="form-error" id="register-error" data-form-error="register" role="alert"></p>
           <div class="dialog-actions"><button class="button small" type="submit">Criar minha conta →</button></div>
         </form>
         <p class="portal-mode" id="portal-mode-note">Modo demonstração: o portal continua navegável sem uma sessão.</p>
@@ -864,21 +864,21 @@
       'site:combo_plano_lua_mapa_prosperidade': ['Combinação', 'Plano Lua + Mapa da Prosperidade', 'Seu acompanhamento diário e uma leitura para prosperar.', 'R$ 67,00', 'pagamento único', 'Conhecer combinação'],
     });
     const OFFER_COPY_AR = Object.freeze({
-      'site:plano_lua': ['Suscripción', 'Plan Luna', 'Horóscopo personalizado, Mapa Astral y Guía del Mes en tu área.', 'ARS 9.900', '/mes · cancela cuando quieras', 'Conocer Plan Luna'],
-      'site:mapa_astral': ['Lectura individual', 'Mapa Astral Completo', 'Una lectura profunda para guardar y volver a consultar.', 'Desde ARS 16.900', 'acceso permanente', 'Ver Mapa Astral'],
-      'site:mapa_amor_sinastria': ['Lectura individual', 'Mapa del Amor · Sinastría', 'Dos historias y una lectura cuidadosa sobre el encuentro.', 'Desde ARS 16.900', 'acceso permanente', 'Ver Mapa del Amor'],
-      'site:mapa_carreira': ['Lectura individual', 'Mapa de la Carrera', 'Talentos y dirección para tus próximas decisiones profesionales.', 'Desde ARS 16.900', 'acceso permanente', 'Ver Mapa de la Carrera'],
-      'site:mapa_prosperidade': ['Lectura individual', 'Mapa de la Prosperidad', 'Una nueva mirada sobre recursos, merecimiento y abundancia.', 'Desde ARS 16.900', 'acceso permanente', 'Ver Prosperidad'],
-      'site:oferta_plano_lua_premium': ['Pago único', 'Plan Luna Premium', 'Un mes de Plan Luna más todos los bonus de lectura.', 'ARS 34.900', 'una vez · acceso a los bonus', 'Desbloquear todo'],
-      'site:combo_mapa_astral_amor': ['Combinación', 'Mapa Astral + Mapa del Amor', 'Tu mapa natal y una lectura de tus encuentros.', 'ARS 27.900', 'pago único', 'Conocer combinación'],
-      'site:combo_mapa_astral_carreira': ['Combinación', 'Mapa Astral + Mapa de la Carrera', 'Identidad y dirección profesional en una sola experiencia.', 'ARS 27.900', 'pago único', 'Conocer combinación'],
-      'site:combo_mapa_astral_prosperidade': ['Combinación', 'Mapa Astral + Mapa de la Prosperidad', 'Tu cielo natal y los caminos de abundancia que revela.', 'ARS 27.900', 'pago único', 'Conocer combinación'],
-      'site:combo_amor_carreira': ['Combinación', 'Mapa del Amor + Mapa de la Carrera', 'Relaciones y dirección profesional en una experiencia.', 'ARS 27.900', 'pago único', 'Conocer combinación'],
-      'site:combo_amor_prosperidade': ['Combinación', 'Mapa del Amor + Mapa de la Prosperidad', 'Relaciones y recursos en dos lecturas complementarias.', 'ARS 27.900', 'pago único', 'Conocer combinación'],
-      'site:combo_carreira_prosperidade': ['Combinación', 'Mapa de la Carrera + Prosperidad', 'Trabajo, talento y abundancia en una jornada única.', 'ARS 27.900', 'pago único', 'Conocer combinación'],
-      'site:combo_plano_lua_mapa_astral': ['Combinación', 'Plan Luna + Mapa Astral', 'Acompañamiento mensual y tu mapa completo.', 'ARS 23.900', 'pago único', 'Conocer combinación'],
-      'site:combo_plano_lua_mapa_amor': ['Combinación', 'Plan Luna + Mapa del Amor', 'Tu cielo diario y una lectura para tus relaciones.', 'ARS 23.900', 'pago único', 'Conocer combinación'],
-      'site:combo_plano_lua_mapa_prosperidade': ['Combinación', 'Plan Luna + Prosperidad', 'Acompañamiento diario y una lectura para prosperar.', 'ARS 23.900', 'pago único', 'Conocer combinación'],
+      'site:plano_lua': ['Suscripción', 'Plan Luna', 'Horóscopo personalizado, Mapa Astral y Guía del Mes en tu área.', 'ARS 8.649', '/mes · cancela cuando quieras', 'Conocer Plan Luna'],
+      'site:mapa_astral': ['Lectura individual', 'Mapa Astral Completo', 'Una lectura profunda para guardar y volver a consultar.', 'Desde ARS 14.570', 'acceso permanente', 'Ver Mapa Astral'],
+      'site:mapa_amor_sinastria': ['Lectura individual', 'Mapa del Amor · Sinastría', 'Dos historias y una lectura cuidadosa sobre el encuentro.', 'Desde ARS 14.570', 'acceso permanente', 'Ver Mapa del Amor'],
+      'site:mapa_carreira': ['Lectura individual', 'Mapa de la Carrera', 'Talentos y dirección para tus próximas decisiones profesionales.', 'Desde ARS 14.570', 'acceso permanente', 'Ver Mapa de la Carrera'],
+      'site:mapa_prosperidade': ['Lectura individual', 'Mapa de la Prosperidad', 'Una nueva mirada sobre recursos, merecimiento y abundancia.', 'Desde ARS 14.570', 'acceso permanente', 'Ver Prosperidad'],
+      'site:oferta_plano_lua_premium': ['Pago único', 'Plan Luna Premium', 'Un mes de Plan Luna más todos los bonus de lectura.', 'ARS 30.070', 'una vez · acceso a los bonus', 'Desbloquear todo'],
+      'site:combo_mapa_astral_amor': ['Combinación', 'Mapa Astral + Mapa del Amor', 'Tu mapa natal y una lectura de tus encuentros.', 'ARS 24.490', 'pago único', 'Conocer combinación'],
+      'site:combo_mapa_astral_carreira': ['Combinación', 'Mapa Astral + Mapa de la Carrera', 'Identidad y dirección profesional en una sola experiencia.', 'ARS 24.490', 'pago único', 'Conocer combinación'],
+      'site:combo_mapa_astral_prosperidade': ['Combinación', 'Mapa Astral + Mapa de la Prosperidad', 'Tu cielo natal y los caminos de abundancia que revela.', 'ARS 24.490', 'pago único', 'Conocer combinación'],
+      'site:combo_amor_carreira': ['Combinación', 'Mapa del Amor + Mapa de la Carrera', 'Relaciones y dirección profesional en una experiencia.', 'ARS 24.490', 'pago único', 'Conocer combinación'],
+      'site:combo_amor_prosperidade': ['Combinación', 'Mapa del Amor + Mapa de la Prosperidad', 'Relaciones y recursos en dos lecturas complementarias.', 'ARS 24.490', 'pago único', 'Conocer combinación'],
+      'site:combo_carreira_prosperidade': ['Combinación', 'Mapa de la Carrera + Prosperidad', 'Trabajo, talento y abundancia en una jornada única.', 'ARS 24.490', 'pago único', 'Conocer combinación'],
+      'site:combo_plano_lua_mapa_astral': ['Combinación', 'Plan Luna + Mapa Astral', 'Acompañamiento mensual y tu mapa completo.', 'ARS 20.770', 'pago único', 'Conocer combinación'],
+      'site:combo_plano_lua_mapa_amor': ['Combinación', 'Plan Luna + Mapa del Amor', 'Tu cielo diario y una lectura para tus relaciones.', 'ARS 20.770', 'pago único', 'Conocer combinación'],
+      'site:combo_plano_lua_mapa_prosperidade': ['Combinación', 'Plan Luna + Prosperidad', 'Acompañamiento diario y una lectura para prosperar.', 'ARS 20.770', 'pago único', 'Conocer combinación'],
     });
     const OFFER_COPY = IS_ARGENTINA ? OFFER_COPY_AR : OFFER_COPY_BR;
     let LIBRARY_ITEMS = FALLBACK_LIBRARY_ITEMS;
@@ -1055,7 +1055,8 @@
         'Calendário lunar de agosto': 'Calendario lunar de agosto',
         'novo': 'nuevo',
         'aguardando acesso': 'esperando acceso',
-        'gerando leitura…': 'generando lectura…'
+        'gerando leitura…': 'generando lectura…',
+        'Esqueceu a senha?': '¿Olvidaste tu contraseña?',
       });
       const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
       const nodes = [];
@@ -1067,6 +1068,15 @@
       document.querySelectorAll('[aria-label="Produtos disponíveis para compra"]').forEach((node) => node.setAttribute('aria-label', 'Productos disponibles para comprar'));
       document.querySelectorAll('[aria-label="Navegação principal"]').forEach((node) => node.setAttribute('aria-label', 'Navegación principal'));
       document.querySelectorAll('[aria-label="Resumo da conta"]').forEach((node) => node.setAttribute('aria-label', 'Resumen de la cuenta'));
+    }
+    function switchAuthTab(mode) {
+      document.querySelectorAll('[data-auth-mode]').forEach((tab) => {
+        tab.classList.toggle('active', tab.dataset.authMode === mode);
+        tab.setAttribute('aria-selected', tab.dataset.authMode === mode ? 'true' : 'false');
+      });
+      document.querySelectorAll('[data-auth-form]').forEach((form) => { form.hidden = form.dataset.authForm !== mode; });
+      setFormError('login');
+      setFormError('register');
     }
     function syncAccountDialog() {
       const auth = document.getElementById('account-auth');
@@ -1197,15 +1207,35 @@
       }
     }
     async function submitAuth(form, mode) {
-      const button = form.querySelector('button[type="submit"]'); button.disabled = true; setFormError(mode);
+      const button = form.querySelector('button[type="submit"]'); button.disabled = true; button.setAttribute('aria-busy', 'true'); setFormError(mode);
       try {
         const payload = Object.fromEntries(new FormData(form).entries());
-        if (mode === 'register') payload.locale = PORTAL_CONFIG.locale || (IS_ARGENTINA ? 'es-AR' : 'pt-BR');
+        payload.locale = PORTAL_CONFIG.locale || (IS_ARGENTINA ? 'es-AR' : 'pt-BR');
         const data = await apiRequest(`/api/auth/${mode}`, { method: 'POST', body: JSON.stringify(payload) });
+        if (mode === 'register' && data && data.created === false) {
+          // E-mail já cadastrado: API respondeu como se fosse novo, sem cookie.
+          // Não revelamos isso na UI — mandamos o usuário para a aba de login.
+          form.closest('dialog')?.close();
+          switchAuthTab('login');
+          document.getElementById('login-email').value = payload.email;
+          showToast(IS_ARGENTINA ? 'Te enviamos un enlace al portal para iniciar sesión.' : 'Enviamos um link para você entrar no portal.');
+          return;
+        }
         appState.apiAvailable = true; appState.authenticated = true; appState.authResolved = true; appState.user = data.user; await refreshPrivateData();
-        form.closest('dialog')?.close(); renderUser(); syncAccountDialog(); enforceDashboardGate(); showToast(mode === 'register' ? 'Conta criada. Complete seus dados para começar.' : 'Acesso realizado. Bom reencontro com seu céu.');
-      } catch (error) { setFormError(mode, !appState.apiAvailable ? 'A API não está disponível agora. O modo demonstração continua ativo.' : error.message); }
-      finally { button.disabled = false; }
+        form.closest('dialog')?.close(); renderUser(); syncAccountDialog(); enforceDashboardGate();
+        showToast(mode === 'register'
+          ? (IS_ARGENTINA ? 'Cuenta creada. Completá tus datos para empezar.' : 'Conta criada. Complete seus dados para começar.')
+          : (IS_ARGENTINA ? 'Acceso confirmado. Buen reencuentro con tu cielo.' : 'Acesso realizado. Bom reencontro com seu céu.'));
+      } catch (error) {
+        const fallback = !appState.apiAvailable
+          ? (IS_ARGENTINA ? 'La API no está disponible ahora. El modo demostración sigue activo.' : 'A API não está disponível agora. O modo demonstração continua ativo.')
+          : (typeof error.message === 'string' && error.message && !error.message.startsWith('[') && !error.message.startsWith('{')
+              ? error.message
+              : (IS_ARGENTINA
+                  ? (mode === 'login' ? 'E-mail o contraseña inválidos.' : 'Revisá los datos e intentá de nuevo.')
+                  : (mode === 'login' ? 'E-mail ou senha inválidos.' : 'Revise os dados e tente novamente.')));
+        setFormError(mode, fallback);
+      } finally { button.disabled = false; button.removeAttribute('aria-busy'); }
     }
     const contentById = Object.fromEntries((PORTAL_CONFIG.content || []).map((entry) => [entry.id, entry]));
     LIBRARY_ITEMS = LIBRARY_ITEMS.map((item) => ({ ...item, ...(contentById[item.id] ? { title: contentById[item.id].title, description: contentById[item.id].summary, downloadable: contentById[item.id].downloadable !== false, downloadUrl: contentById[item.id].download?.url || '' } : {}) }));
@@ -1217,19 +1247,19 @@
       if (target.matches('[data-toast]')) { if (target.getAttribute('href') === '#') event.preventDefault(); showToast(target.dataset.toast); }
       if (target.matches('[data-dialog]')) openDialog(target.dataset.dialog);
       if (target.matches('.dialog-close')) target.closest('dialog')?.close();
-      if (target.matches('[data-auth-mode]')) { const mode = target.dataset.authMode; document.querySelectorAll('[data-auth-mode]').forEach((tab) => { tab.classList.toggle('active', tab === target); tab.setAttribute('aria-selected', tab === target ? 'true' : 'false'); }); document.querySelectorAll('[data-auth-form]').forEach((form) => { form.hidden = form.dataset.authForm !== mode; }); setFormError('login'); setFormError('register'); }
+      if (target.matches('[data-auth-mode]')) switchAuthTab(target.dataset.authMode);
       if (target.matches('[data-read]')) openReading(LIBRARY_ITEMS.find((item) => item.id === target.dataset.read));
       if (target.matches('[data-print]')) { showToast('Preparando uma versão para impressão…'); window.print(); }
       if (target.matches('[data-print-reading]')) { showToast(`Preparando “${target.dataset.printTitle || 'leitura'}” para impressão…`); window.print(); }
       if (target.matches('[data-offer-checkout]')) startCheckout(target.dataset.offerCheckout, target.dataset.offerTitle);
       if (target.matches('[data-checkout-upgrade]')) { startCheckout(target.dataset.checkoutKey, target.dataset.offerTitle || 'seu upgrade'); target.closest('dialog')?.close(); }
-      if (target.matches('[data-logout]')) { apiRequest('/api/auth/logout', { method: 'POST', body: '{}' }).catch(() => {}); appState.authenticated = false; appState.user = null; appState.profile = null; appState.entitlements.clear(); appState.readings.clear(); applyRemoteState(); renderUser(); syncAccountDialog(); enforceDashboardGate(); target.closest('dialog')?.close(); showToast('Você saiu da sua conta.'); }
+      if (target.matches('[data-logout]')) { apiRequest('/api/auth/logout', { method: 'POST', body: '{}' }).catch(() => {}); appState.authenticated = false; appState.user = null; appState.profile = null; appState.entitlements.clear(); appState.readings.clear(); applyRemoteState(); renderUser(); syncAccountDialog(); enforceDashboardGate(); target.closest('dialog')?.close(); showToast(IS_ARGENTINA ? 'Cerraste sesión en tu cuenta.' : 'Você saiu da sua conta.'); }
       if (target.matches('[data-scroll]')) { document.getElementById(target.dataset.scroll)?.scrollIntoView({ behavior: 'smooth', block: 'start' }); document.querySelectorAll('.mobile-nav button').forEach((item) => item.classList.toggle('active', item === target)); }
     });
     document.addEventListener('submit', (event) => { if (event.target.matches('[data-auth-form]')) { event.preventDefault(); submitAuth(event.target, event.target.dataset.authForm); } if (event.target.matches('#profile-form')) { event.preventDefault(); saveProfile(event.target); } });
     async function saveProfile(form) {
       const button = form.querySelector('button[type="submit"]'); button.disabled = true; setFormError('profile');
-      try { const data = await apiRequest('/api/me/profile', { method: 'PUT', body: JSON.stringify(payloadFromForm(form)) }); appState.profile = data.profile; renderUser(); syncAccountDialog(); document.getElementById('profile-dialog').close(); showToast('Dados salvos. Seu céu está pronto para a próxima leitura.'); const pending = appState.pendingContentId; appState.pendingContentId = null; if (pending) generateReading(LIBRARY_ITEMS.find((item) => item.id === pending)); }
+      try { const data = await apiRequest('/api/me/profile', { method: 'PUT', body: JSON.stringify(payloadFromForm(form)) }); appState.profile = data.profile; renderUser(); syncAccountDialog(); document.getElementById('profile-dialog').close(); showToast(IS_ARGENTINA ? 'Datos guardados. Tu cielo está listo para la próxima lectura.' : 'Dados salvos. Seu céu está pronto para a próxima leitura.'); const pending = appState.pendingContentId; appState.pendingContentId = null; if (pending) generateReading(LIBRARY_ITEMS.find((item) => item.id === pending)); }
       catch (error) { setFormError('profile', error.message); }
       finally { button.disabled = false; }
     }

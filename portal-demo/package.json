@@ -1,0 +1,11 @@
+{
+  "name": "astrodicas-portal-demo",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test:frontend": "node frontend-regression.mjs"
+  },
+  "devDependencies": {
+    "linkedom": "^0.18.0"
+  }
+}
