@@ -55,13 +55,23 @@ def _planet_positions(julian_day: float) -> dict:
 
 
 def _house_for(longitude: float, cusps: tuple[float, ...]) -> int:
+    """Return the 1-12 house for ``longitude`` given 12 Placidus cusps.
+
+    Convention: a planet at a cusp belongs to the house that starts there.
+    Cusps may wrap around 0° (e.g. polar Placidus when ``cusps[11] > cusps[0]``),
+    so we handle both monotonic and wrapped ranges. The non-wrap branch is
+    half-open ``[start, end)``; the wrap branch is ``[start, 360) ∪ [0, end)``
+    so the cusp value is counted only once — at the start of the next house.
+    """
     value = longitude % 360
     for index, start in enumerate(cusps):
         end = cusps[(index + 1) % 12]
-        if start <= end and start <= value < end:
-            return index + 1
-        if start > end and (value >= start or value < end):
-            return index + 1
+        if start <= end:
+            if start <= value < end:
+                return index + 1
+        else:  # wrap around 0°
+            if value >= start or value < end:
+                return index + 1
     return 1
 
 
@@ -88,10 +98,31 @@ def astrology_context(profile) -> dict:
         return {"status": "missing_birth_date"}
     latitude = float(profile.birth_latitude) if profile.birth_latitude not in (None, "") else None
     longitude = float(profile.birth_longitude) if profile.birth_longitude not in (None, "") else None
+    geocoding_status = "not_required"
+    geocoding_source = None
     if latitude is None or longitude is None:
-        resolved = resolve_coordinates(profile.birth_city, profile.birth_country)
-        if resolved:
-            latitude, longitude = resolved
+        if os.getenv("GEOCODING_ENABLED", "1") != "1":
+            geocoding_status = "disabled"
+        else:
+            resolved = resolve_coordinates(profile.birth_city, profile.birth_country)
+            if resolved:
+                latitude, longitude = resolved
+                geocoding_status = "resolved"
+                geocoding_source = "nominatim"
+            else:
+                geocoding_status = "unresolved"
+    coord_error = _validate_coordinates(latitude, longitude)
+    if coord_error:
+        chart = {
+            "status": "invalid_coordinates",
+            "coordinate_error": coord_error,
+            "birth_utc": None,
+            "coordinates": {"latitude": latitude, "longitude": longitude},
+            "houses_status": "invalid_coordinates",
+            "geocoding_status": geocoding_status,
+            "geocoding_source": geocoding_source,
+        }
+        return chart
     local_time = profile.birth_time
     approximate_time = local_time is None
     hour = local_time.hour if local_time else 12
@@ -114,6 +145,8 @@ def astrology_context(profile) -> dict:
         "birth_time_approximate": approximate_time,
         "planets": natal,
         "natal_aspects": _aspects(natal, orb_limit=6.0)[:18],
+        "geocoding_status": geocoding_status,
+        "geocoding_source": geocoding_source,
     }
     if latitude is not None and longitude is not None and not approximate_time:
         cusps, angles = swe.houses_ex(natal_jd, latitude, longitude, b"P")
@@ -132,3 +165,15 @@ def astrology_context(profile) -> dict:
     chart["current_sky"] = transits
     chart["transits_to_natal"] = _aspects(transits, natal, orb_limit=3.0)[:16]
     return chart
+
+
+def _validate_coordinates(latitude: float | None, longitude: float | None) -> str | None:
+    """Return a user-facing explanation if coords are outside the legal ranges,
+    so the caller can short-circuit before swe.houses_ex raises."""
+    if latitude is None or longitude is None:
+        return None
+    if not (-90.0 <= latitude <= 90.0):
+        return f"latitude {latitude} outside [-90, 90]"
+    if not (-180.0 <= longitude <= 180.0):
+        return f"longitude {longitude} outside [-180, 180]"
+    return None

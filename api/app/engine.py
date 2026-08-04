@@ -3,6 +3,7 @@ import json
 import logging
 import os
 import re
+from dataclasses import dataclass
 from datetime import date
 from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
@@ -11,6 +12,57 @@ from .astrology import astrology_context
 
 
 logger = logging.getLogger(__name__)
+
+_CONTENT_ID_RE = re.compile(r"Identificador:\s*([\w:]+)")
+
+
+def _extract_content_id(prompt: str) -> str:
+    match = _CONTENT_ID_RE.search(prompt)
+    return match.group(1) if match else ""
+
+
+# Per content-type max_tokens budgets. Premium readings (10-14 paragraphs)
+# at ~80-120 words each need ~1600-2000 words = ~2400-3000 tokens to avoid
+# mid-paragraph truncation. The short daily horoscope stays compact.
+TOKEN_BUDGETS = {
+    "site:content:horoscopo_diario": 1500,
+    "site:content:mapa_astral_completo": 4200,
+    "site:content:mapa_do_amor_sinastria": 3600,
+    "site:content:mapa_da_carreira": 3200,
+    "site:content:mapa_da_prosperidade": 3200,
+    "site:content:previsao_semanal": 2400,
+    "site:content:guia_do_mes": 2800,
+    "site:content:calendario_lunar": 2400,
+    "site:content:guia_dos_retrogrados": 2600,
+    "site:content:manual_do_ascendente": 2800,
+}
+DEFAULT_TOKEN_BUDGET = 3000
+
+
+def _max_tokens_for(content_id: str) -> int:
+    return TOKEN_BUDGETS.get(content_id, DEFAULT_TOKEN_BUDGET)
+
+
+@dataclass
+class ReadingResult:
+    """Public result of ``generate_reading``.
+
+    The source flag is the contract that makes the fallback honest:
+    - ``minimax`` → the buyer's premium paid reading, generated live.
+    - ``fallback`` → a generic editorial template, NOT a personalized reading.
+      Callers MUST surface this to the buyer (recommended: clear notice +
+      offer to retry / contact support) instead of presenting it as if it
+      were the paid personalized reading.
+    """
+
+    body_html: str
+    source: str  # "fallback" | "minimax"
+    warning: str = ""
+
+
+# Backwards-compat shim: existing callers that used ``result.startswith("<p>")``
+# still work because ``ReadingResult`` implements ``__str__`` to return the
+# body. To detect the source, callers should use ``isinstance(result, ReadingResult)``.
 
 
 def sun_sign(birth_date: date | None) -> str:
@@ -42,6 +94,8 @@ def _profile_context(profile, customer_name: str = "") -> dict:
         "partner_birth_date": profile.partner_birth_date.isoformat() if profile and profile.partner_birth_date else "não informado",
         "partner_birth_time": profile.partner_birth_time.isoformat() if profile and profile.partner_birth_time else "não informado",
         "partner_birth_city": profile.partner_birth_city if profile and profile.partner_birth_city else "não informado",
+        "partner_birth_country": getattr(profile, "partner_country", "") or "não informado",
+        "partner_birth_timezone": getattr(profile, "partner_birth_timezone", "") or "não informado",
         "calculated_chart": astrology_context(profile),
     }
 
@@ -89,7 +143,7 @@ def _call_minimax(prompt: str) -> str:
                 {"role": "user", "content": prompt},
             ],
             "temperature": 0.85,
-            "max_tokens": 2400,
+            "max_tokens": _max_tokens_for(_extract_content_id(prompt)),
         }
     ).encode()
     request = Request(
@@ -135,12 +189,18 @@ def _fallback_reading(profile, locale: str) -> str:
     )
 
 
-def generate_reading(content_id: str, title: str, profile, locale: str = "pt-BR", customer_name: str = "") -> str:
+def generate_reading(content_id: str, title: str, profile, locale: str = "pt-BR", customer_name: str = "") -> ReadingResult:
     if os.getenv("MINIMAX_API_KEY", "").strip():
         try:
-            generated = _paragraphs_to_html(_call_minimax(_prompt(content_id, title, profile, locale, customer_name)))
+            raw = _call_minimax(_prompt(content_id, title, profile, locale, customer_name))
+            generated = _paragraphs_to_html(raw)
             if generated:
-                return generated
+                return ReadingResult(body_html=generated, source="minimax")
         except RuntimeError as exc:
             logger.warning("MiniMax falhou; usando fallback editorial: %s", exc)
-    return _fallback_reading(profile, locale)
+    fallback = _fallback_reading(profile, locale)
+    return ReadingResult(
+        body_html=fallback,
+        source="fallback",
+        warning="Leitura gerada por modelo editorial padrão. A leitura personalizada está temporariamente indisponível.",
+    )
