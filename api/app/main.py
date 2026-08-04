@@ -1,5 +1,6 @@
 import hashlib
 import hmac
+import json
 import os
 from datetime import date, datetime, time, timedelta, timezone
 from pathlib import Path
@@ -14,7 +15,7 @@ from sqlalchemy.orm import Session
 
 from .db import Base, engine, get_db
 from .astrology import resolve_coordinates
-from . import admin, checkout, migrations, pricing
+from . import admin, checkout, migrations, preview, pricing
 from .ratelimit import auth_rate_limit, password_reset_rate_limit, webhook_rate_limit
 from .engine import generate_reading
 from .models import Entitlement, Order, PasswordResetToken, Profile, Reading, User, WebhookEvent
@@ -44,6 +45,7 @@ app.add_middleware(
 )
 app.include_router(checkout.router)
 app.include_router(admin.router)
+app.include_router(preview.router)
 
 
 # --- Localized user-facing copy ----------------------------------------------
@@ -149,9 +151,9 @@ def _auth_validation_detail(errors, locale: str, accept_language: str | None) ->
 
 @app.exception_handler(RequestValidationError)
 async def auth_validation_handler(request: Request, exc: RequestValidationError) -> Response:
-    """Localiza validação apenas para rotas de auth. Outras rotas seguem default."""
+    """Localiza validação para rotas de auth e da prévia. Outras seguem default."""
     path = request.url.path
-    if not path.startswith("/api/auth/"):
+    if not path.startswith("/api/auth/") and not path.startswith("/api/preview/"):
         # Fallback para o handler padrão do FastAPI: 422 com array.
         from fastapi.exception_handlers import request_validation_exception_handler
         return await request_validation_exception_handler(request, exc)
@@ -160,12 +162,20 @@ async def auth_validation_handler(request: Request, exc: RequestValidationError)
         body = await request.json()
     except Exception:
         body = {}
-    locale = _pick_locale(body.get("locale") if isinstance(body, dict) else None, request.headers.get("accept-language"))
-    detail = _auth_validation_detail(exc.errors(), locale, request.headers.get("accept-language"))
+    body_locale = body.get("locale") if isinstance(body, dict) else None
+    accept_language = request.headers.get("accept-language")
+    if path.startswith("/api/preview/"):
+        # A prévia tem seu próprio dicionário de mensagens (campos de nascimento,
+        # não de credenciais), então delega para ele em vez de AUTH_MESSAGES.
+        locale = preview.pick_locale(body_locale, accept_language)
+        detail = preview.validation_detail(exc.errors(), locale)
+    else:
+        locale = _pick_locale(body_locale, accept_language)
+        detail = _auth_validation_detail(exc.errors(), locale, accept_language)
     return Response(
         media_type="application/json",
         status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-        content=f'{{"detail":"{detail}"}}',
+        content=json.dumps({"detail": detail}, ensure_ascii=False),
     )
 
 

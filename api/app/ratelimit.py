@@ -133,6 +133,19 @@ webhook_rate_limit = rate_limit(
 )
 
 
+# Prévia grátis do mapa natal: rota pública, sem auth e sem pagamento. Cada
+# chamada custa uma consulta de geocoding (Nominatim, com política de uso) e
+# um cálculo de efemérides. 12/60s por IP cobre o visitante que erra a cidade
+# e tenta de novo algumas vezes, e corta o scraper que quer usar a rota como
+# API de efemérides grátis.
+preview_rate_limit = rate_limit(
+    max_requests_env="RATE_LIMIT_PREVIEW_MAX",
+    window_seconds_env="RATE_LIMIT_PREVIEW_WINDOW_SECONDS",
+    default_max=12,
+    default_window_seconds=60,
+)
+
+
 # Recuperação de senha: protege contra spam de e-mail na caixa do dono.
 # 5 por 15min por IP — humano legítimo não precisa de mais; atacante não
 # consegue enumerar alvos inundando ninguém. A neutralidade da resposta
