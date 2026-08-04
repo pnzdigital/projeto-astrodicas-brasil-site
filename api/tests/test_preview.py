@@ -63,15 +63,64 @@ def test_preview_never_returns_the_paid_reading(client, geocoded):
     assert "<p>" not in response.text
 
 
-def test_preview_without_birth_time_omits_ascendant(client, geocoded):
+def test_preview_without_birth_time_assumes_midnight_and_estimates_ascendant(client, geocoded):
+    """Sem hora de nascimento, a prévia mantém o Ascendente (assumindo 00:00)
+    e marca ``birth_time_assumed``. O aviso localizado avisa que o Ascendente
+    é估计ado e provavelmente muda se a hora real for outra — o dado do mapa
+    mais sensível à hora."""
     payload = {key: value for key, value in BIRTH.items() if key != "birth_time"}
 
     data = client.post("/api/preview/natal", json=payload).json()
 
-    assert data["ascendant"] is None
-    assert data["birth_time_approximate"] is True
+    assert data["birth_time_assumed"] is True
+    assert data["ascendant"] is not None, "Assumir 00:00 → Ascendente não pode voltar null"
+    assert data["ascendant"]["sign"] in astrology.SIGNS
+    assert data["ascendant"]["text"]
     assert data["sun"]["text"]
     assert data["moon"]["text"]
+    warning_pt = data["ascendant_warning"]["pt-BR"]
+    assert "Ascendente" in warning_pt or "ascendente" in warning_pt.lower()
+    assert any(
+        token in warning_pt.lower()
+        for token in ("estim", "aproxim", "hipotét", "provavelmente")
+    ), f"Aviso PT não transmite incerteza: {warning_pt!r}"
+    warning_es = data["ascendant_warning"]["es-AR"]
+    assert warning_es != warning_pt, "Aviso precisa ser localizado, não duplicado"
+
+
+def test_preview_with_birth_time_does_not_warn(client, geocoded):
+    """Com hora informada, o Ascendente é calculado normalmente e a resposta
+    não traz aviso: o visitante não precisa ser alertado de algo que não
+    aconteceu."""
+    data = client.post("/api/preview/natal", json=BIRTH).json()
+
+    assert data["birth_time_assumed"] is False
+    assert data["ascendant"] is not None
+    assert data["ascendant"]["sign"] in astrology.SIGNS
+    assert "ascendant_warning" not in data or not data["ascendant_warning"]
+
+
+def test_preview_assumed_time_uses_midnight_for_calculation(client, geocoded, monkeypatch):
+    """Garante que a hora assumida é 00:00 do fuso local, não 12:00 (que era o
+    default silencioso). Spy em ``swe.julday`` para capturar o decimal_hour."""
+    captured = {}
+
+    import swisseph as swe
+
+    def spy(jyear, jmonth, jday, decimal_hour, *args, **kwargs):
+        captured["decimal_hour"] = decimal_hour
+        captured["date"] = (jyear, jmonth, jday)
+        return swe.julday(jyear, jmonth, jday, decimal_hour, *args, **kwargs)
+
+    monkeypatch.setattr(swe, "julday", spy)
+
+    payload = {key: value for key, value in BIRTH.items() if key != "birth_time"}
+    client.post("/api/preview/natal", json=payload)
+
+    # 20/05/1990 em America/Recife (UTC-03) à meia-noite local = 03:00 UTC.
+    assert captured["decimal_hour"] == pytest.approx(3.0, abs=1e-6), (
+        f"hora assumida deveria ser 00:00 local → 03:00 UTC, veio {captured['decimal_hour']!r}"
+    )
 
 
 def test_preview_texts_are_localized_for_es_ar(client, geocoded):

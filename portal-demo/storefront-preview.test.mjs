@@ -187,15 +187,117 @@ async function testResultShowsUpsellToCheckout() {
   assert.ok(cta, 'upsell precisa ter um CTA clicável');
 }
 
-async function testMissingAscendantIsExplainedNotFaked() {
+async function testMissingBirthTimeShowsAscendantWithWarning() {
   const app = boot({ pathname: '/' });
   await app.ready;
-  app.queue(200, { ...SAMPLE_PREVIEW, ascendant: null, birth_time_approximate: true });
+  app.queue(200, {
+    ...SAMPLE_PREVIEW,
+    ascendant: { sign: 'Áries', sign_label: 'Áries', degree: 4.2, text: 'Ascendente em Áries estimado.' },
+    birth_time_approximate: true,
+    birth_time_assumed: true,
+    ascendant_warning: {
+      'pt-BR':
+        'Hora de nascimento não informada — assumimos 00:00 só para mostrar um valor. O Ascendente é o ponto mais sensível à hora do mapa inteiro (troca de signo a cada ~2h), então este resultado é uma ESTIMATIVA.',
+      'es-AR':
+        'Hora de nacimiento no informada — asumimos 00:00 solo para mostrar un valor. El Ascendente es el punto más sensible a la hora de toda la carta (cambia de signo cada ~2h), así que este resultado es una ESTIMACIÓN.',
+    },
+  });
   await submit(app.window, fillForm(app.document, { ...VALID_INPUT, birth_time: '' }));
 
   const result = app.document.getElementById('preview-result').textContent;
-  assert.match(result, /hora/i, 'sem hora, a UI precisa explicar por que falta o Ascendente');
-  assert.ok(!/Libra/.test(result), 'não pode inventar Ascendente quando a API devolveu null');
+  assert.match(result, /Áries/, 'Ascendente assumido precisa aparecer no resultado');
+  assert.match(result, /ESTIMATIVA|estimativa/i, 'aviso PT precisa dizer que o Ascendente é estimativa');
+  assert.match(result, /00:00|00h|h 00|hora.*não.*inform|inform/i, 'aviso precisa mencionar a hora assumida/ausente');
+  assert.ok(
+    /troca de signo|mais sensível|hipotét|aproxim|não.*inform|inform/.test(result),
+    'aviso precisa deixar claro que o Ascendente provavelmente NÃO é o real',
+  );
+}
+
+async function testAscendantWarningRendersAdjacentToAscendant() {
+  const app = boot({ pathname: '/' });
+  await app.ready;
+  app.queue(200, {
+    ...SAMPLE_PREVIEW,
+    ascendant: { sign: 'Áries', sign_label: 'Áries', degree: 4.2, text: 'Ascendente em Áries estimado.' },
+    birth_time_approximate: true,
+    birth_time_assumed: true,
+    ascendant_warning: {
+      'pt-BR': 'Estimativa brutal.',
+      'es-AR': 'Estimación cruda.',
+    },
+  });
+  await submit(app.window, fillForm(app.document, { ...VALID_INPUT, birth_time: '' }));
+
+  const result = app.document.getElementById('preview-result');
+  const ascendant = result.querySelector('[data-ascendant-card]');
+  const warning = result.querySelector('[data-ascendant-warning]');
+  assert.ok(ascendant, 'precisa existir o card do Ascendente no DOM');
+  assert.ok(warning, 'precisa existir o aviso colado no Ascendente');
+  // Adjacente: o warning vem logo DEPOIS do Ascendente na ordem do DOM.
+  // linkedom não tem ``Node.DOCUMENT_POSITION_FOLLOWING``, então comparamos
+  // a ordem por índice entre os filhos diretos do container.
+  const siblings = Array.from(result.children);
+  const ascIdx = siblings.indexOf(ascendant);
+  const warnIdx = siblings.indexOf(warning);
+  assert.ok(ascIdx >= 0, 'Ascendente precisa ser filho do resultado');
+  assert.ok(warnIdx >= 0, 'aviso precisa ser filho do resultado');
+  assert.equal(warnIdx, ascIdx + 1, 'aviso precisa estar logo abaixo do Ascendente, não em rodapé');
+}
+
+async function testAscendantWarningIsLocalizedEsAr() {
+  const app = boot({ pathname: '/es' });
+  await app.ready;
+  app.queue(200, {
+    ...SAMPLE_PREVIEW,
+    locale: 'es-AR',
+    ascendant: { sign: 'Aries', sign_label: 'Aries', degree: 4.2, text: 'Ascendente en Aries estimado.' },
+    birth_time_approximate: true,
+    birth_time_assumed: true,
+    ascendant_warning: {
+      'pt-BR':
+        'Hora de nascimento não informada — assumimos 00:00 só para mostrar um valor. ESTIMATIVA.',
+      'es-AR':
+        'Hora de nacimiento no informada — asumimos 00:00 solo para mostrar un valor. ESTIMACIÓN.',
+    },
+  });
+  await submit(app.window, fillForm(app.document, { ...VALID_INPUT, birth_time: '' }));
+
+  const warning = app.document.querySelector('[data-ascendant-warning]');
+  assert.ok(warning, 'aviso precisa aparecer na versão es-AR também');
+  assert.match(warning.textContent, /ESTIMACIÓN|estimaci/i, 'aviso precisa estar traduzido para es-AR');
+  assert.ok(!/ESTIMATIVA/.test(warning.textContent), 'aviso es-AR não pode vazar texto em pt-BR');
+}
+
+async function testSunAndMoonDoNotShowWarning() {
+  const app = boot({ pathname: '/' });
+  await app.ready;
+  app.queue(200, {
+    ...SAMPLE_PREVIEW,
+    birth_time_approximate: true,
+    birth_time_assumed: true,
+    ascendant_warning: {
+      'pt-BR': 'Aviso do Ascendente, não do Sol/Lua.',
+      'es-AR': 'Aviso del Ascendente, no del Sol/Luna.',
+    },
+  });
+  await submit(app.window, fillForm(app.document, { ...VALID_INPUT, birth_time: '' }));
+
+  const result = app.document.getElementById('preview-result');
+  const sunCard = result.querySelector('[data-luminary="sun"]');
+  const moonCard = result.querySelector('[data-luminary="moon"]');
+  assert.ok(sunCard && !sunCard.querySelector('[data-ascendant-warning]'), 'Sol não pode carregar o aviso do Ascendente');
+  assert.ok(moonCard && !moonCard.querySelector('[data-ascendant-warning]'), 'Lua não pode carregar o aviso do Ascendente');
+}
+
+async function testWithBirthTimeNoWarning() {
+  const app = boot({ pathname: '/' });
+  await app.ready;
+  app.queue(200, { ...SAMPLE_PREVIEW, birth_time_approximate: false, birth_time_assumed: false });
+  await submit(app.window, fillForm(app.document, VALID_INPUT));
+
+  const result = app.document.getElementById('preview-result');
+  assert.equal(result.querySelector('[data-ascendant-warning]'), null, 'com hora informada, não tem aviso');
 }
 
 async function testApiErrorBecomesReadableMessage() {
@@ -216,7 +318,11 @@ const tests = [
   testSubmitSendsEsArLocale,
   testResultRendersLuminariesAndPlanets,
   testResultShowsUpsellToCheckout,
-  testMissingAscendantIsExplainedNotFaked,
+  testMissingBirthTimeShowsAscendantWithWarning,
+  testAscendantWarningRendersAdjacentToAscendant,
+  testAscendantWarningIsLocalizedEsAr,
+  testSunAndMoonDoNotShowWarning,
+  testWithBirthTimeNoWarning,
   testApiErrorBecomesReadableMessage,
 ];
 

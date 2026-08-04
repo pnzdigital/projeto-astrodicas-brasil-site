@@ -230,6 +230,26 @@ PREVIEW_MESSAGES: dict[str, dict[str, str]] = {
     },
 }
 
+# Aviso que o frontend cola no bloco do Ascendente quando a hora não foi
+# informada. Texto é deliberadamente firme: o Ascendente é o ponto do mapa
+# mais sensível à hora (troca de signo a cada ~2h), então a estimativa com
+# 00:00 provavelmente NÃO é o Ascendente real. Se a pessoa souber a hora,
+# reabrir a prévia com o campo preenchido é o único jeito de corrigir.
+ASCENDANT_WARNING: dict[str, str] = {
+    "pt-BR": (
+        "Hora de nascimento não informada — assumimos 00:00 só para mostrar um valor. "
+        "O Ascendente é o ponto mais sensível à hora do mapa inteiro (troca de signo a cada ~2h), "
+        "então este resultado é uma ESTIMATIVA e provavelmente NÃO é o seu Ascendente real. "
+        "Se você souber a hora (mesmo que aproximada), refaça a prévia preenchendo o campo."
+    ),
+    "es-AR": (
+        "Hora de nacimiento no informada — asumimos 00:00 solo para mostrar un valor. "
+        "El Ascendente es el punto más sensible a la hora de toda la carta (cambia de signo cada ~2h), "
+        "así que este resultado es una ESTIMACIÓN y probablemente NO es tu Ascendente real. "
+        "Si sabés la hora (aunque sea aproximada), rehacé la vista previa completando el campo."
+    ),
+}
+
 
 def pick_locale(locale: str | None, accept_language: str | None = None) -> str:
     if locale and locale in SUPPORTED_LOCALES:
@@ -298,7 +318,13 @@ def natal_preview(body: PreviewBody, request: Request) -> dict:
     latitude, longitude = coordinates
 
     approximate_time = body.birth_time is None
-    local_time = body.birth_time or time(12, 0)
+    # Sem hora informada, assumimos 00:00 local explícito. Antes a API usava
+    # 12:00 silencioso (mantido para não regredir quem já dependia), mas o
+    # Ascendente varia ~30° a cada 4h de hora — usar 12:00 é uma escolha que
+    # não significa nada para o visitante. 00:00 é documentável como
+    # "início do dia" e vem com aviso explicando que a estimativa provavelmente
+    # muda se a hora real for outra.
+    local_time = body.birth_time or time(0, 0)
     try:
         tz = ZoneInfo(body.birth_timezone)
     except Exception:
@@ -316,26 +342,35 @@ def natal_preview(body: PreviewBody, request: Request) -> dict:
             detail=message("calculation_failed", locale),
         )
 
-    # Sem hora de nascimento o Ascendente é ruído, não aproximação: ele muda de
-    # signo a cada ~2h. Preferimos devolver ``None`` e dizer isso na UI a
-    # entregar um dado que o visitante levaria como verdade.
-    ascendant = None
-    if not approximate_time:
-        try:
-            _, angles = swe.houses_ex(julian_day, latitude, longitude, b"P")
-            ascendant = _luminary(astrology._sign_position(angles[0]), "ascendant", locale)
-        except Exception:
-            ascendant = None
+    # Ascendente é o dado do mapa mais sensível à hora: troca de signo a cada
+    # ~2h. Quando o visitante não sabe a hora, calculamos igual usando 00:00
+    # (acima) e devolvemos o sinal ``birth_time_assumed`` + texto localizado
+    # explicando que o Ascendente é ESTIMADO — o cliente não pode levar como
+    # verdade. Quando a hora foi informada, simplesmente devolvemos o cálculo.
+    ascendant_warning: dict[str, str] | None = None
+    try:
+        _, angles = swe.houses_ex(julian_day, latitude, longitude, b"P")
+        ascendant = _luminary(astrology._sign_position(angles[0]), "ascendant", locale)
+        if approximate_time:
+            ascendant_warning = ASCENDANT_WARNING
+    except Exception:
+        ascendant = None
 
     return {
         "locale": locale,
         # A prévia é o teto do grátis: casas, aspectos e a leitura interpretada
         # ficam do outro lado do checkout. A UI usa esta flag para montar o CTA.
         "locked": True,
+        # Mantido para retrocompat: hoje a prévia sempre calcula Ascendente
+        # (mesmo que com hora assumida), então ``birth_time_approximate`` continua
+        # descrevendo se a hora veio do usuário. A nova flag ``birth_time_assumed``
+        # deixa explícito que a API escolheu uma hora por ele.
         "birth_time_approximate": approximate_time,
+        "birth_time_assumed": approximate_time,
         "sun": _luminary(positions["Sol"], "sun", locale),
         "moon": _luminary(positions["Lua"], "moon", locale),
         "ascendant": ascendant,
+        "ascendant_warning": ascendant_warning,
         "planets": [
             {
                 "name": name,
