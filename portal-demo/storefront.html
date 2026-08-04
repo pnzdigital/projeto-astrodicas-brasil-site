@@ -190,6 +190,12 @@
       noAscendant:'Para calcular tu Ascendente necesitamos la hora de nacimiento. Sin ella, el signo del horizonte cambia cada dos horas y cualquier resultado sería una suposición.',
       ascendantWarningLabel:'Ascendente estimado',
       ascendantWarningDefault:'Hora de nacimiento no informada — asumimos 00:00 para mostrar un valor. El Ascendente es el dato más sensible a la hora en toda la carta (cambia de signo cada ~2h) y este resultado probablemente NO es tu Ascendente real.',
+      // Mesmo aviso no upsell pré-compra: se o cliente viu a prévia com hora
+      // ausente e está prestes a clicar em "Ver mi Carta Astral", esse bloco
+      // lembra que o Ascendente do mapa completo também virá estimado. Sem
+      // isso, a expectativa se forma na hora errada.
+      upsellWarningLabel:'Ascendente estimado',
+      upsellWarningDefault:'Como no informaste la hora, el Ascendente que verás en la Carta Astral completa también será estimado (asumimos 00:00). Cambia de signo cada ~2h; si la sabés, podés actualizar tus datos antes de comprar.',
       planets:'Posiciones planetarias',
       retrograde:'R',
       loading:'Calculando…',
@@ -205,6 +211,11 @@
       noAscendant:'Para calcular seu Ascendente precisamos da hora de nascimento. Sem ela, o signo do horizonte muda a cada duas horas e qualquer resultado seria chute.',
       ascendantWarningLabel:'Ascendente estimado',
       ascendantWarningDefault:'Hora de nascimento não informada — assumimos 00:00 só para mostrar um valor. O Ascendente é o dado mais sensível à hora no mapa inteiro (troca de signo a cada ~2h) e este resultado provavelmente NÃO é o seu Ascendente real.',
+      // Mesmo aviso no upsell pré-compra. Sem ele, o cliente forma a
+      // expectativa de que o Ascendente é exato e só descobre que é estimado
+      // depois de pagar — exatamente o problema comercial da tarefa.
+      upsellWarningLabel:'Ascendente estimado',
+      upsellWarningDefault:'Como você não informou a hora, o Ascendente que você vai receber no Mapa Astral completo também será estimado (assumimos 00:00). Ele troca de signo a cada ~2h; se souber a hora, dá pra atualizar seus dados antes de comprar.',
       planets:'Posições planetárias',
       retrograde:'R',
       loading:'Calculando…',
@@ -249,7 +260,17 @@
       const rows=(data.planets||[]).map(p=>`<li><b>${escapeHtml(p.label||p.name)}</b><span>${escapeHtml(p.sign_label||p.sign)} ${escapeHtml(String(p.degree))}°${p.retrograde?` <i class="preview-rx">${escapeHtml(previewCopy.retrograde)}</i>`:''}</span></li>`).join('');
       const upsellUrl=checkoutFor('site:mapa_astral');
       const upsellCta=upsellUrl?`<a class="button" href="${escapeHtml(upsellUrl)}">${escapeHtml(previewCopy.upsellCta)}</a>`:`<button class="button" type="button" data-product="site:mapa_astral">${escapeHtml(previewCopy.upsellCta)}</button>`;
-      previewResult.innerHTML=`${sunCard}${moonCard}${ascendantBlock}<section class="preview-planets"><h4>${escapeHtml(previewCopy.planets)}</h4><ul>${rows}</ul></section><section class="preview-upsell" id="preview-upsell"><h4>${escapeHtml(previewCopy.upsellTitle)}</h4><p>${escapeHtml(previewCopy.upsellText)}</p><ul>${previewCopy.upsellItems.map(item=>`<li>${escapeHtml(item)}</li>`).join('')}</ul>${upsellCta}</section>`;
+      // Aviso pré-compra: aparece DENTRO do bloco de upsell, colado antes do
+      // CTA, quando a prévia veio com hora assumida. Sem isso, o cliente
+      // forma a expectativa de que o Ascendente do mapa completo é "real" e
+      // só descobre a estimativa depois de pagar.
+      // Texto vem da API quando existir (mesma fonte do card do Ascendente);
+      // o default local é só fallback pra não divergir do backend.
+      const upsellWarningText=assumed
+        ? ((data.ascendant_warning && (data.ascendant_warning[locale] || data.ascendant_warning['pt-BR'])) || previewCopy.upsellWarningDefault)
+        : '';
+      const upsellWarning=assumed?`<aside class="preview-ascendant-warning" data-upsell-ascendant-warning role="alert" aria-live="polite"><span class="preview-ascendant-warning-mark" aria-hidden="true">!</span><span><strong>${escapeHtml(previewCopy.upsellWarningLabel)}.</strong> ${escapeHtml(upsellWarningText)}</span></aside>`:'';
+      previewResult.innerHTML=`${sunCard}${moonCard}${ascendantBlock}<section class="preview-planets"><h4>${escapeHtml(previewCopy.planets)}</h4><ul>${rows}</ul></section><section class="preview-upsell" id="preview-upsell"><h4>${escapeHtml(previewCopy.upsellTitle)}</h4><p>${escapeHtml(previewCopy.upsellText)}</p><ul>${previewCopy.upsellItems.map(item=>`<li>${escapeHtml(item)}</li>`).join('')}</ul>${upsellWarning}${upsellCta}</section>`;
     }
     previewForm?.addEventListener('submit',async event=>{
       event.preventDefault();

@@ -107,7 +107,7 @@ def test_astrology_context_marks_geocoding_failure(monkeypatch):
     chart = astrology.astrology_context(profile)
     assert chart.get("status") == "calculated"  # planets still calculated
     assert chart.get("geocoding_status") == "unresolved"
-    assert chart.get("houses_status") == "birth_time_or_coordinates_missing"
+    assert chart.get("houses_status") == "coordinates_missing"
 
 
 def test_astrology_context_geocoding_success_marks_resolved(monkeypatch):

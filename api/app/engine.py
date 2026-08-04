@@ -53,11 +53,21 @@ class ReadingResult:
       Callers MUST surface this to the buyer (recommended: clear notice +
       offer to retry / contact support) instead of presenting it as if it
       were the paid personalized reading.
+
+    O ``birth_time_assumed`` espelha o mesmo flag do chart da prévia grátis
+    (commit 913fcd8): quando a hora não veio, assumimos 00:00 e marcamos aqui
+    para que a UI renderize o aviso ao lado do Ascendente calculado. Sem isso,
+    o cliente pagaria pela leitura completa e veria um Ascendente "de verdade"
+    que na verdade é estimado. ``ascendant_warning`` carrega o texto cru e
+    localizado (pt-BR / es-AR) que a UI cola no bloco do Ascendente — mesmo
+    texto que já vinha da prévia grátis.
     """
 
     body_html: str
     source: str  # "fallback" | "minimax"
     warning: str = ""
+    birth_time_assumed: bool = False
+    ascendant_warning: dict[str, str] | None = None
 
 
 # Backwards-compat shim: existing callers that used ``result.startswith("<p>")``
@@ -82,6 +92,10 @@ def sun_sign(birth_date: date | None) -> str:
 
 
 def _profile_context(profile, customer_name: str = "") -> dict:
+    # Mesmo flag da prévia grátis: True quando a hora não veio e a API
+    # assumiu 00:00 só pra montar o Ascendente. O prompt do LLM precisa saber
+    # disso para não afirmar o Ascendente com certeza.
+    approximate_time = bool(profile is None or getattr(profile, "birth_time", None) is None)
     return {
         "customer_name": customer_name or "não informado",
         "birth_date": profile.birth_date.isoformat() if profile and profile.birth_date else "não informado",
@@ -89,6 +103,7 @@ def _profile_context(profile, customer_name: str = "") -> dict:
         "birth_city": profile.birth_city if profile and profile.birth_city else "não informado",
         "birth_country": profile.birth_country if profile else "não informado",
         "birth_timezone": profile.birth_timezone if profile else "não informado",
+        "birth_time_assumed": approximate_time,
         "sun_sign": sun_sign(profile.birth_date if profile else None),
         "partner_name": profile.partner_name if profile and profile.partner_name else "não informado",
         "partner_birth_date": profile.partner_birth_date.isoformat() if profile and profile.partner_birth_date else "não informado",
@@ -104,6 +119,30 @@ def _prompt(content_id: str, title: str, profile, locale: str, customer_name: st
     context = _profile_context(profile, customer_name)
     language = "espanhol rioplatense natural" if locale == "es-AR" else "português brasileiro natural"
     today = date.today().isoformat()
+    # Quando a hora foi assumida (cliente não sabia), instruímos o LLM a tratar
+    # o Ascendente como dado estimado: o ponto do mapa mais sensível à hora
+    # (troca de signo a cada ~2h). Sem esse aviso no prompt, o texto pago
+    # afirmaria o Ascendente com certeza que não tem — bug comercial.
+    assumed_warning = ""
+    if context.get("birth_time_assumed"):
+        if locale == "es-AR":
+            assumed_warning = (
+                "\n\nATENCIÓN: la hora de nacimiento NO fue informada. El backend asumió 00:00 "
+                "solo para poder calcular y mostrar el Ascendente. El Ascendente es el dato más "
+                "sensible a la hora en toda la carta (cambia de signo cada ~2h), así que el "
+                "Ascendente calculado es una ESTIMACIÓN y probablemente NO es el Ascendente real "
+                "del cliente. Cuando hables del Ascendente, declara explícitamente que es estimado "
+                "y que podría cambiar si la hora real fuera otra. No lo afirmes como hecho."
+            )
+        else:
+            assumed_warning = (
+                "\n\nATENÇÃO: a hora de nascimento NÃO foi informada. O backend assumiu 00:00 "
+                "apenas para conseguir calcular e mostrar o Ascendente. O Ascendente é o dado "
+                "mais sensível à hora no mapa inteiro (troca de signo a cada ~2h), então o "
+                "Ascendente calculado é uma ESTIMATIVA e provavelmente NÃO é o Ascendente real "
+                "do cliente. Ao falar do Ascendente, declare explicitamente que é estimado e "
+                "que pode mudar se a hora real for outra. Não afirme como fato."
+            )
     rules = {
         "site:content:horoscopo_diario": "Escreva exatamente 3 parágrafos substanciais, com 90 a 130 palavras cada. Use prioritariamente os trânsitos atuais para o mapa natal. O primeiro cria identificação emocional, o segundo aborda relações e trabalho e o terceiro traz direção prática.",
         "site:content:mapa_astral_completo": "Escreva uma leitura natal premium com 10 a 14 parágrafos. Cubra tríade principal, planetas pessoais, casas, aspectos dominantes, potenciais e tensões. Use apenas posições presentes no calculated_chart.",
@@ -126,7 +165,7 @@ Use o nome do cliente com naturalidade no máximo duas vezes. Use somente os dad
 Ascendente, Lua, casas, aspectos, trânsitos ou posições planetárias que não tenham sido calculados. Quando faltar
 cálculo astronômico, declare a limitação com linguagem acolhedora. Não faça diagnóstico médico, promessa financeira nem previsão
 fatalista. Não cite inteligência artificial. Não use markdown, listas, HTML ou título; devolva apenas os
-parágrafos, separados por uma linha em branco."""
+parágrafos, separados por uma linha em branco.{assumed_warning}"""
 
 
 def _call_minimax(prompt: str) -> str:
@@ -189,13 +228,44 @@ def _fallback_reading(profile, locale: str) -> str:
     )
 
 
+PAID_ASCENDANT_WARNING: dict[str, dict[str, str]] = {
+    "pt-BR": (
+        "Hora de nascimento não informada — assumimos 00:00 só para mostrar um valor. "
+        "O Ascendente é o ponto mais sensível à hora do mapa inteiro (troca de signo a cada ~2h), "
+        "então este resultado é uma ESTIMATIVA e provavelmente NÃO é o seu Ascendente real. "
+        "Se você souber a hora (mesmo que aproximada), atualize seus dados de nascimento para refazer a leitura."
+    ),
+    "es-AR": (
+        "Hora de nacimiento no informada — asumimos 00:00 solo para mostrar un valor. "
+        "El Ascendente es el punto más sensible a la hora de toda la carta (cambia de signo cada ~2h), "
+        "así que este resultado es una ESTIMACIÓN y probablemente NO es tu Ascendente real. "
+        "Si sabés la hora (aunque sea aproximada), actualizá tus datos de nacimiento para rehacer la lectura."
+    ),
+}
+
+
 def generate_reading(content_id: str, title: str, profile, locale: str = "pt-BR", customer_name: str = "") -> ReadingResult:
+    # Mesmo flag da prévia grátis (commit 913fcd8): quando a hora não veio,
+    # marcamos aqui para a UI renderizar o aviso ao lado do Ascendente
+    # calculado. Sem isso, o cliente pagaria pela leitura completa e leria um
+    # Ascendente "de verdade" que na verdade é estimado.
+    birth_time_assumed = bool(profile is None or getattr(profile, "birth_time", None) is None)
+    ascendant_warning: dict[str, str] | None = (
+        {"pt-BR": PAID_ASCENDANT_WARNING["pt-BR"], "es-AR": PAID_ASCENDANT_WARNING["es-AR"]}
+        if birth_time_assumed
+        else None
+    )
     if os.getenv("MINIMAX_API_KEY", "").strip():
         try:
             raw = _call_minimax(_prompt(content_id, title, profile, locale, customer_name))
             generated = _paragraphs_to_html(raw)
             if generated:
-                return ReadingResult(body_html=generated, source="minimax")
+                return ReadingResult(
+                    body_html=generated,
+                    source="minimax",
+                    birth_time_assumed=birth_time_assumed,
+                    ascendant_warning=ascendant_warning,
+                )
         except RuntimeError as exc:
             logger.warning("MiniMax falhou; usando fallback editorial: %s", exc)
     fallback = _fallback_reading(profile, locale)
@@ -203,4 +273,6 @@ def generate_reading(content_id: str, title: str, profile, locale: str = "pt-BR"
         body_html=fallback,
         source="fallback",
         warning="Leitura gerada por modelo editorial padrão. A leitura personalizada está temporariamente indisponível.",
+        birth_time_assumed=birth_time_assumed,
+        ascendant_warning=ascendant_warning,
     )

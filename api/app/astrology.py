@@ -125,7 +125,13 @@ def astrology_context(profile) -> dict:
         return chart
     local_time = profile.birth_time
     approximate_time = local_time is None
-    hour = local_time.hour if local_time else 12
+    # Sem hora informada: assumimos 00:00 do fuso local explicitamente (não 12:00
+    # silencioso). Mesma decisão aplicada na prévia grátis — Ascendente é
+    # calculado e marcado como estimado, em vez de devolvido null. A leitura
+    # completa (paga) passa a receber um Ascendente num chart que o LLM pode
+    # descrever com honestidade, em vez de um chart sem Ascendente que
+    # instruiria o LLM a omitir o tema inteiro silenciosamente.
+    hour = local_time.hour if local_time else 0
     minute = local_time.minute if local_time else 0
     second = local_time.second if local_time else 0
     try:
@@ -143,20 +149,26 @@ def astrology_context(profile) -> dict:
         "birth_utc": utc_dt.isoformat(),
         "coordinates": {"latitude": latitude, "longitude": longitude},
         "birth_time_approximate": approximate_time,
+        "birth_time_assumed": approximate_time,
         "planets": natal,
         "natal_aspects": _aspects(natal, orb_limit=6.0)[:18],
         "geocoding_status": geocoding_status,
         "geocoding_source": geocoding_source,
     }
-    if latitude is not None and longitude is not None and not approximate_time:
+    if latitude is not None and longitude is not None:
+        # Casas/Ascendente são calculados com ou sem hora. Quando a hora foi
+        # assumida, marcamos o status específico para a UI saber que precisa
+        # mostrar aviso e o LLM saber que o Ascendente não pode ser afirmado
+        # com certeza.
         cusps, angles = swe.houses_ex(natal_jd, latitude, longitude, b"P")
         chart["ascendant"] = _sign_position(angles[0])
         chart["midheaven"] = _sign_position(angles[1])
         chart["houses"] = [{"house": index + 1, **_sign_position(cusp)} for index, cusp in enumerate(cusps)]
         for data in natal.values():
             data["house"] = _house_for(data["longitude"], cusps)
+        chart["houses_status"] = "calculated_with_assumed_midnight" if approximate_time else "calculated"
     else:
-        chart["houses_status"] = "birth_time_or_coordinates_missing"
+        chart["houses_status"] = "coordinates_missing"
     now = datetime.now(timezone.utc)
     now_hour = now.hour + now.minute / 60 + now.second / 3600
     transit_jd = swe.julday(now.year, now.month, now.day, now_hour, swe.GREG_CAL)
