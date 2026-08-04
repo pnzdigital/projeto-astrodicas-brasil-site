@@ -20,10 +20,10 @@ COOKIE_SECURE = os.getenv("COOKIE_SECURE", "1") == "1"
 
 
 def require_admin(admin_session: str | None = Cookie(default=None)) -> str:
-    sub = decode_token(admin_session) if admin_session else None
-    if sub != "admin":
+    payload = decode_token(admin_session) if admin_session else None
+    if not payload or payload["user_id"] != "admin":
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="not authenticated")
-    return sub
+    return payload["user_id"]
 
 
 @router.post("/login", dependencies=[Depends(auth_rate_limit)])
@@ -53,7 +53,8 @@ def logout(response: Response) -> dict:
 
 @router.get("/session")
 def session(admin_session: str | None = Cookie(default=None)) -> dict:
-    return {"authenticated": decode_token(admin_session) == "admin" if admin_session else False}
+    payload = decode_token(admin_session) if admin_session else None
+    return {"authenticated": bool(payload and payload["user_id"] == "admin")}
 
 
 @router.get("/sales")

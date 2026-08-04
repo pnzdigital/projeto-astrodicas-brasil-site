@@ -393,7 +393,10 @@ def test_generation_works_for_every_paid_content(client, monkeypatch):
         response = client.post(f"/api/me/readings/{content_id}/generate")
         assert response.status_code == 200, f"{content_id}: {response.text}"
         reading = response.json()["reading"]
-        assert reading["status"] == "ready"
+        # In test env MINIMAX_API_KEY is unset, so every reading falls back
+        # to the editorial template. The new contract surfaces this honestly.
+        assert reading["status"] == "fallback"
+        assert reading["source"] == "fallback"
         assert reading["body_html"].startswith("<p>")
 
     listed = client.get("/api/me/readings").json()["readings"]

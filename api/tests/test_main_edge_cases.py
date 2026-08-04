@@ -7,12 +7,19 @@ def test_health_endpoint(client):
     assert response.json() == {"ok": True, "service": "astrodicas-site", "channel": "site"}
 
 
-def test_register_duplicate_email_returns_409(client):
+def test_register_duplicate_email_returns_neutral_200(client):
+    """Anti-enumeração: o segundo cadastro com o mesmo e-mail recebe o mesmo
+    status (200) do cadastro novo, com ``created: false`` e sem cookie."""
     payload = {"email": "duplicada@example.com", "password": "senha-segura", "name": "Primeira"}
     first = client.post("/api/auth/register", json=payload)
     assert first.status_code == 200
+    assert first.json()["created"] is True
+    assert "site_session" in first.cookies
+
     second = client.post("/api/auth/register", json={**payload, "name": "Segunda"})
-    assert second.status_code == 409
+    assert second.status_code == 200
+    assert second.json()["created"] is False
+    assert "site_session" not in second.cookies
 
 
 def test_login_wrong_password_returns_401(client):

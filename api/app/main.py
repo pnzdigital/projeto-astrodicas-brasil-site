@@ -1,10 +1,11 @@
 import hashlib
 import hmac
 import os
-from datetime import date, datetime, time, timezone
+from datetime import date, datetime, time, timedelta, timezone
 from pathlib import Path
 
 from fastapi import Cookie, Depends, FastAPI, HTTPException, Request, Response, status
+from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, EmailStr, Field
 from sqlalchemy import select
@@ -14,10 +15,17 @@ from sqlalchemy.orm import Session
 from .db import Base, engine, get_db
 from .astrology import resolve_coordinates
 from . import admin, checkout, migrations, pricing
-from .ratelimit import auth_rate_limit, webhook_rate_limit
+from .ratelimit import auth_rate_limit, password_reset_rate_limit, webhook_rate_limit
 from .engine import generate_reading
-from .models import Entitlement, Order, Profile, Reading, User, WebhookEvent
-from .security import create_token, decode_token, hash_password, verify_password
+from .models import Entitlement, Order, PasswordResetToken, Profile, Reading, User, WebhookEvent
+from .security import (
+    create_token,
+    decode_token,
+    hash_password,
+    hash_reset_token,
+    new_reset_token,
+    verify_password,
+)
 
 
 SITE_ROOT = Path(__file__).resolve().parents[2]
@@ -38,16 +46,146 @@ app.include_router(checkout.router)
 app.include_router(admin.router)
 
 
+# --- Localized user-facing copy ----------------------------------------------
+# Mantém o backend agnóstico de i18n da UI: cada mensagem vive em pt-BR e es-AR.
+# A UI pode passar `locale` no corpo (register/login) e o backend escolhe. Em
+# rotas autenticadas onde o payload é vazio, usamos Accept-Language; como
+# fallback, pt-BR.
+AUTH_MESSAGES: dict[str, dict[str, str]] = {
+    "login_invalid": {
+        "pt-BR": "E-mail ou senha inválidos.",
+        "es-AR": "E-mail o contraseña inválidos.",
+    },
+    "register_email_taken": {
+        "pt-BR": "Este e-mail já está cadastrado.",
+        "es-AR": "Este e-mail ya está registrado.",
+    },
+    "validation_required": {
+        "pt-BR": "Preencha e-mail, senha (mín. 8 caracteres) e nome.",
+        "es-AR": "Completá e-mail, contraseña (mín. 8 caracteres) y nombre.",
+    },
+    "validation_email": {
+        "pt-BR": "Informe um e-mail válido.",
+        "es-AR": "Ingresá un e-mail válido.",
+    },
+    "validation_password": {
+        "pt-BR": "A senha precisa ter pelo menos 8 caracteres.",
+        "es-AR": "La contraseña debe tener al menos 8 caracteres.",
+    },
+    "validation_name": {
+        "pt-BR": "Informe seu nome (mín. 2 caracteres).",
+        "es-AR": "Ingresá tu nombre (mín. 2 caracteres).",
+    },
+    "session_required": {
+        "pt-BR": "Faça login para continuar.",
+        "es-AR": "Iniciá sesión para continuar.",
+    },
+    "rate_limited": {
+        "pt-BR": "Muitas tentativas. Tente novamente em instantes.",
+        "es-AR": "Demasiados intentos. Probá de nuevo en unos instantes.",
+    },
+    "reset_request_ok": {
+        "pt-BR": "Se o e-mail estiver cadastrado, enviaremos um link para redefinir sua senha.",
+        "es-AR": "Si el e-mail está registrado, te enviaremos un enlace para restablecer tu contraseña.",
+    },
+    "reset_token_invalid": {
+        "pt-BR": "Este link expirou ou já foi usado. Solicite um novo.",
+        "es-AR": "Este enlace expiró o ya fue usado. Solicitá uno nuevo.",
+    },
+    "reset_password_too_short": {
+        "pt-BR": "A nova senha precisa ter pelo menos 8 caracteres.",
+        "es-AR": "La nueva contraseña debe tener al menos 8 caracteres.",
+    },
+    "reset_done": {
+        "pt-BR": "Senha redefinida. Entre com a nova senha.",
+        "es-AR": "Contraseña restablecida. Iniciá sesión con la nueva.",
+    },
+}
+
+SUPPORTED_LOCALES = {"pt-BR", "es-AR"}
+
+
+def _pick_locale(locale: str | None, accept_language: str | None = None) -> str:
+    if locale and locale in SUPPORTED_LOCALES:
+        return locale
+    if accept_language:
+        primary = accept_language.split(",")[0].split(";")[0].strip()
+        if primary in SUPPORTED_LOCALES:
+            return primary
+        if primary.startswith("es"):
+            return "es-AR"
+        if primary.startswith("pt"):
+            return "pt-BR"
+    return "pt-BR"
+
+
+def _msg(key: str, locale: str | None, accept_language: str | None = None) -> str:
+    table = AUTH_MESSAGES.get(key) or AUTH_MESSAGES["session_required"]
+    return table[_pick_locale(locale, accept_language)]
+
+
+def _auth_validation_detail(errors, locale: str, accept_language: str | None) -> str:
+    """Traduz o primeiro erro de validação dos formulários de auth.
+
+    Pydantic v2 retorna uma lista de erros com ``loc`` apontando o campo e
+    um ``type``. Mapeamos para uma única frase humana na língua do usuário
+    — sem despejar o array JSON no cliente (vazava estrutura interna).
+    """
+    accept_language = accept_language or ""
+    for err in errors:
+        loc = err.get("loc") or []
+        field = loc[-1] if loc else ""
+        etype = err.get("type") or ""
+        if field == "email" or "email" in etype:
+            return _msg("validation_email", locale, accept_language)
+        if field == "password" or "string_too_short" in etype and "password" in str(loc):
+            return _msg("validation_password", locale, accept_language)
+        if field == "name":
+            return _msg("validation_name", locale, accept_language)
+        if field == "password" or "string_too_short" in etype:
+            return _msg("validation_password", locale, accept_language)
+    return _msg("validation_required", locale, accept_language)
+
+
+@app.exception_handler(RequestValidationError)
+async def auth_validation_handler(request: Request, exc: RequestValidationError) -> Response:
+    """Localiza validação apenas para rotas de auth. Outras rotas seguem default."""
+    path = request.url.path
+    if not path.startswith("/api/auth/"):
+        # Fallback para o handler padrão do FastAPI: 422 com array.
+        from fastapi.exception_handlers import request_validation_exception_handler
+        return await request_validation_exception_handler(request, exc)
+    body = {}
+    try:
+        body = await request.json()
+    except Exception:
+        body = {}
+    locale = _pick_locale(body.get("locale") if isinstance(body, dict) else None, request.headers.get("accept-language"))
+    detail = _auth_validation_detail(exc.errors(), locale, request.headers.get("accept-language"))
+    return Response(
+        media_type="application/json",
+        status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+        content=f'{{"detail":"{detail}"}}',
+    )
+
+
 class RegisterBody(BaseModel):
     email: EmailStr
     password: str = Field(min_length=8)
     name: str = Field(min_length=2, max_length=160)
-    locale: str = Field(default="pt-BR", max_length=10)
+    # Sem default fixo: a UI envia explicitamente; o backend usa Accept-Language
+    # como fallback quando ausente (consistente com o login).
+    locale: str | None = Field(default=None, max_length=10)
 
 
 class LoginBody(BaseModel):
     email: EmailStr
     password: str
+    # Opcional e sem default: se não vier no body, aceitamos o fallback do
+    # header ``Accept-Language``. Pydantic não preencher um valor default
+    # aqui garante que ``body.locale`` seja ``None`` quando o cliente não
+    # envia — útil para o fallback de Accept-Language.
+    locale: str | None = Field(default=None, max_length=10)
 
 
 class ProfileBody(BaseModel):
@@ -75,16 +213,38 @@ class WebhookBody(BaseModel):
     external_id: str | None = None
 
 
-def current_user(session: str | None, db: Session) -> User:
-    user_id = decode_token(session or "")
-    user = db.get(User, user_id) if user_id else None
+def current_user(session: str | None, db: Session, locale: str | None = None, accept_language: str | None = None) -> User:
+    payload = decode_token(session or "")
+    if not payload:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail=_msg("session_required", locale, accept_language),
+        )
+    user = db.get(User, payload["user_id"])
     if not user:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Faça login para continuar.")
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail=_msg("session_required", locale, accept_language),
+        )
+    # Reset de senha incrementou o epoch: tokens antigos viram inválidos.
+    if payload["epoch"] != getattr(user, "token_epoch", 0):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail=_msg("session_required", locale, accept_language),
+        )
     return user
 
 
 def set_session(response: Response, user: User) -> None:
-    response.set_cookie("site_session", create_token(user.id), httponly=True, secure=os.getenv("COOKIE_SECURE", "1") == "1", samesite="lax", max_age=60 * 60 * 24 * 30)
+    epoch = int(getattr(user, "token_epoch", 0) or 0)
+    response.set_cookie(
+        "site_session",
+        create_token(user.id, epoch),
+        httponly=True,
+        secure=os.getenv("COOKIE_SECURE", "1") == "1",
+        samesite="lax",
+        max_age=60 * 60 * 24 * 30,
+    )
 
 
 def validate_production_config() -> None:
@@ -123,27 +283,49 @@ def health() -> dict:
 
 
 @app.post("/api/auth/register", dependencies=[Depends(auth_rate_limit)])
-def register(body: RegisterBody, response: Response, db: Session = Depends(get_db)) -> dict:
+def register(body: RegisterBody, request: Request, response: Response, db: Session = Depends(get_db)) -> dict:
     email = body.email.lower()
-    if db.scalar(select(User).where(User.email == email)):
-        raise HTTPException(status_code=409, detail="Este e-mail já está cadastrado.")
-    user = User(email=email, password_hash=hash_password(body.password), name=body.name, locale=body.locale)
+    locale = _pick_locale(body.locale, request.headers.get("accept-language"))
+    existing = db.scalar(select(User).where(User.email == email))
+    # Hash sempre: equilibra o tempo de resposta entre o caminho novo e o de
+    # duplicata. Sem isso, um atacante mede a latência e descobre que
+    # ``hash_password`` só roda no caminho novo.
+    hashed = hash_password(body.password)
+    if existing:
+        # Não revela que o e-mail já está cadastrado: responde como se fosse um
+        # cadastro novo, sem emitir cookie de sessão. O dono real continua
+        # podendo logar normalmente; a UI deve mostrar uma mensagem neutra
+        # quando ``created`` é False.
+        try:
+            from .mailer import send_existing_account_notice
+            send_existing_account_notice(existing.email, locale)
+        except Exception:
+            # Mailer ausente ou falhou: silencioso. Não vaza.
+            pass
+        return {"user": {"id": existing.id, "email": existing.email, "name": existing.name, "locale": existing.locale}, "created": False}
+    user = User(email=email, password_hash=hashed, name=body.name, locale=locale)
     db.add(user)
     try:
         db.commit()
     except IntegrityError:
+        # Corrida rara: alguém inseriu o mesmo e-mail entre o SELECT e o INSERT.
+        # Mesmo tratamento: resposta neutra, sem cookie.
         db.rollback()
-        raise HTTPException(status_code=409, detail="Este e-mail já está cadastrado.")
+        existing = db.scalar(select(User).where(User.email == email))
+        if existing:
+            return {"user": {"id": existing.id, "email": existing.email, "name": existing.name, "locale": existing.locale}, "created": False}
+        raise HTTPException(status_code=500, detail=_msg("validation_required", locale))
     db.refresh(user)
     set_session(response, user)
-    return {"user": {"id": user.id, "email": user.email, "name": user.name, "locale": user.locale}}
+    return {"user": {"id": user.id, "email": user.email, "name": user.name, "locale": user.locale}, "created": True}
 
 
 @app.post("/api/auth/login", dependencies=[Depends(auth_rate_limit)])
-def login(body: LoginBody, response: Response, db: Session = Depends(get_db)) -> dict:
+def login(body: LoginBody, request: Request, response: Response, db: Session = Depends(get_db)) -> dict:
+    locale = _pick_locale(getattr(body, "locale", None), request.headers.get("accept-language"))
     user = db.scalar(select(User).where(User.email == body.email.lower()))
     if not user or not verify_password(body.password, user.password_hash):
-        raise HTTPException(status_code=401, detail="E-mail ou senha inválidos.")
+        raise HTTPException(status_code=401, detail=_msg("login_invalid", locale))
     set_session(response, user)
     return {"user": {"id": user.id, "email": user.email, "name": user.name, "locale": user.locale}}
 
@@ -152,6 +334,90 @@ def login(body: LoginBody, response: Response, db: Session = Depends(get_db)) ->
 def logout(response: Response) -> dict:
     response.delete_cookie("site_session")
     return {"ok": True}
+
+
+# --- Recuperação de senha ----------------------------------------------------
+# Fluxo anti-enumeração:
+# - /request aceita qualquer e-mail e devolve 200 com a mesma mensagem
+#   localizada. Só dispara o e-mail de verdade se a conta existe.
+# - O token (32 bytes URL-safe) vai no link do e-mail; o banco guarda
+#   apenas SHA-256(token). TTL curto (30min); uso único.
+# - /confirm consome o token: valida hash, expiração, uso; rotaciona a
+#   senha; incrementa ``token_epoch`` invalidando todas as sessões.
+
+RESET_TOKEN_TTL_SECONDS = int(os.getenv("PASSWORD_RESET_TTL_SECONDS", "1800"))
+
+
+class PasswordResetRequestBody(BaseModel):
+    email: EmailStr
+    locale: str = Field(default="pt-BR", max_length=10)
+
+
+class PasswordResetConfirmBody(BaseModel):
+    token: str = Field(min_length=16, max_length=128)
+    password: str = Field(min_length=8)
+    locale: str = Field(default="pt-BR", max_length=10)
+
+
+def _reset_portal_url() -> str:
+    return os.getenv("PORTAL_URL", "https://dash.astrodicas.pnzdigital.com.br/").rstrip("/")
+
+
+@app.post("/api/auth/password-reset/request", dependencies=[Depends(password_reset_rate_limit)])
+def password_reset_request(body: PasswordResetRequestBody, request: Request, db: Session = Depends(get_db)) -> dict:
+    locale = _pick_locale(body.locale, request.headers.get("accept-language"))
+    user = db.scalar(select(User).where(User.email == body.email.lower()))
+    if user:
+        # Igualamos a latência do caminho "conta existe" e "conta inexistente"
+        # gerando e descartando um token por requisição. O custo do SHA-256 é
+        # mínimo mas mantém o work factor simétrico.
+        raw, hashed = new_reset_token()
+        expires_at = datetime.now(timezone.utc) + timedelta(seconds=RESET_TOKEN_TTL_SECONDS)
+        db.add(PasswordResetToken(user_id=user.id, token_hash=hashed, expires_at=expires_at, locale=locale))
+        db.commit()
+        try:
+            from .mailer import send_password_reset
+            send_password_reset(user.email, raw, expires_at, locale, _reset_portal_url())
+        except Exception:
+            # Falha do mailer não vaza status; o cliente recebe a mesma
+            # confirmação neutra.
+            pass
+    else:
+        # Gera e descarta pra equalizar tempo.
+        new_reset_token()
+    # Resposta sempre 200, sempre com a mesma chave, na língua do cliente.
+    return {"detail": _msg("reset_request_ok", locale)}
+
+
+@app.post("/api/auth/password-reset/confirm")
+def password_reset_confirm(body: PasswordResetConfirmBody, response: Response, db: Session = Depends(get_db)) -> dict:
+    locale = _pick_locale(body.locale, None)
+    hashed = hash_reset_token(body.token)
+    # ``hmac.compare_digest`` evita timing attacks sobre a busca do hash.
+    candidates = db.scalars(
+        select(PasswordResetToken).where(PasswordResetToken.used == False)  # noqa: E712
+    ).all()
+    matched: PasswordResetToken | None = None
+    for candidate in candidates:
+        if hmac.compare_digest(candidate.token_hash.encode(), hashed.encode()):
+            matched = candidate
+            break
+    now = datetime.now(timezone.utc)
+    if not matched or matched.expires_at.replace(tzinfo=timezone.utc if matched.expires_at.tzinfo is None else matched.expires_at.tzinfo) < now:
+        # Mesmo detalhe para token expirado, já usado ou adulterado.
+        raise HTTPException(status_code=400, detail=_msg("reset_token_invalid", locale))
+    user = db.get(User, matched.user_id)
+    if not user:
+        raise HTTPException(status_code=400, detail=_msg("reset_token_invalid", locale))
+    user.password_hash = hash_password(body.password)
+    # Invalida todas as sessões existentes deste usuário.
+    user.token_epoch = int(getattr(user, "token_epoch", 0) or 0) + 1
+    matched.used = True
+    db.commit()
+    # Opcionalmente já autenticamos o usuário após o reset; aqui optamos
+    # por não emitir cookie — força um novo login (mais seguro contra
+    # tokens vazados em histórico).
+    return {"detail": _msg("reset_done", locale)}
 
 
 def _demo_allowed() -> bool:
@@ -178,23 +444,28 @@ def auth_gate(demo: str | None = None) -> dict:
 
 @app.get("/api/session")
 def session(site_session: str | None = Cookie(default=None), db: Session = Depends(get_db)) -> dict:
-    user_id = decode_token(site_session or "")
-    user = db.get(User, user_id) if user_id else None
+    payload = decode_token(site_session or "")
+    if not payload:
+        return {"authenticated": False}
+    user = db.get(User, payload["user_id"])
     if not user:
+        return {"authenticated": False}
+    # Sessão de epoch antigo (pré-reset) também não autentica.
+    if payload["epoch"] != int(getattr(user, "token_epoch", 0) or 0):
         return {"authenticated": False}
     return {"authenticated": True, "user": {"id": user.id, "email": user.email, "name": user.name, "locale": user.locale}}
 
 
 @app.get("/api/me/profile")
-def get_profile(site_session: str | None = Cookie(default=None), db: Session = Depends(get_db)) -> dict:
-    user = current_user(site_session, db)
+def get_profile(request: Request, site_session: str | None = Cookie(default=None), db: Session = Depends(get_db)) -> dict:
+    user = current_user(site_session, db, accept_language=request.headers.get("accept-language"))
     profile = db.get(Profile, user.id)
     return {"profile": profile_to_dict(profile) if profile else None}
 
 
 @app.put("/api/me/profile")
-def save_profile(body: ProfileBody, site_session: str | None = Cookie(default=None), db: Session = Depends(get_db)) -> dict:
-    user = current_user(site_session, db)
+def save_profile(body: ProfileBody, request: Request, site_session: str | None = Cookie(default=None), db: Session = Depends(get_db)) -> dict:
+    user = current_user(site_session, db, accept_language=request.headers.get("accept-language"))
     profile = db.get(Profile, user.id) or Profile(user_id=user.id)
     for key, value in body.model_dump().items():
         setattr(profile, key, value)
@@ -208,36 +479,46 @@ def save_profile(body: ProfileBody, site_session: str | None = Cookie(default=No
 
 
 @app.get("/api/me/access")
-def access(site_session: str | None = Cookie(default=None), db: Session = Depends(get_db)) -> dict:
-    user = current_user(site_session, db)
+def access(request: Request, site_session: str | None = Cookie(default=None), db: Session = Depends(get_db)) -> dict:
+    user = current_user(site_session, db, accept_language=request.headers.get("accept-language"))
     return {"entitlements": [{"product_id": e.product_id, "status": e.status} for e in user.entitlements]}
 
 
 @app.get("/api/me/readings")
-def readings(site_session: str | None = Cookie(default=None), db: Session = Depends(get_db)) -> dict:
-    user = current_user(site_session, db)
+def readings(request: Request, site_session: str | None = Cookie(default=None), db: Session = Depends(get_db)) -> dict:
+    user = current_user(site_session, db, accept_language=request.headers.get("accept-language"))
     rows = db.scalars(select(Reading).where(Reading.user_id == user.id).order_by(Reading.created_at.desc())).all()
     return {"readings": [reading_to_dict(row) for row in rows]}
 
 
 @app.post("/api/me/readings/{content_id}/generate")
-def generate(content_id: str, site_session: str | None = Cookie(default=None), db: Session = Depends(get_db)) -> dict:
-    user = current_user(site_session, db)
+def generate(content_id: str, request: Request, site_session: str | None = Cookie(default=None), db: Session = Depends(get_db)) -> dict:
+    user = current_user(site_session, db, accept_language=request.headers.get("accept-language"))
     profile = db.get(Profile, user.id)
     if not profile or not profile.birth_date or not profile.birth_city:
-        raise HTTPException(status_code=422, detail="Complete seus dados de nascimento antes de gerar a leitura.")
+        locale = _pick_locale(user.locale if user else None, request.headers.get("accept-language"))
+        msg = "Complete seus dados de nascimento antes de gerar a leitura." if locale == "pt-BR" else "Completá tus datos de nacimiento antes de generar la lectura."
+        raise HTTPException(status_code=422, detail=msg)
     snapshot = profile_to_dict(profile)
-    existing = db.scalar(select(Reading).where(Reading.user_id == user.id, Reading.content_id == content_id, Reading.status == "ready").order_by(Reading.created_at.desc()))
+    existing = db.scalar(select(Reading).where(Reading.user_id == user.id, Reading.content_id == content_id, Reading.status.in_(["ready", "fallback"])).order_by(Reading.created_at.desc()))
     if existing and reading_is_current(existing, content_id, snapshot):
         return {"reading": reading_to_dict(existing)}
     product_id = content_product(content_id)
     if product_id and not db.scalar(select(Entitlement).where(Entitlement.user_id == user.id, Entitlement.product_id == product_id, Entitlement.status == "available")):
-        raise HTTPException(status_code=403, detail="Este conteúdo ainda não está liberado para sua conta.")
+        locale = _pick_locale(user.locale if user else None, request.headers.get("accept-language"))
+        msg = "Este conteúdo ainda não está liberado para sua conta." if locale == "pt-BR" else "Este contenido todavía no está disponible para tu cuenta."
+        raise HTTPException(status_code=403, detail=msg)
     reading = Reading(user_id=user.id, content_id=content_id, product_id=product_id, status="in_progress", title=content_title(content_id), input_snapshot=snapshot)
     db.add(reading)
     db.commit()
-    reading.body_html = generate_reading(content_id, reading.title, profile, user.locale, user.name)
-    reading.status = "ready"
+    generated = generate_reading(content_id, reading.title, profile, user.locale, user.name)
+    reading.body_html = generated.body_html
+    reading.source = generated.source
+    if generated.source == "fallback":
+        reading.error_message = generated.warning
+        reading.status = "fallback"
+    else:
+        reading.status = "ready"
     db.commit()
     db.refresh(reading)
     return {"reading": reading_to_dict(reading)}
@@ -336,7 +617,18 @@ def profile_to_dict(profile: Profile | None) -> dict | None:
 
 
 def reading_to_dict(reading: Reading) -> dict:
-    return {"id": reading.id, "content_id": reading.content_id, "product_id": reading.product_id, "status": reading.status, "title": reading.title, "body_html": reading.body_html, "created_at": reading.created_at.isoformat(), "updated_at": reading.updated_at.isoformat()}
+    return {
+        "id": reading.id,
+        "content_id": reading.content_id,
+        "product_id": reading.product_id,
+        "status": reading.status,
+        "title": reading.title,
+        "body_html": reading.body_html,
+        "source": getattr(reading, "source", "llm"),
+        "warning": reading.error_message if reading.status == "fallback" else "",
+        "created_at": reading.created_at.isoformat(),
+        "updated_at": reading.updated_at.isoformat(),
+    }
 
 
 async def await_request_body(request: Request) -> bytes:

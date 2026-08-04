@@ -21,6 +21,22 @@ from typing import Callable
 
 from fastapi import HTTPException, Request, status
 
+_RATE_LIMIT_COPY = {
+    "pt-BR": "Muitas tentativas. Tente novamente em instantes.",
+    "es-AR": "Demasiados intentos. Probá de nuevo en unos instantes.",
+}
+
+
+def _pick_locale(accept_language: str | None) -> str:
+    if not accept_language:
+        return "pt-BR"
+    primary = accept_language.split(",")[0].split(";")[0].strip()
+    if primary.startswith("es"):
+        return "es-AR"
+    if primary.startswith("pt"):
+        return "pt-BR"
+    return "pt-BR"
+
 _buckets: dict[tuple[str, str], deque[float]] = defaultdict(deque)
 _lock = threading.Lock()
 
@@ -71,9 +87,10 @@ def rate_limit(
                 bucket.popleft()
             if len(bucket) >= max_requests:
                 retry_after = max(1, int(window - (now - bucket[0])) + 1)
+                locale = _pick_locale(request.headers.get("accept-language"))
                 raise HTTPException(
                     status_code=status.HTTP_429_TOO_MANY_REQUESTS,
-                    detail="Muitas tentativas. Tente novamente em instantes.",
+                    detail=_RATE_LIMIT_COPY.get(locale, _RATE_LIMIT_COPY["pt-BR"]),
                     headers={"Retry-After": str(retry_after)},
                 )
             bucket.append(now)
@@ -113,4 +130,16 @@ webhook_rate_limit = rate_limit(
     default_max=120,
     default_window_seconds=60,
     key_fn=lambda request: f"webhook:{request.path_params.get('provider', 'mercadopago')}",
+)
+
+
+# Recuperação de senha: protege contra spam de e-mail na caixa do dono.
+# 5 por 15min por IP — humano legítimo não precisa de mais; atacante não
+# consegue enumerar alvos inundando ninguém. A neutralidade da resposta
+# (sempre 200, mesmo com e-mail desconhecido) já blinda enumeração.
+password_reset_rate_limit = rate_limit(
+    max_requests_env="RATE_LIMIT_PASSWORD_RESET_MAX",
+    window_seconds_env="RATE_LIMIT_PASSWORD_RESET_WINDOW_SECONDS",
+    default_max=5,
+    default_window_seconds=900,
 )

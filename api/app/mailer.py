@@ -189,6 +189,104 @@ def _html_template(
 """
 
 
+def send_password_reset(
+    email: str,
+    reset_token: str,
+    expires_at: "datetime",
+    locale: str = "pt-BR",
+    portal_url: str | None = None,
+) -> dict[str, Any]:
+    """Envia o link de redefinição de senha. Nunca levanta exceção."""
+    config = _get_config()
+    portal = (portal_url or config["portal_url"]).rstrip("/")
+    link = f"{portal}?reset={reset_token}"
+    expires_label = expires_at.strftime("%d/%m/%Y %H:%M UTC")
+
+    if locale == "es-AR":
+        subject = "Restablecé tu contraseña de AstroDicas"
+        content = f"""<h2>Solicitud de restablecimiento de contraseña.</h2>
+<p>Recibimos un pedido para restablecer la contraseña de tu cuenta de AstroDicas.</p>
+<p>Si fuiste vos, hacé clic abajo para definir una nueva contraseña. El enlace vence el {expires_label}.</p>
+<a href="{link}" class="cta-button">Restablecer contraseña</a>
+<p>Si no solicitaste este cambio, podés ignorar este e-mail: tu contraseña sigue siendo la misma.</p>
+"""
+        footer = "¿Dudas? Escribinos a contato@astrodicas.pnzdigital.com.br"
+        text_content = (
+            f"Solicitud de restablecimiento de contraseña.\n\n"
+            f"Si fuiste vos, ingresá al siguiente enlace para definir una nueva contraseña. "
+            f"Vence el {expires_label}.\n\n{link}\n\n"
+            f"Si no solicitaste este cambio, ignoralo: tu contraseña sigue igual.\n"
+        )
+    else:  # pt-BR
+        subject = "Redefina sua senha do AstroDicas"
+        content = f"""<h2>Pedido de redefinição de senha.</h2>
+<p>Recebemos um pedido para redefinir a senha da sua conta no AstroDicas.</p>
+<p>Se foi você, clique abaixo para definir uma nova senha. O link expira em {expires_label}.</p>
+<a href="{link}" class="cta-button">Redefinir senha</a>
+<p>Se você não fez essa solicitação, ignore este e-mail: sua senha continua a mesma.</p>
+"""
+        footer = "Dúvidas? Nos escreva em contato@astrodicas.pnzdigital.com.br"
+        text_content = (
+            f"Pedido de redefinição de senha.\n\n"
+            f"Se foi você, acesse o link abaixo para definir uma nova senha. "
+            f"Expira em {expires_label}.\n\n{link}\n\n"
+            f"Se você não fez essa solicitação, ignore este e-mail: sua senha continua a mesma.\n"
+        )
+
+    html_content = _html_template(content, footer)
+    return _send_email(email, subject, html_content, text_content)
+
+
+def send_existing_account_notice(
+    email: str,
+    locale: str = "pt-BR",
+) -> dict[str, Any]:
+    """Avisa o dono real de um e-mail que alguém tentou cadastrar outra conta nele.
+
+    Disparado quando o signup recebe um e-mail já cadastrado. Mantemos a
+    resposta da API neutra (sem revelar nada ao atacante); este e-mail é a
+    única superfície de desambiguação pro usuário legítimo.
+    """
+    config = _get_config()
+    portal_url = config["portal_url"]
+    if locale == "es-AR":
+        subject = "Alguien intentó registrar tu e-mail en AstroDicas"
+        content = f"""<h2>Tu e-mail ya está con nosotros.</h2>
+<p>Alguien intentó crear una cuenta nueva en AstroDicas usando tu dirección de e-mail. No se realizó ningún cambio.</p>
+<p>Si fuiste vos, simplemente iniciá sesión en el portal para retomar tus lecturas.</p>
+<a href="{portal_url}" class="cta-button">Ir al portal</a>
+<p>Si no reconocés este intento, te recomendamos cambiar tu contraseña.</p>
+"""
+        footer = "¿Dudas? Escribinos a contato@astrodicas.pnzdigital.com.br"
+        text_content = f"""Tu e-mail ya está con nosotros.
+
+Alguien intentó crear una cuenta nueva en AstroDicas usando tu dirección de e-mail. No se realizó ningún cambio.
+
+Si fuiste vos, iniciá sesión: {portal_url}
+
+Si no reconocés este intento, te recomendamos cambiar tu contraseña.
+"""
+    else:  # pt-BR
+        subject = "Alguém tentou cadastrar seu e-mail no AstroDicas"
+        content = f"""<h2>Seu e-mail já está com a gente.</h2>
+<p>Alguém tentou criar uma conta nova no AstroDicas usando seu endereço de e-mail. Nenhuma alteração foi feita.</p>
+<p>Se foi você, basta entrar no portal para retomar suas leituras.</p>
+<a href="{portal_url}" class="cta-button">Acessar o portal</a>
+<p>Se você não reconhece esta tentativa, recomendamos trocar sua senha.</p>
+"""
+        footer = "Dúvidas? Nos escreva em contato@astrodicas.pnzdigital.com.br"
+        text_content = f"""Seu e-mail já está com a gente.
+
+Alguém tentou criar uma conta nova no AstroDicas usando seu endereço de e-mail. Nenhuma alteração foi feita.
+
+Se foi você, entre no portal: {portal_url}
+
+Se você não reconhece esta tentativa, recomendamos trocar sua senha.
+"""
+    html_content = _html_template(content, footer)
+    return _send_email(email, subject, html_content, text_content)
+
+
 def send_welcome(
     email: str,
     name: str,

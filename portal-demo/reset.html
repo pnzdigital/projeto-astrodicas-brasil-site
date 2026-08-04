@@ -1,0 +1,247 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="robots" content="noindex, nofollow">
+  <link rel="icon" type="image/svg+xml" href="/assets/icon.svg">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@400;500;600&family=Jost:wght@400;500;600&display=swap" rel="stylesheet">
+  <title>AstroDicas · Recuperar senha</title>
+  <style>
+    :root {
+      --ink: #07061a; --ink-2: #0e0b2e;
+      --gold: #d9ac5c; --gold-lit: #f4d79a;
+      --cream: #f4efe4; --cream-dim: rgba(244,239,228,.66); --cream-faint: rgba(244,239,228,.42);
+      --rose: #c98b8b; --mint: #9fc8b6;
+      --display: "Cormorant Garamond", Georgia, serif;
+      --body: "Jost", -apple-system, BlinkMacSystemFont, sans-serif;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0; min-height: 100vh;
+      color: var(--cream);
+      background: radial-gradient(circle at 78% 0%, rgba(82,65,167,.22), transparent 32rem), var(--ink);
+      font-family: var(--body); font-size: 15px; line-height: 1.5;
+      display: grid; place-items: center; padding: 32px 18px;
+    }
+    button, a { font: inherit; }
+    button:focus-visible, a:focus-visible { outline: 2px solid var(--gold-lit); outline-offset: 3px; }
+    .card {
+      width: min(440px, 100%);
+      padding: 36px 30px 30px;
+      border: 1px solid rgba(217,172,92,.27);
+      background: rgba(19,15,59,.82);
+      box-shadow: 0 24px 70px rgba(0,0,0,.26);
+    }
+    .brand {
+      display: inline-flex; align-items: center; gap: 10px;
+      margin-bottom: 26px; color: var(--gold-lit);
+      font: 600 24px/1 var(--display);
+    }
+    .brand span {
+      display: grid; width: 28px; height: 28px; place-items: center;
+      border: 1px solid var(--gold); border-radius: 50%; font: 600 15px var(--display);
+    }
+    .eyebrow {
+      margin: 0 0 6px; color: var(--gold); font-size: 10px; font-weight: 600;
+      letter-spacing: .2em; text-transform: uppercase;
+    }
+    h1 { margin: 0 0 12px; font: 500 30px/1.05 var(--display); letter-spacing: -.02em; }
+    p { margin: 0 0 22px; color: var(--cream-dim); font-size: 13px; }
+    .field { display: grid; gap: 5px; margin-bottom: 14px; }
+    label { color: var(--cream-dim); font-size: 11px; }
+    input {
+      width: 100%; min-height: 42px; padding: 0 12px;
+      border: 1px solid rgba(244,239,228,.18); border-radius: 6px;
+      color: var(--cream); background: rgba(7,6,26,.45); font: inherit;
+    }
+    input:focus { border-color: var(--gold); outline: 2px solid rgba(244,215,154,.22); outline-offset: 1px; }
+    .button {
+      display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+      width: 100%; min-height: 44px;
+      border: 1px solid var(--gold); border-radius: 7px;
+      color: var(--ink); background: var(--gold);
+      font-size: 13px; font-weight: 700; letter-spacing: .03em; cursor: pointer;
+    }
+    .button:hover { background: var(--gold-lit); }
+    .button[disabled] { opacity: .55; cursor: progress; }
+    .form-error { margin: 6px 0 0; min-height: 18px; color: var(--rose); font-size: 12px; }
+    .ok {
+      margin: 16px 0 0; padding: 12px 14px; border: 1px solid rgba(159,200,182,.4);
+      color: var(--mint); background: rgba(159,200,182,.06); border-radius: 6px; font-size: 12px;
+    }
+    .help { margin-top: 18px; color: var(--cream-faint); font-size: 11px; }
+    .help a { color: var(--gold-lit); text-decoration: underline; text-decoration-color: rgba(217,172,92,.4); }
+  </style>
+</head>
+<body>
+  <main class="card" aria-labelledby="reset-title">
+    <a class="brand" href="/" aria-label="AstroDicas, início"><span>☾</span>AstroDicas</a>
+    <p class="eyebrow" data-reset-eyebrow>Recuperar acesso</p>
+    <h1 id="reset-title" data-reset-title>Esqueceu a senha?</h1>
+    <p data-reset-intro>Informe o e-mail da sua conta. Se estiver cadastrado, enviaremos um link para redefinir a senha.</p>
+
+    <!-- Estado 1: pedir e-mail (sem token na URL) -->
+    <form id="request-form" data-reset-view="request" novalidate>
+      <div class="field">
+        <label for="reset-email" data-label="email">E-mail</label>
+        <input id="reset-email" name="email" type="email" autocomplete="email" required>
+      </div>
+      <p class="form-error" data-form-error="request" role="alert"></p>
+      <button class="button" type="submit" data-label="send">Enviar link de recuperação →</button>
+    </form>
+
+    <!-- Estado 2: definir nova senha (token na URL) -->
+    <form id="confirm-form" data-reset-view="confirm" hidden>
+      <div class="field">
+        <label for="reset-password" data-label="password">Nova senha</label>
+        <input id="reset-password" name="password" type="password" autocomplete="new-password" minlength="8" required>
+      </div>
+      <p class="help" data-help="password">Use pelo menos 8 caracteres.</p>
+      <p class="form-error" data-form-error="confirm" role="alert"></p>
+      <button class="button" type="submit" data-label="save">Salvar nova senha →</button>
+    </form>
+
+    <!-- Confirmação neutra (estado 3) -->
+    <div data-reset-view="done" hidden>
+      <p class="ok" data-ok-message role="status" aria-live="polite"></p>
+      <p class="help" data-help="done">Pode fechar esta aba. Se não recebeu, verifique a caixa de spam.</p>
+    </div>
+
+    <p class="help"><a href="/" data-back>← Voltar ao portal</a></p>
+  </main>
+
+  <script type="module">
+    const IS_ARGENTINA = window.location.pathname.startsWith('/es');
+    const API_BASE = (window.PORTAL_API_URL || '').replace(/\/$/, '');
+    const PARAMS = new URLSearchParams(window.location.search);
+    const TOKEN = PARAMS.get('reset');
+
+    const COPY = {
+      pt: {
+        eyebrow: 'Recuperar acesso',
+        title: 'Esqueceu a senha?',
+        intro: 'Informe o e-mail da sua conta. Se estiver cadastrado, enviaremos um link para redefinir a senha.',
+        email: 'E-mail',
+        send: 'Enviar link de recuperação →',
+        password: 'Nova senha',
+        passwordHelp: 'Use pelo menos 8 caracteres.',
+        save: 'Salvar nova senha →',
+        doneRequest: 'Se o e-mail estiver cadastrado, você receberá um link para redefinir a senha em alguns instantes.',
+        doneReset: 'Senha redefinida. Você já pode entrar no portal com a nova senha.',
+        doneHelp: 'Pode fechar esta aba. Se não recebeu, verifique a caixa de spam.',
+        confirmTitle: 'Defina sua nova senha',
+        confirmIntro: 'Use pelo menos 8 caracteres. Depois de salvar, todas as sessões abertas deste dispositivo serão encerradas.',
+        invalidToken: 'Este link expirou ou já foi usado. Solicite um novo pela tela de login.',
+        shortPassword: 'A senha precisa ter pelo menos 8 caracteres.',
+        badEmail: 'Informe um e-mail válido.',
+        back: '← Voltar ao portal',
+      },
+      es: {
+        eyebrow: 'Recuperar acceso',
+        title: '¿Olvidaste tu contraseña?',
+        intro: 'Ingresá el e-mail de tu cuenta. Si está registrado, te enviaremos un enlace para restablecer la contraseña.',
+        email: 'E-mail',
+        send: 'Enviar enlace de recuperación →',
+        password: 'Nueva contraseña',
+        passwordHelp: 'Usá al menos 8 caracteres.',
+        save: 'Guardar nueva contraseña →',
+        doneRequest: 'Si el e-mail está registrado, recibirás un enlace para restablecer la contraseña en unos instantes.',
+        doneReset: 'Contraseña restablecida. Ya podés iniciar sesión con la nueva.',
+        doneHelp: 'Podés cerrar esta pestaña. Si no te llegó, revisá la carpeta de spam.',
+        confirmTitle: 'Definí tu nueva contraseña',
+        confirmIntro: 'Usá al menos 8 caracteres. Después de guardar, todas las sesiones abiertas se cerrarán.',
+        invalidToken: 'Este enlace expiró o ya fue usado. Solicitá uno nuevo desde la pantalla de inicio.',
+        shortPassword: 'La contraseña debe tener al menos 8 caracteres.',
+        badEmail: 'Ingresá un e-mail válido.',
+        back: '← Volver al portal',
+      },
+    };
+    const T = IS_ARGENTINA ? COPY.es : COPY.pt;
+    document.documentElement.lang = IS_ARGENTINA ? 'es-AR' : 'pt-BR';
+    document.title = IS_ARGENTINA ? 'AstroDicas · Recuperar contraseña' : 'AstroDicas · Recuperar senha';
+
+    function applyCopy() {
+      document.querySelectorAll('[data-label]').forEach((el) => { el.textContent = T[el.dataset.label] || el.textContent; });
+      document.querySelector('[data-reset-eyebrow]').textContent = T.eyebrow;
+      document.querySelector('[data-reset-title]').textContent = TOKEN ? T.confirmTitle : T.title;
+      document.querySelector('[data-reset-intro]').textContent = TOKEN ? T.confirmIntro : T.intro;
+      document.querySelector('[data-help="password"]').textContent = T.passwordHelp;
+      document.querySelector('[data-help="done"]').textContent = T.doneHelp;
+      document.querySelector('[data-back]').textContent = T.back;
+    }
+    function setFormError(name, message = '') {
+      const node = document.querySelector(`[data-form-error="${name}"]`);
+      if (node) node.textContent = message;
+    }
+    function showView(view) {
+      document.querySelectorAll('[data-reset-view]').forEach((el) => { el.hidden = el.dataset.resetView !== view; });
+    }
+    async function callApi(path, payload) {
+      const response = await fetch(`${API_BASE}${path}`, {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+      let data = {};
+      try { data = await response.json(); } catch (_) {}
+      return { ok: response.ok, status: response.status, data };
+    }
+    function pickDetail(data, fallback) {
+      if (data && typeof data.detail === 'string' && data.detail) return data.detail;
+      return fallback;
+    }
+
+    applyCopy();
+    showView(TOKEN ? 'confirm' : 'request');
+
+    document.getElementById('request-form').addEventListener('submit', async (event) => {
+      event.preventDefault();
+      const form = event.target;
+      const email = form.elements.email.value.trim();
+      if (!email || !email.includes('@')) { setFormError('request', T.badEmail); return; }
+      const button = form.querySelector('button[type="submit"]');
+      button.disabled = true; button.setAttribute('aria-busy', 'true');
+      setFormError('request');
+      try {
+        const locale = IS_ARGENTINA ? 'es-AR' : 'pt-BR';
+        const { ok, data } = await callApi('/api/auth/password-reset/request', { email, locale });
+        // Mensagem SEMPRE neutra — não revela se o e-mail existe.
+        document.querySelector('[data-ok-message]').textContent = pickDetail(data, T.doneRequest);
+        showView('done');
+      } catch (error) {
+        setFormError('request', IS_ARGENTINA ? 'No pudimos enviar el enlace. Probá de nuevo.' : 'Não conseguimos enviar o link. Tente novamente.');
+      } finally {
+        button.disabled = false; button.removeAttribute('aria-busy');
+      }
+    });
+
+    document.getElementById('confirm-form').addEventListener('submit', async (event) => {
+      event.preventDefault();
+      const form = event.target;
+      const password = form.elements.password.value;
+      if (!password || password.length < 8) { setFormError('confirm', T.shortPassword); return; }
+      const button = form.querySelector('button[type="submit"]');
+      button.disabled = true; button.setAttribute('aria-busy', 'true');
+      setFormError('confirm');
+      try {
+        const locale = IS_ARGENTINA ? 'es-AR' : 'pt-BR';
+        const { ok, data } = await callApi('/api/auth/password-reset/confirm', { token: TOKEN, password, locale });
+        if (ok) {
+          document.querySelector('[data-ok-message]').textContent = pickDetail(data, T.doneReset);
+          showView('done');
+        } else {
+          setFormError('confirm', pickDetail(data, T.invalidToken));
+        }
+      } catch (error) {
+        setFormError('confirm', T.invalidToken);
+      } finally {
+        button.disabled = false; button.removeAttribute('aria-busy');
+      }
+    });
+  </script>
+</body>
+</html>

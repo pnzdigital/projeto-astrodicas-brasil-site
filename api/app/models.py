@@ -1,7 +1,7 @@
 from datetime import date, datetime, time, timezone
 from uuid import uuid4
 
-from sqlalchemy import JSON, Date, DateTime, ForeignKey, Integer, String, Text, Time, UniqueConstraint
+from sqlalchemy import JSON, Boolean, Date, DateTime, ForeignKey, Integer, String, Text, Time, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from .db import Base
@@ -20,9 +20,30 @@ class User(Base):
     name: Mapped[str] = mapped_column(String(160), default="")
     locale: Mapped[str] = mapped_column(String(10), default="pt-BR")
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now_utc)
+    # ``token_epoch`` é um nonce que muda após cada reset de senha. O JWT da
+    # sessão inclui o epoch atual; ao resetar, incrementamos o contador e
+    # tokens antigos falham na validação (invalidando todas as sessões).
+    token_epoch: Mapped[int] = mapped_column(Integer, default=0)
     profile: Mapped["Profile | None"] = relationship(back_populates="user", uselist=False, cascade="all, delete-orphan")
     entitlements: Mapped[list["Entitlement"]] = relationship(back_populates="user", cascade="all, delete-orphan")
     readings: Mapped[list["Reading"]] = relationship(back_populates="user", cascade="all, delete-orphan")
+    reset_tokens: Mapped[list["PasswordResetToken"]] = relationship(back_populates="user", cascade="all, delete-orphan")
+
+
+class PasswordResetToken(Base):
+    __tablename__ = "site_password_reset_tokens"
+    __table_args__ = (UniqueConstraint("token_hash", name="uq_site_reset_token_hash"),)
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=lambda: str(uuid4()))
+    user_id: Mapped[str] = mapped_column(ForeignKey("site_users.id", ondelete="CASCADE"), index=True)
+    # SHA-256 hex do token bruto: nunca guardamos o plaintext. O token de
+    # 32 bytes é entregue por e-mail; o link é montado com ele.
+    token_hash: Mapped[str] = mapped_column(String(64), index=True)
+    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    used: Mapped[bool] = mapped_column(Boolean, default=False)
+    locale: Mapped[str] = mapped_column(String(10), default="pt-BR")
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now_utc)
+    user: Mapped[User] = relationship(back_populates="reset_tokens")
 
 
 class Profile(Base):

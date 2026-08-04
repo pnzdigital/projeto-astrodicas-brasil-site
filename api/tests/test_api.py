@@ -89,7 +89,13 @@ def test_generate_requires_profile_then_returns_ready_reading(client):
     generated = client.post("/api/me/readings/site:content:horoscopo_diario/generate")
     assert generated.status_code == 200, generated.text
     reading = generated.json()["reading"]
-    assert reading["status"] == "ready"
+    # In the test env MINIMAX_API_KEY is unset, so the engine returns the
+    # editorial fallback. The new contract surfaces this honestly via
+    # status='fallback' + source='fallback' + warning, instead of silently
+    # presenting the generic text as the paid personalized reading.
+    assert reading["status"] == "fallback"
+    assert reading["source"] == "fallback"
+    assert reading["warning"]
     assert "Touro" in reading["body_html"]
 
     same = client.post("/api/me/readings/site:content:horoscopo_diario/generate")
@@ -113,6 +119,7 @@ def test_minimax_output_is_escaped_and_formatted(monkeypatch):
 
     result = engine.generate_reading("site:content:horoscopo_diario", "Horóscopo diário", None)
 
-    assert result.count("<p>") == 3
-    assert "Primeiro &amp; direto." in result
-    assert "Segundo &lt;seguro&gt;." in result
+    assert result.body_html.count("<p>") == 3
+    assert "Primeiro &amp; direto." in result.body_html
+    assert "Segundo &lt;seguro&gt;." in result.body_html
+    assert result.source == "minimax"

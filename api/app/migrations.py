@@ -24,6 +24,9 @@ NEW_COLUMNS: dict[str, tuple[tuple[str, str, str], ...]] = {
         ("customer_email", "VARCHAR(320)", "''"),
         ("updated_at", "TIMESTAMP", ""),
     ),
+    "site_users": (
+        ("token_epoch", "INTEGER", "0"),
+    ),
 }
 
 

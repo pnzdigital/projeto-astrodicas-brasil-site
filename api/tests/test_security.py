@@ -29,7 +29,8 @@ def test_round_trip_returns_same_user_id(strong_secret):
     user_id = "user-abc-123"
     token = strong_secret.create_token(user_id)
     assert isinstance(token, str) and token
-    assert strong_secret.decode_token(token) == user_id
+    payload = strong_secret.decode_token(token)
+    assert payload == {"user_id": user_id, "epoch": 0}
 
 
 def test_decode_rejects_expired_token(strong_secret):
