@@ -4,7 +4,7 @@ Validação end-to-end do checkout AstroDicas.
 Para cada produto × mercado (17 produtos × 2 mercados = 34 células), executa a
 jornada completa de um cliente fictício:
 
-  1. Cadastro
+  1. Cadastro (conta criada direto no banco — /api/auth/register não existe mais)
   2. Login + sessão válida
   3. Checkout — valor enviado ao Mercado Pago = catálogo exato
   4. Webhook de pagamento aprovado com assinatura válida
@@ -57,11 +57,12 @@ os.environ["SITE_PUBLIC_URL"] = "https://astrodicas.example"
 os.environ["CAKTO_WEBHOOK_SECRET"] = "cakto-test-secret"
 
 from fastapi.testclient import TestClient
-from app.db import Base, engine
+from app.db import Base, SessionLocal, engine
 from app.main import app
 from app import checkout, mercadopago, pricing, ratelimit
 from app import security
-from app.models import PasswordResetToken
+from app.models import PasswordResetToken, User
+from app.security import hash_password
 from sqlalchemy import select
 
 
@@ -125,12 +126,33 @@ def _email(product_id: str, locale: str) -> str:
     return f"test+{safe}_{locale.replace('-', '_')}@example.com"
 
 
+def _create_account(email: str, password: str, locale: str) -> User:
+    """Cria a conta direto no banco.
+
+    ``/api/auth/register`` foi removido do produto: a única forma real de
+    criar conta é a compra (webhook aprovado -> ``fulfill_order``). Para o
+    e2e, criar a linha direto no banco é equivalente e evita simular um
+    checkout inteiro só para autenticar.
+    """
+    db = SessionLocal()
+    try:
+        email = email.lower()
+        existing = db.scalar(select(User).where(User.email == email))
+        if existing:
+            return existing
+        user = User(email=email, password_hash=hash_password(password), name="Teste E2E", locale=locale)
+        db.add(user)
+        db.commit()
+        db.refresh(user)
+        return user
+    finally:
+        db.close()
+
+
 def _register_login(client: TestClient, email: str, locale: str) -> None:
-    """Cadastra e faz login. Usa cookie automático do TestClient."""
+    """Cria a conta e faz login. Usa cookie automático do TestClient."""
     password = "SenhaForte123!"
-    r = client.post("/api/auth/register", json={"email": email, "password": password, "name": "Teste E2E", "locale": locale})
-    assert r.status_code == 200, f"register: {r.status_code} {r.text}"
-    assert r.json()["created"], f"usuário já existia: {email}"
+    _create_account(email, password, locale)
     r = client.post("/api/auth/login", json={"email": email, "password": password, "locale": locale})
     assert r.status_code == 200, f"login: {r.status_code} {r.text}"
 
@@ -189,13 +211,19 @@ def _set_profile_no_time(client: TestClient) -> None:
 
 # ── Testes unitários por etapa ─────────────────────────────────────────────────
 
-def test_etapa1_register_cria_conta_e_sessao(client: TestClient):
-    """Registro devolve created=True e seta cookie de sessão."""
+def test_etapa1_login_cria_sessao(client: TestClient):
+    """Login com uma conta criada pela compra (não há mais /api/auth/register) seta cookie de sessão."""
     email = _email("site:plano_lua", "pt-BR")
-    r = client.post("/api/auth/register", json={"email": email, "password": "SenhaForte123!", "name": "Teste", "locale": "pt-BR"})
+    _create_account(email, "SenhaForte123!", "pt-BR")
+    r = client.post("/api/auth/login", json={"email": email, "password": "SenhaForte123!", "locale": "pt-BR"})
     assert r.status_code == 200
-    assert r.json()["created"] is True
     assert "site_session" in r.cookies
+
+
+def test_etapa1b_register_route_removido(client: TestClient):
+    """`/api/auth/register` não existe mais: dash só tem login, conta nasce na compra."""
+    r = client.post("/api/auth/register", json={"email": "x@example.com", "password": "SenhaForte123!"})
+    assert r.status_code == 404
 
 
 def test_etapa2_login_sessao_autentica(client: TestClient):
@@ -417,10 +445,8 @@ def test_matriz(client, product_id, locale, currency):
     email = _email(product_id, locale)
     password = "SenhaForte123!"
 
-    # 1. Cadastro
-    r = client.post("/api/auth/register", json={"email": email, "password": password, "name": "Teste E2E", "locale": locale})
-    assert r.status_code == 200, f"[{product_id}][{locale}] registro: {r.status_code} {r.text}"
-    assert r.json()["created"], f"[{product_id}][{locale}] usuário já existia"
+    # 1. Cadastro (conta nasce direto no banco: /api/auth/register foi removido)
+    _create_account(email, password, locale)
 
     # 2. Login
     r = client.post("/api/auth/login", json={"email": email, "password": password, "locale": locale})

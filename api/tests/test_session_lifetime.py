@@ -20,10 +20,9 @@ def db_session():
 
 
 def _signup(client, email="sessao@example.com", password="senha-bem-comprida"):
-    return client.post(
-        "/api/auth/register",
-        json={"email": email, "password": password, "name": "Sessao", "locale": "pt-BR"},
-    )
+    from conftest import register
+
+    return register(client, email, password, name="Sessao", locale="pt-BR")
 
 
 def _claims(token: str) -> dict:

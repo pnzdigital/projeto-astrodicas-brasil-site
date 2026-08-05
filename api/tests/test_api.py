@@ -7,17 +7,11 @@ import pytest
 
 from app.main import app
 from app import engine
+from conftest import register as _register
 
 
 def register(client):
-    response = client.post(
-        "/api/auth/register",
-        json={
-            "email": "ana@example.com",
-            "password": "senha-segura",
-            "name": "Ana Astro",
-        },
-    )
+    response = _register(client, "ana@example.com", "senha-segura", name="Ana Astro")
     assert response.status_code == 200, response.text
     return response
 
@@ -115,7 +109,7 @@ async def test_webhook_async_client_accepts_json_body():
 
 def test_minimax_output_is_escaped_and_formatted(monkeypatch):
     monkeypatch.setenv("MINIMAX_API_KEY", "test-key")
-    monkeypatch.setattr(engine, "_call_minimax", lambda prompt: "Primeiro & direto.\n\nSegundo <seguro>.\n\nTerceiro caminho.")
+    monkeypatch.setattr(engine, "_call_minimax", lambda prompt, locale="pt-BR": "Primeiro & direto.\n\nSegundo <seguro>.\n\nTerceiro caminho.")
 
     result = engine.generate_reading("site:content:horoscopo_diario", "Horóscopo diário", None)
 

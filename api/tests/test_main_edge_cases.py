@@ -1,5 +1,7 @@
 """Caminhos de erro e casos de borda de main.py não cobertos pelos testes de fluxo feliz."""
 
+from conftest import create_user, register
+
 
 def test_health_endpoint(client):
     response = client.get("/api/health")
@@ -7,29 +9,23 @@ def test_health_endpoint(client):
     assert response.json() == {"ok": True, "service": "astrodicas-site", "channel": "site"}
 
 
-def test_register_duplicate_email_returns_neutral_200(client):
-    """Anti-enumeração: o segundo cadastro com o mesmo e-mail recebe o mesmo
-    status (200) do cadastro novo, com ``created: false`` e sem cookie."""
-    payload = {"email": "duplicada@example.com", "password": "senha-segura", "name": "Primeira"}
-    first = client.post("/api/auth/register", json=payload)
-    assert first.status_code == 200
-    assert first.json()["created"] is True
-    assert "site_session" in first.cookies
-
-    second = client.post("/api/auth/register", json={**payload, "name": "Segunda"})
-    assert second.status_code == 200
-    assert second.json()["created"] is False
-    assert "site_session" not in second.cookies
+def test_register_route_is_gone(client):
+    """`/api/auth/register` foi removido: única forma de criar conta é a compra."""
+    response = client.post(
+        "/api/auth/register",
+        json={"email": "duplicada@example.com", "password": "senha-segura", "name": "Primeira"},
+    )
+    assert response.status_code == 404
 
 
 def test_login_wrong_password_returns_401(client):
-    client.post("/api/auth/register", json={"email": "senha@example.com", "password": "senha-correta", "name": "Ana"})
+    create_user("senha@example.com", "senha-correta", name="Ana")
     response = client.post("/api/auth/login", json={"email": "senha@example.com", "password": "senha-errada"})
     assert response.status_code == 401
 
 
 def test_login_success_sets_session(client):
-    client.post("/api/auth/register", json={"email": "login-ok@example.com", "password": "senha-correta", "name": "Ana"})
+    register(client, "login-ok@example.com", "senha-correta", name="Ana")
     client.post("/api/auth/logout")
     response = client.post("/api/auth/login", json={"email": "login-ok@example.com", "password": "senha-correta"})
     assert response.status_code == 200
@@ -43,21 +39,24 @@ def test_login_unknown_email_returns_401(client):
 
 
 def test_profile_without_data_returns_none(client):
-    client.post("/api/auth/register", json={"email": "sem-perfil@example.com", "password": "senha-segura", "name": "Sem Perfil"})
+    create_user("sem-perfil@example.com", "senha-segura", name="Sem Perfil")
+    client.post("/api/auth/login", json={"email": "sem-perfil@example.com", "password": "senha-segura"})
     response = client.get("/api/me/profile")
     assert response.status_code == 200
     assert response.json() == {"profile": None}
 
 
 def test_access_without_entitlements_is_empty(client):
-    client.post("/api/auth/register", json={"email": "sem-acesso@example.com", "password": "senha-segura", "name": "Sem Acesso"})
+    create_user("sem-acesso@example.com", "senha-segura", name="Sem Acesso")
+    client.post("/api/auth/login", json={"email": "sem-acesso@example.com", "password": "senha-segura"})
     response = client.get("/api/me/access")
     assert response.status_code == 200
     assert response.json() == {"entitlements": []}
 
 
 def test_readings_list_is_empty_before_any_generation(client):
-    client.post("/api/auth/register", json={"email": "sem-leitura@example.com", "password": "senha-segura", "name": "Sem Leitura"})
+    create_user("sem-leitura@example.com", "senha-segura", name="Sem Leitura")
+    client.post("/api/auth/login", json={"email": "sem-leitura@example.com", "password": "senha-segura"})
     response = client.get("/api/me/readings")
     assert response.status_code == 200
     assert response.json() == {"readings": []}
@@ -71,10 +70,8 @@ def test_protected_routes_require_session(client):
 
 
 def test_generate_paid_content_without_entitlement_returns_403(client):
-    client.post(
-        "/api/auth/register",
-        json={"email": "sem-entitlement@example.com", "password": "senha-segura", "name": "Sem Entitlement"},
-    )
+    create_user("sem-entitlement@example.com", "senha-segura", name="Sem Entitlement")
+    client.post("/api/auth/login", json={"email": "sem-entitlement@example.com", "password": "senha-segura"})
     client.put(
         "/api/me/profile",
         json={"birth_date": "1990-05-20", "birth_time": "12:30:00", "birth_city": "Recife", "birth_country": "BR"},

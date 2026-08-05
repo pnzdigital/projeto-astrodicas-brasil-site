@@ -10,7 +10,6 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, EmailStr, Field
 from sqlalchemy import select
-from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from .db import Base, engine, get_db
@@ -197,15 +196,6 @@ async def auth_validation_handler(request: Request, exc: RequestValidationError)
     )
 
 
-class RegisterBody(BaseModel):
-    email: EmailStr
-    password: str = Field(min_length=8)
-    name: str = Field(min_length=2, max_length=160)
-    # Sem default fixo: a UI envia explicitamente; o backend usa Accept-Language
-    # como fallback quando ausente (consistente com o login).
-    locale: str | None = Field(default=None, max_length=10)
-
-
 class LoginBody(BaseModel):
     email: EmailStr
     password: str
@@ -313,42 +303,9 @@ def health() -> dict:
     return {"ok": True, "service": "astrodicas-site", "channel": "site"}
 
 
-@app.post("/api/auth/register", dependencies=[Depends(auth_rate_limit)])
-def register(body: RegisterBody, request: Request, response: Response, db: Session = Depends(get_db)) -> dict:
-    email = body.email.lower()
-    locale = _pick_locale(body.locale, request.headers.get("accept-language"))
-    existing = db.scalar(select(User).where(User.email == email))
-    # Hash sempre: equilibra o tempo de resposta entre o caminho novo e o de
-    # duplicata. Sem isso, um atacante mede a latência e descobre que
-    # ``hash_password`` só roda no caminho novo.
-    hashed = hash_password(body.password)
-    if existing:
-        # Não revela que o e-mail já está cadastrado: responde como se fosse um
-        # cadastro novo, sem emitir cookie de sessão. O dono real continua
-        # podendo logar normalmente; a UI deve mostrar uma mensagem neutra
-        # quando ``created`` é False.
-        try:
-            from .mailer import send_existing_account_notice
-            send_existing_account_notice(existing.email, locale)
-        except Exception:
-            # Mailer ausente ou falhou: silencioso. Não vaza.
-            pass
-        return {"user": {"id": existing.id, "email": existing.email, "name": existing.name, "locale": existing.locale}, "created": False}
-    user = User(email=email, password_hash=hashed, name=body.name, locale=locale)
-    db.add(user)
-    try:
-        db.commit()
-    except IntegrityError:
-        # Corrida rara: alguém inseriu o mesmo e-mail entre o SELECT e o INSERT.
-        # Mesmo tratamento: resposta neutra, sem cookie.
-        db.rollback()
-        existing = db.scalar(select(User).where(User.email == email))
-        if existing:
-            return {"user": {"id": existing.id, "email": existing.email, "name": existing.name, "locale": existing.locale}, "created": False}
-        raise HTTPException(status_code=500, detail=_msg("validation_required", locale))
-    db.refresh(user)
-    set_session(response, user)
-    return {"user": {"id": user.id, "email": user.email, "name": user.name, "locale": user.locale}, "created": True}
+# /api/auth/register foi removido: a única forma de criar conta é a compra
+# (webhook aprovado -> fulfill_order). O dash só expõe login. Rota inexistente
+# devolve 404 nativo do FastAPI, sem handler dedicado.
 
 
 @app.post("/api/auth/login", dependencies=[Depends(auth_rate_limit)])

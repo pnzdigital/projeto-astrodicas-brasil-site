@@ -41,10 +41,9 @@ def fresh_client(monkeypatch):
 
 
 def _register(client, email="ana@example.com", password="senhaValida"):
-    response = client.post(
-        "/api/auth/register",
-        json={"email": email, "password": password, "name": "Ana Astro", "locale": "pt-BR"},
-    )
+    from conftest import register as _do_register
+
+    response = _do_register(client, email, password, name="Ana Astro", locale="pt-BR")
     assert response.status_code == 200, response.text
     client.post("/api/auth/logout")
     return response
@@ -360,12 +359,10 @@ def test_request_does_not_leak_email_validity_via_timing(monkeypatch):
     ratelimit.reset_all()
     monkeypatch.setattr("app.mailer.send_password_reset", lambda *a, **k: {"ok": True})
 
+    from conftest import create_user
+
     with TestClient(app) as c:
-        c.post(
-            "/api/auth/register",
-            json={"email": "ana@example.com", "password": "senhaValida", "name": "Ana", "locale": "pt-BR"},
-        )
-        c.post("/api/auth/logout")
+        create_user("ana@example.com", "senhaValida", name="Ana", locale="pt-BR")
 
         # Warmup.
         for _ in range(2):

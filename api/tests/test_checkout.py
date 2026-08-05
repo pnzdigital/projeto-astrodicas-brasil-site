@@ -5,6 +5,7 @@ import pytest
 from sqlalchemy import select
 
 from app import checkout, mercadopago, pricing
+from conftest import register
 
 
 @pytest.fixture(autouse=True)
@@ -91,6 +92,45 @@ def test_payment_approved_creates_account_grants_bundle_and_emails(client, monke
 
     admin_login = client.post("/api/admin/login", json={"password": "painel-teste"})
     assert admin_login.status_code in {200, 401, 503}
+
+
+def test_purchase_conversion_only_exposes_confirmed_order(client, monkeypatch, sent_emails):
+    order = client.post(
+        "/api/checkout/order",
+        json={"product_id": "site:oferta_plano_lua_premium", "email": "pixel@cliente.com", "locale": "es-AR"},
+    ).json()
+
+    pending = client.get(f"/api/checkout/order/{order['order_id']}/conversion")
+    assert pending.status_code == 404
+
+    monkeypatch.setattr(
+        mercadopago,
+        "create_payment",
+        lambda **kwargs: {"id": 2468, "status": "approved", "external_reference": kwargs["order_id"]},
+    )
+    paid = client.post(
+        "/api/checkout/payment",
+        json={
+            "order_id": order["order_id"],
+            "form_data": {"payment_method_id": "visa", "token": "tok", "payer": {"email": "pixel@cliente.com"}},
+        },
+    )
+    assert paid.json()["approved"] is True
+
+    conversion = client.get(f"/api/checkout/order/{order['order_id']}/conversion")
+    assert conversion.status_code == 200
+    assert conversion.json() == {
+        "event_id": f"site-purchase-{order['order_id']}",
+        "order_id": order["order_id"],
+        "content_ids": ["site:oferta_plano_lua_premium"],
+        "content_name": "Plan Luna Premium",
+        "content_type": "product",
+        "num_items": 1,
+        "value": 34900.0,
+        "currency": "ARS",
+        "content_language": "es-AR",
+    }
+    assert "email" not in conversion.json()
 
 
 def test_payment_is_not_charged_twice_and_email_is_sent_once(client, monkeypatch, sent_emails):
@@ -361,7 +401,7 @@ def test_fulfill_order_reactivates_a_revoked_entitlement(client, monkeypatch, se
 def test_generation_works_for_every_paid_content(client, monkeypatch):
     """Cliente fictício: compra, preenche o nascimento e gera cada leitura."""
     monkeypatch.setattr(checkout, "send_purchase_confirmation", lambda **kwargs: {"sent": True})
-    client.post("/api/auth/register", json={"email": "ficticia@example.com", "password": "senha-segura-123", "name": "Cliente Fictícia", "locale": "es-AR"})
+    register(client, "ficticia@example.com", "senha-segura-123", name="Cliente Fictícia", locale="es-AR")
     client.put(
         "/api/me/profile",
         json={

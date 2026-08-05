@@ -1,16 +1,16 @@
 """Regression tests for the localized auth error responses.
 
 Covers:
-- Empty-field validation returns a single translated sentence (no Pydantic
-  schema leak) on both /api/auth/register and /api/auth/login.
 - Login 401 is identical for wrong-password vs unknown-email and picks
   pt-BR / es-AR from the body ``locale`` or ``Accept-Language``.
-- The 409-on-duplicate was replaced by a neutral 200 response — covered in
-  test_auth_enumeration.py. The old 409 path is dead code now, but we
-  pin the contract here so future changes cannot regress the localization.
 - The 401 returned by /api/me/* when no session is presented is
   localized.
 - The rate-limiter 429 message is localized.
+
+Register-specific localization/enumeration coverage was removed along with
+``/api/auth/register`` (dash only supports login now; accounts are created
+by purchase). Test users below are created directly in the DB via
+``conftest.create_user``.
 """
 
 from __future__ import annotations
@@ -19,6 +19,8 @@ import os
 
 import pytest
 from fastapi.testclient import TestClient
+
+from conftest import create_user
 
 
 @pytest.fixture()
@@ -38,81 +40,8 @@ def fresh_client():
         yield c
 
 
-def test_register_empty_fields_pt_br(fresh_client):
-    response = fresh_client.post(
-        "/api/auth/register",
-        json={"email": "", "password": "x", "name": "x", "locale": "pt-BR"},
-    )
-    assert response.status_code == 422
-    body = response.json()
-    assert "detail" in body
-    assert isinstance(body["detail"], str)
-    assert "[" not in body["detail"]  # não vaza o array Pydantic
-    assert body["detail"] == "Informe um e-mail válido."
-
-
-def test_register_empty_fields_es_ar(fresh_client):
-    response = fresh_client.post(
-        "/api/auth/register",
-        json={"email": "", "password": "x", "name": "x", "locale": "es-AR"},
-    )
-    assert response.status_code == 422
-    assert response.json()["detail"] == "Ingresá un e-mail válido."
-
-
-def test_register_short_password_pt_br(fresh_client):
-    response = fresh_client.post(
-        "/api/auth/register",
-        json={"email": "ana@example.com", "password": "short", "name": "Ana", "locale": "pt-BR"},
-    )
-    assert response.status_code == 422
-    assert response.json()["detail"] == "A senha precisa ter pelo menos 8 caracteres."
-
-
-def test_register_short_password_es_ar(fresh_client):
-    response = fresh_client.post(
-        "/api/auth/register",
-        json={"email": "ana@example.com", "password": "short", "name": "Ana", "locale": "es-AR"},
-    )
-    assert response.status_code == 422
-    assert response.json()["detail"] == "La contraseña debe tener al menos 8 caracteres."
-
-
-def test_register_short_name_pt_br(fresh_client):
-    response = fresh_client.post(
-        "/api/auth/register",
-        json={"email": "ana@example.com", "password": "senhaValida", "name": "A", "locale": "pt-BR"},
-    )
-    assert response.status_code == 422
-    assert response.json()["detail"] == "Informe seu nome (mín. 2 caracteres)."
-
-
-def test_register_accept_language_fallback_es_ar(fresh_client):
-    # Sem locale no corpo; o backend cai pro Accept-Language.
-    response = fresh_client.post(
-        "/api/auth/register",
-        json={"email": "ana@example.com", "password": "x", "name": "Ana"},
-        headers={"Accept-Language": "es-AR"},
-    )
-    assert response.status_code == 422
-    assert response.json()["detail"] == "La contraseña debe tener al menos 8 caracteres."
-
-
-def test_register_validation_falls_back_to_pt_br(fresh_client):
-    # Sem locale e sem Accept-Language útil.
-    response = fresh_client.post(
-        "/api/auth/register",
-        json={"email": "ana@example.com", "password": "x", "name": "Ana"},
-    )
-    assert response.status_code == 422
-    assert response.json()["detail"] == "A senha precisa ter pelo menos 8 caracteres."
-
-
 def test_login_wrong_password_pt_br(fresh_client):
-    fresh_client.post(
-        "/api/auth/register",
-        json={"email": "ana@example.com", "password": "senhaValida", "name": "Ana", "locale": "pt-BR"},
-    )
+    create_user("ana@example.com", "senhaValida", name="Ana", locale="pt-BR")
     response = fresh_client.post(
         "/api/auth/login",
         json={"email": "ana@example.com", "password": "errada", "locale": "pt-BR"},
@@ -122,10 +51,7 @@ def test_login_wrong_password_pt_br(fresh_client):
 
 
 def test_login_wrong_password_es_ar(fresh_client):
-    fresh_client.post(
-        "/api/auth/register",
-        json={"email": "ana@example.com", "password": "senhaValida", "name": "Ana", "locale": "es-AR"},
-    )
+    create_user("ana@example.com", "senhaValida", name="Ana", locale="es-AR")
     response = fresh_client.post(
         "/api/auth/login",
         json={"email": "ana@example.com", "password": "errada", "locale": "es-AR"},
@@ -136,10 +62,7 @@ def test_login_wrong_password_es_ar(fresh_client):
 
 def test_login_unknown_email_es_ar_matches_wrong_password(fresh_client):
     """Um atacante não deve distinguir 'e-mail inexistente' de 'senha errada'."""
-    fresh_client.post(
-        "/api/auth/register",
-        json={"email": "ana@example.com", "password": "senhaValida", "name": "Ana", "locale": "es-AR"},
-    )
+    create_user("ana@example.com", "senhaValida", name="Ana", locale="es-AR")
     wrong_pw = fresh_client.post(
         "/api/auth/login",
         json={"email": "ana@example.com", "password": "errada", "locale": "es-AR"},
@@ -153,10 +76,7 @@ def test_login_unknown_email_es_ar_matches_wrong_password(fresh_client):
 
 
 def test_login_unknown_email_pt_br_matches_wrong_password(fresh_client):
-    fresh_client.post(
-        "/api/auth/register",
-        json={"email": "ana@example.com", "password": "senhaValida", "name": "Ana", "locale": "pt-BR"},
-    )
+    create_user("ana@example.com", "senhaValida", name="Ana", locale="pt-BR")
     wrong_pw = fresh_client.post(
         "/api/auth/login",
         json={"email": "ana@example.com", "password": "errada", "locale": "pt-BR"},
@@ -170,11 +90,7 @@ def test_login_unknown_email_pt_br_matches_wrong_password(fresh_client):
 
 
 def test_login_accept_language_fallback_es_ar(fresh_client):
-    fresh_client.post(
-        "/api/auth/register",
-        json={"email": "ana@example.com", "password": "senhaValida", "name": "Ana"},
-        headers={"Accept-Language": "es-AR"},
-    )
+    create_user("ana@example.com", "senhaValida", name="Ana")
     response = fresh_client.post(
         "/api/auth/login",
         json={"email": "ana@example.com", "password": "errada"},

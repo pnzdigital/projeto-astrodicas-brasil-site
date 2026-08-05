@@ -6,10 +6,11 @@ dados ou acesso de outro. Cobre a classe de bug IDOR neste backend, cujo
 from fastapi.testclient import TestClient
 
 from app.main import app
+from conftest import register as _do_register
 
 
 def _register(client, email, password="senha-segura-123", name="Cliente"):
-    response = client.post("/api/auth/register", json={"email": email, "password": password, "name": name})
+    response = _do_register(client, email, password, name=name)
     assert response.status_code == 200, response.text
     return response.json()["user"]["id"]
 

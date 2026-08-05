@@ -421,9 +421,6 @@
     .account-detail { display: grid; gap: 10px; margin-top: 17px; }
     .account-detail div { display: flex; justify-content: space-between; gap: 15px; padding-bottom: 9px; border-bottom: 1px solid rgba(244,239,228,.1); color: var(--cream-dim); font-size: 12px; }
     .account-detail strong { color: var(--cream); font-weight: 500; }
-    .auth-tabs { display: flex; gap: 7px; margin: 18px 0 16px; border-bottom: 1px solid rgba(244,239,228,.1); }
-    .auth-tab { padding: 0 0 9px; border: 0; border-bottom: 1px solid transparent; color: var(--cream-faint); background: transparent; cursor: pointer; font-size: 12px; }
-    .auth-tab.active { border-color: var(--gold); color: var(--gold-lit); }
     .auth-form { display: grid; gap: 12px; }
     .auth-form[hidden], .account-user[hidden], .profile-form[hidden] { display: none; }
     .field { display: grid; gap: 5px; }
@@ -733,23 +730,11 @@
       <h2 id="account-title">Entrar no AstroDicas</h2>
       <p id="account-description">Seu acesso é pessoal e fica separado de qualquer compra ou conversa feita pelo Telegram.</p>
       <div id="account-auth">
-        <div class="auth-tabs" role="tablist" aria-label="Acesso à conta">
-          <button class="auth-tab active" type="button" data-auth-mode="login" role="tab" aria-selected="true">Entrar</button>
-          <button class="auth-tab" type="button" data-auth-mode="register" role="tab" aria-selected="false">Criar conta</button>
-        </div>
         <form class="auth-form" id="login-form" data-auth-form="login" aria-describedby="login-error">
           <div class="field"><label for="login-email">E-mail</label><input id="login-email" name="email" type="email" autocomplete="email" required></div>
           <div class="field"><label for="login-password">Senha</label><input id="login-password" name="password" type="password" autocomplete="current-password" minlength="8" required></div>
           <p class="form-error" id="login-error" data-form-error="login" role="alert"></p>
           <div class="dialog-actions"><a class="profile-trigger" href="/reset" data-forgot-link>Esqueceu a senha?</a><button class="button small" type="submit">Entrar →</button></div>
-        </form>
-        <form class="auth-form" id="register-form" data-auth-form="register" hidden aria-describedby="register-error">
-          <div class="field"><label for="register-name">Seu nome</label><input id="register-name" name="name" type="text" autocomplete="name" minlength="2" required></div>
-          <div class="field"><label for="register-email">E-mail</label><input id="register-email" name="email" type="email" autocomplete="email" required></div>
-          <div class="field"><label for="register-password">Senha</label><input id="register-password" name="password" type="password" autocomplete="new-password" minlength="8" required></div>
-          <p class="form-help">Use pelo menos 8 caracteres. Você poderá completar seus dados de nascimento depois.</p>
-          <p class="form-error" id="register-error" data-form-error="register" role="alert"></p>
-          <div class="dialog-actions"><button class="button small" type="submit">Criar minha conta →</button></div>
         </form>
         <p class="portal-mode" id="portal-mode-note">Modo demonstração: o portal continua navegável sem uma sessão.</p>
       </div>
@@ -1072,15 +1057,6 @@
       document.querySelectorAll('[aria-label="Navegação principal"]').forEach((node) => node.setAttribute('aria-label', 'Navegación principal'));
       document.querySelectorAll('[aria-label="Resumo da conta"]').forEach((node) => node.setAttribute('aria-label', 'Resumen de la cuenta'));
     }
-    function switchAuthTab(mode) {
-      document.querySelectorAll('[data-auth-mode]').forEach((tab) => {
-        tab.classList.toggle('active', tab.dataset.authMode === mode);
-        tab.setAttribute('aria-selected', tab.dataset.authMode === mode ? 'true' : 'false');
-      });
-      document.querySelectorAll('[data-auth-form]').forEach((form) => { form.hidden = form.dataset.authForm !== mode; });
-      setFormError('login');
-      setFormError('register');
-    }
     function syncAccountDialog() {
       const auth = document.getElementById('account-auth');
       const userPanel = document.getElementById('account-user');
@@ -1215,28 +1191,15 @@
         const payload = Object.fromEntries(new FormData(form).entries());
         payload.locale = PORTAL_CONFIG.locale || (IS_ARGENTINA ? 'es-AR' : 'pt-BR');
         const data = await apiRequest(`/api/auth/${mode}`, { method: 'POST', body: JSON.stringify(payload) });
-        if (mode === 'register' && data && data.created === false) {
-          // E-mail já cadastrado: API respondeu como se fosse novo, sem cookie.
-          // Não revelamos isso na UI — mandamos o usuário para a aba de login.
-          form.closest('dialog')?.close();
-          switchAuthTab('login');
-          document.getElementById('login-email').value = payload.email;
-          showToast(IS_ARGENTINA ? 'Te enviamos un enlace al portal para iniciar sesión.' : 'Enviamos um link para você entrar no portal.');
-          return;
-        }
         appState.apiAvailable = true; appState.authenticated = true; appState.authResolved = true; appState.user = data.user; await refreshPrivateData();
         form.closest('dialog')?.close(); renderUser(); syncAccountDialog(); enforceDashboardGate();
-        showToast(mode === 'register'
-          ? (IS_ARGENTINA ? 'Cuenta creada. Completá tus datos para empezar.' : 'Conta criada. Complete seus dados para começar.')
-          : (IS_ARGENTINA ? 'Acceso confirmado. Buen reencuentro con tu cielo.' : 'Acesso realizado. Bom reencontro com seu céu.'));
+        showToast(IS_ARGENTINA ? 'Acceso confirmado. Buen reencuentro con tu cielo.' : 'Acesso realizado. Bom reencontro com seu céu.');
       } catch (error) {
         const fallback = !appState.apiAvailable
           ? (IS_ARGENTINA ? 'La API no está disponible ahora. El modo demostración sigue activo.' : 'A API não está disponível agora. O modo demonstração continua ativo.')
           : (typeof error.message === 'string' && error.message && !error.message.startsWith('[') && !error.message.startsWith('{')
               ? error.message
-              : (IS_ARGENTINA
-                  ? (mode === 'login' ? 'E-mail o contraseña inválidos.' : 'Revisá los datos e intentá de nuevo.')
-                  : (mode === 'login' ? 'E-mail ou senha inválidos.' : 'Revise os dados e tente novamente.')));
+              : (IS_ARGENTINA ? 'E-mail o contraseña inválidos.' : 'E-mail ou senha inválidos.'));
         setFormError(mode, fallback);
       } finally { button.disabled = false; button.removeAttribute('aria-busy'); }
     }
@@ -1250,7 +1213,6 @@
       if (target.matches('[data-toast]')) { if (target.getAttribute('href') === '#') event.preventDefault(); showToast(target.dataset.toast); }
       if (target.matches('[data-dialog]')) openDialog(target.dataset.dialog);
       if (target.matches('.dialog-close')) target.closest('dialog')?.close();
-      if (target.matches('[data-auth-mode]')) switchAuthTab(target.dataset.authMode);
       if (target.matches('[data-read]')) openReading(LIBRARY_ITEMS.find((item) => item.id === target.dataset.read));
       if (target.matches('[data-print]')) { showToast('Preparando uma versão para impressão…'); window.print(); }
       if (target.matches('[data-print-reading]')) { showToast(`Preparando “${target.dataset.printTitle || 'leitura'}” para impressão…`); window.print(); }
