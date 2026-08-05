@@ -38,6 +38,7 @@ Obrigatórias marcar com ⚠️.
 | `LLM_BASE_URL` | Não | `https://api.minimax.io/v1` (padrão) | Fallback para MINIMAX_BASE_URL |
 | `LLM_MODEL_TEXT` | Não | `MiniMax-M2.1` (padrão) | Fallback para MINIMAX_MODEL |
 | `MINIMAX_TIMEOUT_SECONDS` | Não | `120` (padrão) | Timeout MiniMax em segundos |
+| `MINIMAX_MAX_ATTEMPTS` | Não | `3` (padrão) | Tentativas quando o modelo derrapa de idioma; `1` entrega leitura com caractere estrangeiro |
 | `RESEND_TIMEOUT_SECONDS` | Não | `15` (padrão) | Timeout Resend em segundos |
 | `GEOCODING_TIMEOUT_SECONDS` | Não | `8` (padrão) | Timeout geocodificação em segundos |
 | `MP_TIMEOUT_SECONDS` | Não | `20` (padrão) | Timeout Mercado Pago em segundos |
