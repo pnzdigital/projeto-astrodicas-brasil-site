@@ -57,6 +57,56 @@ def portal_url() -> str:
     return os.getenv("PORTAL_URL", "https://dash.astrodicas.pnzdigital.com.br/")
 
 
+# Quem cobra em cada mercado é configuração, não regra de negócio. O padrão
+# reproduz o que sempre valeu (Argentina no Mercado Pago, Brasil na Cakto),
+# então nada muda sem alguém pedir.
+#
+# Trocar o Brasil para "mercadopago" exige credenciais de uma conta brasileira
+# (MLB): contas do Mercado Pago são presas ao país, e a conta argentina em uso
+# hoje (MLA) não cobra em BRL. Sem MP_ACCESS_TOKEN válido para o país, o
+# checkout responde 503 em vez de vender.
+PROVIDERS = {"mercadopago", "cakto"}
+DEFAULT_PROVIDERS = {"AR": "mercadopago", "BR": "cakto"}
+
+
+def provider_for(locale: str | None) -> str:
+    """O meio de pagamento configurado para o mercado do locale."""
+    market = pricing.market_for(locale)
+    padrao = DEFAULT_PROVIDERS.get(market, "cakto")
+    escolhido = os.getenv(f"CHECKOUT_PROVIDER_{market}", "").strip().lower()
+    if not escolhido:
+        return padrao
+    if escolhido not in PROVIDERS:
+        logger.warning(
+            "CHECKOUT_PROVIDER_%s=%r não é um provedor conhecido (%s); usando %s.",
+            market,
+            escolhido,
+            ", ".join(sorted(PROVIDERS)),
+            padrao,
+        )
+        return padrao
+    return escolhido
+
+
+def _checkout_config(locale: str) -> dict:
+    """O que o frontend precisa saber para desenhar o pagamento.
+
+    ``transparent`` diz se o cartão é capturado dentro do site (Mercado Pago)
+    ou se o cliente sai para um link externo (Cakto). Isso segue o provedor,
+    não o país: quando o Brasil for configurado no Mercado Pago, o checkout
+    brasileiro passa a ser transparente sozinho.
+    """
+    provider = provider_for(locale)
+    if provider == "mercadopago":
+        return {
+            "provider": provider,
+            "transparent": True,
+            "public_key": mp.public_key(),
+            "enabled": mp.is_enabled(),
+        }
+    return {"provider": provider, "transparent": False, "public_key": "", "enabled": True}
+
+
 @router.get("/api/catalog")
 def catalog(locale: str = "pt-BR") -> dict:
     """Catálogo com o preço oficial do mercado pedido."""
@@ -66,12 +116,7 @@ def catalog(locale: str = "pt-BR") -> dict:
         "market": pricing.market_for(locale),
         "currency": pricing.currency_for(locale),
         "products": pricing.catalog(locale),
-        "checkout": {
-            "provider": "mercadopago" if pricing.market_for(locale) == "AR" else "cakto",
-            "transparent": pricing.market_for(locale) == "AR",
-            "public_key": mp.public_key() if pricing.market_for(locale) == "AR" else "",
-            "enabled": mp.is_enabled() if pricing.market_for(locale) == "AR" else True,
-        },
+        "checkout": _checkout_config(locale),
     }
 
 
@@ -80,19 +125,19 @@ def open_order(body: OrderBody, db: Session = Depends(get_db)) -> dict:
     if not pricing.is_known_product(body.product_id):
         raise HTTPException(status_code=404, detail="Produto não encontrado.")
     locale = pricing.normalize_locale(body.locale)
-    market = pricing.market_for(locale)
-    if market == "AR" and not mp.is_enabled():
+    provider = provider_for(locale)
+    if provider == "mercadopago" and not mp.is_enabled():
         raise HTTPException(status_code=503, detail="El medio de pago todavía no está habilitado.")
     minor = pricing.amount_minor(body.product_id, locale)
     order = Order(
-        provider="mercadopago" if market == "AR" else "cakto",
+        provider=provider,
         external_id="",
         product_id=body.product_id,
         status="pending",
         amount_minor=minor,
         currency=pricing.currency_for(locale),
         locale=locale,
-        market=market,
+        market=pricing.market_for(locale),
         customer_email=body.email.lower(),
         raw_payload={"name": body.name},
     )
@@ -146,6 +191,11 @@ def pay(body: PaymentBody, db: Session = Depends(get_db)) -> dict:
         raise HTTPException(status_code=404, detail="Orden no encontrada.")
     if order.status in PAID_STATUSES:
         return {"status": "approved", "order_id": order.id, "portal_url": portal_url()}
+    # Esta rota é o cartão transparente do Mercado Pago. Com o provedor virando
+    # configuração, um pedido aberto para a Cakto poderia cair aqui e ser
+    # cobrado na conta errada — o pedido diz quem cobra, e só ele.
+    if order.provider != "mercadopago":
+        raise HTTPException(status_code=409, detail="Esta orden no se cobra por este medio de pago.")
     if not body.form_data.get("payment_method_id"):
         raise HTTPException(status_code=400, detail="Datos de pago incompletos.")
 

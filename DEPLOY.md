@@ -31,6 +31,8 @@ Obrigatórias marcar com ⚠️.
 | `MP_PUBLIC_KEY` | Não (se MP ligado) | Painel MP > Credenciais (pública, OK expor) | Formulário MP quebrado no frontend |
 | `MP_WEBHOOK_SECRET_AR` | ⚠️ (se MP ligado) | Painel MP (app argentina) > Webhooks > Clave secreta | 401 na rota AR; venda paga não é liberada |
 | `MP_WEBHOOK_SECRET` | Não (legado) | Clave secreta da aplicação antiga | Só afeta pagamentos abertos antes do deploy |
+| `CHECKOUT_PROVIDER_AR` | Não | `mercadopago` (padrão) ou `cakto` | Troca quem cobra na Argentina |
+| `CHECKOUT_PROVIDER_BR` | Não | `cakto` (padrão) ou `mercadopago` | Mercado Pago no BR exige conta MLB; a conta MLA não cobra em BRL |
 | `MP_STATEMENT_DESCRIPTOR` | Não | `ASTRODICAS` (padrão) ou custom | Nome da loja na fatura do cliente |
 | `CAKTO_WEBHOOK_SECRET` | ⚠️ (se Cakto ligado) | Painel Cakto > Webhooks > Chave secreta | 403 webhook rejeitado; pedido não confirma |
 | `RESEND_API_KEY` | Não | Painel Resend > API keys | Confirmação e reset de senha por e-mail falham silenciosamente |
