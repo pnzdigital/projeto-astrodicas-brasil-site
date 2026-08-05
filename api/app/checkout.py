@@ -161,7 +161,8 @@ def pay(body: PaymentBody, db: Session = Depends(get_db)) -> dict:
             order_id=order.id,
             payer_email=payer_email,
             form_data=body.form_data,
-            notification_url=f"{site_url()}/api/webhooks/mercadopago/notify",
+            # Rota por aplicação: o Mercado Pago aqui é só a Argentina.
+            notification_url=f"{site_url()}/api/webhooks/mercadopago/ar/notify",
         )
     except mp.MercadoPagoError as exc:
         logger.warning("Pagamento recusado pelo provedor: %s", exc)
@@ -189,15 +190,37 @@ def pay(body: PaymentBody, db: Session = Depends(get_db)) -> dict:
     }
 
 
+@router.post("/api/webhooks/mercadopago/ar/notify", dependencies=[Depends(webhook_rate_limit)])
+async def mercadopago_notification_ar(request: Request, db: Session = Depends(get_db)) -> dict:
+    """Rota da aplicação argentina, assinada por ``MP_WEBHOOK_SECRET_AR``.
+
+    O Mercado Pago só atende a Argentina neste site (o Brasil vai por Cakto),
+    mas cada aplicação do Mercado Pago tem clave secreta própria: uma rota por
+    aplicação permite trocar ou revogar o segredo de um mercado sem derrubar
+    os outros.
+    """
+    return await _mercadopago_notification(request, db, env_var="MP_WEBHOOK_SECRET_AR")
+
+
 @router.post("/api/webhooks/mercadopago/notify", dependencies=[Depends(webhook_rate_limit)])
 async def mercadopago_notification(request: Request, db: Session = Depends(get_db)) -> dict:
+    """Rota legada, mantida viva de propósito.
+
+    Pagamentos abertos antes do deploy carregam esta URL gravada no próprio
+    ``notification_url``: o Mercado Pago vai continuar notificando aqui por
+    dias. Desligar esta rota deixaria esses pedidos pagos sem liberação.
+    """
+    return await _mercadopago_notification(request, db, env_var="MP_WEBHOOK_SECRET")
+
+
+async def _mercadopago_notification(request: Request, db: Session, env_var: str) -> dict:
     """Notificação oficial do Mercado Pago (payload ``{type, data:{id}}``)."""
     payload = await request.json() if request.headers.get("content-type", "").startswith("application/json") else {}
     data_id = str((payload.get("data") or {}).get("id") or request.query_params.get("data.id") or "")
     topic = payload.get("type") or payload.get("topic") or request.query_params.get("type") or ""
     if not data_id:
         return {"ok": True, "ignored": "sem data.id"}
-    if not os.getenv("MP_WEBHOOK_SECRET", "").strip():
+    if not mp.webhook_secret(env_var):
         env = os.getenv("ENV", "development")
         allow_insecure = os.getenv("ALLOW_INSECURE_DEV", "0") == "1"
         if env == "production" or not allow_insecure:
@@ -209,6 +232,7 @@ async def mercadopago_notification(request: Request, db: Session = Depends(get_d
         request.headers.get("x-signature", ""),
         request.headers.get("x-request-id", ""),
         data_id,
+        env_var,
     ):
         raise HTTPException(status_code=401, detail="Assinatura inválida.")
     if topic and topic not in {"payment", "payment.updated", "payment.created"}:

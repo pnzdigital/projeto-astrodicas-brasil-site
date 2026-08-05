@@ -109,21 +109,37 @@ def get_payment(payment_id: str | int) -> dict:
     return _request("GET", f"/v1/payments/{payment_id}")
 
 
-def verify_signature(signature_header: str, request_id: str, data_id: str) -> bool:
+def webhook_secret(env_var: str = "MP_WEBHOOK_SECRET") -> str:
+    """A clave secreta da aplicação que assina esta rota.
+
+    Cada aplicação do Mercado Pago tem a sua. A rota argentina lê
+    ``MP_WEBHOOK_SECRET_AR`` e cai em ``MP_WEBHOOK_SECRET`` enquanto a
+    variável nova não estiver no ambiente, para o deploy não derrubar
+    notificações no intervalo entre subir o código e configurar o segredo.
+    """
+    secret = os.getenv(env_var, "").strip()
+    if not secret and env_var != "MP_WEBHOOK_SECRET":
+        secret = os.getenv("MP_WEBHOOK_SECRET", "").strip()
+    return secret
+
+
+def verify_signature(
+    signature_header: str, request_id: str, data_id: str, env_var: str = "MP_WEBHOOK_SECRET"
+) -> bool:
     """Valida o header ``x-signature`` da notificação.
 
     Sem segredo configurado em produção a verificação falha (503 deve ser
     levantado pelo chamador). Em desenvolvimento, aceita sem verificação
     apenas quando ``ALLOW_INSECURE_DEV=1`` estiver definido.
     """
-    secret = os.getenv("MP_WEBHOOK_SECRET", "").strip()
+    secret = webhook_secret(env_var)
     if not secret:
         env = os.getenv("ENV", "development")
         allow_insecure = os.getenv("ALLOW_INSECURE_DEV", "0") == "1"
         if env == "production" or not allow_insecure:
-            logger.warning("MP_WEBHOOK_SECRET ausente: verificação recusada.")
+            logger.warning("%s ausente: verificação recusada.", env_var)
             return False
-        logger.warning("MP_WEBHOOK_SECRET ausente: verificação pulada (dev).")
+        logger.warning("%s ausente: verificação pulada (dev).", env_var)
         return True
     parts = dict(
         piece.strip().split("=", 1)

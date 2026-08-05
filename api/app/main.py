@@ -279,9 +279,14 @@ def validate_production_config() -> None:
         return
     missing = [
         name
-        for name in ("MP_WEBHOOK_SECRET", "CAKTO_WEBHOOK_SECRET", "ADMIN_PASSWORD")
+        for name in ("CAKTO_WEBHOOK_SECRET", "ADMIN_PASSWORD")
         if not os.getenv(name, "").strip()
     ]
+    # O Mercado Pago tem uma rota por aplicação: basta a clave da aplicação
+    # argentina para o fluxo em uso. Exigir as duas impediria o dia em que a
+    # rota legada for aposentada e só MP_WEBHOOK_SECRET_AR sobrar configurada.
+    if not (os.getenv("MP_WEBHOOK_SECRET", "").strip() or os.getenv("MP_WEBHOOK_SECRET_AR", "").strip()):
+        missing.append("MP_WEBHOOK_SECRET_AR (ou MP_WEBHOOK_SECRET)")
     if missing:
         raise RuntimeError(
             "Configuração insegura para produção: variáveis ausentes -> " + ", ".join(missing)

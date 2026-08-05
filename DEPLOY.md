@@ -29,7 +29,8 @@ Obrigatórias marcar com ⚠️.
 | `ALLOW_INSECURE_DEV` | Não | `0` (prod) ou `1` (dev) | Webhook validation saltada; rejeita MP/Cakto em prod |
 | `MP_ACCESS_TOKEN` | ⚠️ (se MP ligado) | Painel MP > Suas integrações > Credenciais | 404 em `/checkout/mercadopago` |
 | `MP_PUBLIC_KEY` | Não (se MP ligado) | Painel MP > Credenciais (pública, OK expor) | Formulário MP quebrado no frontend |
-| `MP_WEBHOOK_SECRET` | ⚠️ (se MP ligado) | Painel MP > Webhooks > Clave secreta | 403 webhook rejeitado; pedido não confirma |
+| `MP_WEBHOOK_SECRET_AR` | ⚠️ (se MP ligado) | Painel MP (app argentina) > Webhooks > Clave secreta | 401 na rota AR; venda paga não é liberada |
+| `MP_WEBHOOK_SECRET` | Não (legado) | Clave secreta da aplicação antiga | Só afeta pagamentos abertos antes do deploy |
 | `MP_STATEMENT_DESCRIPTOR` | Não | `ASTRODICAS` (padrão) ou custom | Nome da loja na fatura do cliente |
 | `CAKTO_WEBHOOK_SECRET` | ⚠️ (se Cakto ligado) | Painel Cakto > Webhooks > Chave secreta | 403 webhook rejeitado; pedido não confirma |
 | `RESEND_API_KEY` | Não | Painel Resend > API keys | Confirmação e reset de senha por e-mail falham silenciosamente |
@@ -79,13 +80,14 @@ Obrigatórias marcar com ⚠️.
 
 1. **Configurar:**
    - Painel > Webhooks > Novo
-   - URL: `https://astrodicas.pnzdigital.com.br/api/webhooks/mercadopago`
+   - URL: `https://astrodicas.pnzdigital.com.br/api/webhooks/mercadopago/ar/notify`
+   - Uma rota por aplicação do MP. A clave secreta desta aplicação vai em `MP_WEBHOOK_SECRET_AR`.
    - Eventos: `payment.created`, `payment.updated`
    - Guardar **Clave secreta** → `MP_WEBHOOK_SECRET` env
 
 2. **Testar:**
    ```bash
-   curl -X POST https://astrodicas.pnzdigital.com.br/api/webhooks/mercadopago \
+   curl -X POST https://astrodicas.pnzdigital.com.br/api/webhooks/mercadopago/ar/notify \
      -H "x-signature: <signature>" \
      -d '{"data": {"id": "123"}}'
    ```
@@ -137,7 +139,7 @@ Obrigatórias marcar com ⚠️.
 
 ### Integração
 
-- [ ] MP: Criar pedido em produção, confirmar webhook recebido (`/api/webhooks/mercadopago` logs)
+- [ ] MP: Criar pedido em produção, confirmar webhook recebido (`/api/webhooks/mercadopago/ar/notify` logs)
 - [ ] Cakto: Idem
 - [ ] E-mail: Confirmar que post-compra chega (Resend logs)
 - [ ] Leitura astrológica: Gerar uma, checar que MiniMax ou fallback editorial aparece
