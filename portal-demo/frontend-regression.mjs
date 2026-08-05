@@ -33,6 +33,35 @@ window.Intl.DateTimeFormat = class {
   constructor(_locale, _opts) {}
   format(_date) { return 'Hoje'; }
 };
+// linkedom não expõe ``location`` nem ``FormData``; o portal usa pathname para
+// escolher o idioma e FormData para montar o payload do login/registro. Sem
+// esse polyfill, submitAuth lança dentro do próprio try e o teste vê "nenhum
+// fetch" em vez do erro real.
+window.location = window.location || {
+  pathname: '/', hostname: 'localhost', host: 'localhost', protocol: 'http:',
+  search: '', hash: '', href: 'http://localhost/', origin: 'http://localhost',
+  assign() {}, replace() {},
+};
+window.FormData = class FormData {
+  constructor(form) {
+    this._entries = [];
+    for (const field of form.querySelectorAll('input, select, textarea')) {
+      if (!field.name || field.disabled) continue;
+      if ((field.type === 'checkbox' || field.type === 'radio') && !field.checked) continue;
+      this._entries.push([field.name, field.value ?? '']);
+    }
+  }
+  entries() { return this._entries[Symbol.iterator](); }
+  get(name) { const hit = this._entries.find(([key]) => key === name); return hit ? hit[1] : null; }
+  [Symbol.iterator]() { return this.entries(); }
+};
+// linkedom não implementa a API de <dialog>; o portal fecha o modal depois de
+// autenticar, e sem esses métodos o fluxo de sucesso cai no catch.
+for (const dialog of window.document.querySelectorAll('dialog')) {
+  dialog.open = false;
+  dialog.close = function () { this.open = false; this.removeAttribute('open'); };
+  dialog.show = dialog.showModal = function () { this.open = true; this.setAttribute('open', ''); };
+}
 window.scrollTo = () => {};
 window.print = () => {};
 window.alert = () => {};
@@ -42,8 +71,12 @@ const fetchCalls = [];
 const fetchResponses = []; // queue de respostas a devolver, na ordem
 window.fetch = async (url, opts = {}) => {
   fetchCalls.push({ url, opts });
+  // Depois da resposta que o teste enfileirou, o portal ainda carrega os dados
+  // privados (/api/me/...). Devolvemos 200 vazio para essas: fazer o mock
+  // lançar aqui empurraria o fluxo para o catch de submitAuth e esconderia o
+  // comportamento que estamos medindo.
   if (fetchResponses.length === 0) {
-    throw new Error(`fetch called without a queued response: ${url}`);
+    return { ok: true, status: 200, json: async () => ({}) };
   }
   return fetchResponses.shift();
 };
@@ -66,19 +99,9 @@ window.PORTAL_CONFIG = {
 };
 window.PORTAL_API_URL = ''; // sem prefixo: ``${API_BASE}${path}`` vira só ``path``.
 
-// Stub para o import dinâmico: reescrevemos o módulo para devolver nosso stub.
-const importMap = {
-  './portal-config.js': { default: window.PORTAL_CONFIG },
-  '/portal-config-ar.js': { default: window.PORTAL_CONFIG },
-};
-const origImport = window.eval('(url) => import(url)');
-window.eval = (code) => {
-  // Intercepta o eval usado pelo ``await import`` e redireciona para nosso map.
-  // Como linkedom não suporta dynamic import, vamos simplesmente injetar o
-  // PORTAL_CONFIG e reescrever o script antes da execução para usar eval
-  // direto do CONFIG_URL.
-  return code;
-};
+// O único ponto que precisa de tratamento é o ``await import(CONFIG_URL)``,
+// reescrito mais abaixo para ler ``window.PORTAL_CONFIG``: linkedom não
+// implementa import dinâmico. O resto do script roda como está.
 
 // Enfileira a resposta do bootstrap (/api/session) que o módulo dispara
 // automaticamente no carregamento.
@@ -93,9 +116,19 @@ scriptBody = scriptBody.replace(
   'const PORTAL_CONFIG = window.PORTAL_CONFIG;',
 );
 
-// Executa o script no contexto do window.
+// Executa o script com os globais do nosso window. ``window.eval`` do linkedom
+// avalia no escopo do Node, onde ``document``/``fetch`` não existem — por isso
+// passamos cada global explicitamente. AsyncFunction porque o script do portal
+// usa top-level await.
+const AsyncFunction = Object.getPrototypeOf(async function () {}).constructor;
 try {
-  window.eval(scriptBody);
+  await new AsyncFunction(
+    'window', 'document', 'fetch', 'location', 'FormData', 'Intl', 'alert', 'scrollTo', 'print',
+    scriptBody,
+  )(
+    window, window.document, window.fetch, window.location, window.FormData,
+    window.Intl, window.alert, window.scrollTo, window.print,
+  );
 } catch (e) {
   console.error('SCRIPT THREW:', e.message);
   console.error(e.stack);
@@ -106,9 +139,17 @@ try {
 await new Promise((r) => setTimeout(r, 50));
 
 // ── Helpers ─────────────────────────────────────────────────────────────────
+// Depois de um login/registro bem-sucedido o portal ainda busca os dados
+// privados, então a última chamada não é a de autenticação: procuramos a rota
+// de auth explicitamente.
+function authCall() {
+  const hit = fetchCalls.find((call) => String(call.url).startsWith('/api/auth/'));
+  assert.ok(hit, `nenhuma chamada de auth registrada (chamadas: ${fetchCalls.map((c) => c.url).join(', ') || 'nenhuma'})`);
+  return hit;
+}
+
 function lastBody() {
-  const last = fetchCalls[fetchCalls.length - 1];
-  return JSON.parse(last.opts.body);
+  return JSON.parse(authCall().opts.body);
 }
 
 function clearState() {
@@ -117,6 +158,8 @@ function clearState() {
   window.document.querySelector('[data-form-error="login"]').textContent = '';
   window.document.querySelector('[data-form-error="register"]').textContent = '';
   window.document.getElementById('boot-status').textContent = '';
+  // O toast persiste entre testes: sem zerar, um teste lê a mensagem do anterior.
+  window.document.querySelector('.toast').textContent = '';
 }
 
 function fillRegisterForm(values) {
@@ -155,8 +198,7 @@ async function testLoginSendsLocalePtBr() {
   fillLoginForm({ email: 'ana@example.com', password: 'errada' });
   await fireSubmit('login-form');
 
-  console.error('DEBUG fetchCalls=', fetchCalls.length, fetchCalls.map(c => c.url));
-  const last = fetchCalls[fetchCalls.length - 1];
+  const last = authCall();
   assert.equal(last.url, '/api/auth/login');
   const body = lastBody();
   assert.equal(body.email, 'ana@example.com');
@@ -170,7 +212,7 @@ async function testRegisterSendsLocalePtBr() {
   fillRegisterForm({ name: 'Ana', email: 'a@b.c', password: 'senha1234' });
   await fireSubmit('register-form');
 
-  const last = fetchCalls[fetchCalls.length - 1];
+  const last = authCall();
   assert.equal(last.url, '/api/auth/register');
   const body = lastBody();
   assert.equal(body.locale, 'pt-BR', 'register envia locale pt-BR');
