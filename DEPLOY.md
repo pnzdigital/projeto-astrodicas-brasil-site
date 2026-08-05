@@ -83,7 +83,7 @@ Obrigatórias marcar com ⚠️.
    - URL: `https://astrodicas.pnzdigital.com.br/api/webhooks/mercadopago/ar/notify`
    - Uma rota por aplicação do MP. A clave secreta desta aplicação vai em `MP_WEBHOOK_SECRET_AR`.
    - Eventos: `payment.created`, `payment.updated`
-   - Guardar **Clave secreta** → `MP_WEBHOOK_SECRET` env
+   - Guardar **Clave secreta** → `MP_WEBHOOK_SECRET_AR` env
 
 2. **Testar:**
    ```bash
@@ -91,10 +91,12 @@ Obrigatórias marcar com ⚠️.
      -H "x-signature: <signature>" \
      -d '{"data": {"id": "123"}}'
    ```
-   Esperado: `200 {"ok": true, ...}` ou `403 {"detail": "forbidden"}` (signature inválida = OK, prova que valida)
+   Esperado: `401 {"detail": "Assinatura inválida."}` — assinatura falsa recusada prova que a validação está ligada.
+   Um `503` significa que a clave secreta não chegou no container.
 
 3. **Troubleshoot:**
-   - 403: `MP_WEBHOOK_SECRET` errado ou não setado
+   - 401: `MP_WEBHOOK_SECRET_AR` errado (clave de outra aplicação)
+   - 503: `MP_WEBHOOK_SECRET_AR` ausente no ambiente
    - 404: URL errada ou DNS não resolve
    - 500: Erro na app; checar logs
 
@@ -151,7 +153,9 @@ Obrigatórias marcar com ⚠️.
 | Sintoma | Causa | Ação |
 |---|---|---|
 | 500 na API startup | Schema/migrations quebradas | Rollback DB; checar logs para SQL error |
-| Webhooks 403 | Secret errado/não setado | Confirmar `MP_WEBHOOK_SECRET` e `CAKTO_WEBHOOK_SECRET` no Coolify |
+| Webhook MP 401 | Clave de outra aplicação | Conferir `MP_WEBHOOK_SECRET_AR` contra o painel do app argentino |
+| Webhook MP 503 | Clave ausente no container | Setar `MP_WEBHOOK_SECRET_AR` no Coolify e redeploy |
+| Webhook Cakto 403 | Secret errado/não setado | Confirmar `CAKTO_WEBHOOK_SECRET` no Coolify |
 | Cookies de sessão não persistem | `COOKIE_SECURE=1` mas HTTP | Ativar HTTPS no proxy reverso ou setar `COOKIE_SECURE=0` (dev only) |
 | `/oferta-lua-*` serve 200 em dash | `ROLE` env incorreto ou nginx config errada | Verificar nginx.runtime.conf mapeamento Host |
 | E-mail não chega | `RESEND_API_KEY` vazio ou inválido | Checar API key no Resend; logs da app |
