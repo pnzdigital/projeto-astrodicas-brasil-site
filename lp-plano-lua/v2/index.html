@@ -40,7 +40,6 @@ window.LP = {
   PRODUCT_COMPLETO:  "site:oferta_plano_lua_premium",
   PRODUCT_BUMP:      "site:oferta_plano_lua_premium_bump",
   PRODUCT_EXIT:      "site:oferta_plano_lua_exit",
-  PIXEL_ID:          "SEU_PIXEL_ID",
 
   // Cada valor é um produto separado na Cakto.
   // BASICO e EXIT = assinatura mensal fixa | COMPLETO e BUMP = pagamento único.
@@ -68,6 +67,7 @@ if (location.pathname.startsWith('/es/')) Object.assign(window.LP, {
 });
 </script>
 <script defer src="/lp-plano-lua/localize.js" data-page="v2"></script>
+<script src="/meta-pixel.js"></script>
 
 <style>
 :root{
@@ -346,6 +346,7 @@ footer.site p{max-width:58ch;margin:12px auto 0;line-height:1.6}
 </style>
 </head>
 <body>
+<noscript><img height="1" width="1" style="display:none" alt="" src="https://www.facebook.com/tr?id=2812114902493745&amp;ev=PageView&amp;noscript=1"></noscript>
 
 <!-- ═══ sprite de ícones ═══ -->
 <svg width="0" height="0" style="position:absolute" aria-hidden="true"><defs>
@@ -730,10 +731,18 @@ footer.site p{max-width:58ch;margin:12px auto 0;line-height:1.6}
   var qs = window.location.search.slice(1);
   function link(u){ return u + (qs ? (u.indexOf('?')>-1?'&':'?') + qs : ''); }
   function num(s){ return parseFloat(String(s).replace('.','').replace(',','.')); }
+  if(window.fbq) fbq('track','ViewContent',{
+    content_ids:[C.PRODUCT_BASICO,C.PRODUCT_COMPLETO],
+    contents:[{id:C.PRODUCT_BASICO,quantity:1},{id:C.PRODUCT_COMPLETO,quantity:1}],
+    content_type:'product',
+    value:num(C.BASICO),
+    currency:isEs?'ARS':'BRL',
+    content_language:isEs?'es-AR':'pt-BR'
+  });
   function go(u,v,productId){
     if (isEs) {
       /* AR: checkout interno (Mercado Pago transparente) — preço oficial vem do servidor */
-      if (window.fbq) fbq('track', 'InitiateCheckout', { value: v, currency: 'ARS' });
+      if (window.fbq) fbq('track', 'InitiateCheckout', { value: v, currency: 'ARS', content_language: 'es-AR' });
       window.location.href = link('/es/checkout?product=' + encodeURIComponent(productId));
       return;
     }
@@ -741,7 +750,7 @@ footer.site p{max-width:58ch;margin:12px auto 0;line-height:1.6}
       alert('O checkout seguro está sendo conectado e ficará disponível em breve.');
       return;
     }
-    if(window.fbq) fbq('track','InitiateCheckout',{value:v,currency:'BRL'});
+    if(window.fbq) fbq('track','InitiateCheckout',{value:v,currency:'BRL',content_language:'pt-BR'});
     window.location.href = link(u);
   }
 
@@ -859,12 +868,6 @@ footer.site p{max-width:58ch;margin:12px auto 0;line-height:1.6}
 
   document.getElementById('ano').textContent=new Date().getFullYear();
 
-  if(C.PIXEL_ID && C.PIXEL_ID.indexOf('SEU_')<0){
-    !function(f,b,e,v,n,t,s){if(f.fbq)return;n=f.fbq=function(){n.callMethod?n.callMethod.apply(n,arguments):n.queue.push(arguments)};
-    if(!f._fbq)f._fbq=n;n.push=n;n.loaded=!0;n.version='2.0';n.queue=[];t=b.createElement(e);t.async=!0;
-    t.src=v;s=b.getElementsByTagName(e)[0];s.parentNode.insertBefore(t,s)}(window,document,'script','https://connect.facebook.net/en_US/fbevents.js');
-    fbq('init',C.PIXEL_ID); fbq('track','PageView');
-  }
 })();
 </script>
 </body>

@@ -27,8 +27,10 @@
     .ref{margin-top:22px;color:rgba(244,239,228,.45);font-size:12px}
     a:focus-visible,.button:focus-visible{outline:2px solid var(--gold-lit);outline-offset:3px}
   </style>
+  <script src="/meta-pixel.js"></script>
 </head>
 <body>
+  <noscript><img height="1" width="1" style="display:none" alt="" src="https://www.facebook.com/tr?id=2812114902493745&amp;ev=PageView&amp;noscript=1"></noscript>
   <main class="card">
     <div class="mark" aria-hidden="true">✦</div>
     <h1 id="title">Sua compra está confirmada.</h1>
@@ -59,7 +61,44 @@
       document.querySelectorAll('#legal-links a').forEach((link) => { link.href = '/es' + link.getAttribute('href'); });
     }
     const order = new URLSearchParams(location.search).get('order');
-    if (order) document.getElementById('reference').textContent = (isEs ? 'Referencia: ' : 'Referência: ') + order;
+    if (order) {
+      document.getElementById('reference').textContent = (isEs ? 'Referencia: ' : 'Referência: ') + order;
+      trackPurchase(order);
+    }
+
+    async function trackPurchase(orderId) {
+      const storageKey = `astrodicas:meta:purchase:${orderId}`;
+      try {
+        if (localStorage.getItem(storageKey)) return;
+      } catch (_) {}
+
+      try {
+        const response = await fetch(`/api/checkout/order/${encodeURIComponent(orderId)}/conversion`, {
+          headers: { Accept: 'application/json' },
+          credentials: 'same-origin',
+        });
+        if (!response.ok) return;
+
+        const conversion = await response.json();
+        if (!window.fbq || conversion.order_id !== orderId) return;
+
+        fbq('track', 'Purchase', {
+          content_ids: conversion.content_ids,
+          content_name: conversion.content_name,
+          content_type: conversion.content_type,
+          num_items: conversion.num_items,
+          value: conversion.value,
+          currency: conversion.currency,
+          content_language: conversion.content_language,
+        }, { eventID: conversion.event_id });
+
+        try {
+          localStorage.setItem(storageKey, conversion.event_id);
+        } catch (_) {}
+      } catch (_) {
+        // A confirmação visual continua funcionando mesmo se o rastreio falhar.
+      }
+    }
   </script>
 </body>
 </html>

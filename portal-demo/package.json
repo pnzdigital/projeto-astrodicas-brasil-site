@@ -3,7 +3,8 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "test:frontend": "node frontend-regression.mjs"
+    "test:frontend": "node frontend-regression.mjs",
+    "test:pixel": "node meta-pixel.test.mjs"
   },
   "devDependencies": {
     "linkedom": "^0.18.0"

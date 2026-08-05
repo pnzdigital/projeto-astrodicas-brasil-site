@@ -44,8 +44,10 @@
     @media(max-width:820px){.grid{grid-template-columns:1fr}.summary{order:-1}}
     @media(prefers-reduced-motion:reduce){*{transition:none!important}}
   </style>
+  <script src="/meta-pixel.js"></script>
 </head>
 <body>
+  <noscript><img height="1" width="1" style="display:none" alt="" src="https://www.facebook.com/tr?id=2812114902493745&amp;ev=PageView&amp;noscript=1"></noscript>
   <div class="wrap">
     <header>
       <a class="brand" href="/"><span class="brand-mark">✦</span>AstroDicas</a>
@@ -214,6 +216,13 @@
           onReady: () => {},
           onError: (error) => { console.error('[checkout] brick', error); show(copy.failed, 'error'); },
           onSubmit: async ({ formData }) => {
+            if (window.fbq) fbq('track', 'AddPaymentInfo', {
+              content_ids: [orderData.product_id],
+              content_type: 'product',
+              value: orderData.amount,
+              currency: orderData.currency,
+              content_language: locale,
+            });
             show(copy.opening);
             const response = await fetch('/api/checkout/payment', {
               method: 'POST', headers: { 'Content-Type': 'application/json' },

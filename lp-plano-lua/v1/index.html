@@ -27,13 +27,13 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,600;1,300;1,400&family=Jost:wght@300;400;500;600&display=swap" rel="stylesheet">
+<script src="/meta-pixel.js"></script>
 
 <!-- ═══════════════ CONFIG — editar só aqui ═══════════════ -->
 <script>
 window.LP = {
   CHECKOUT_URL: "[[PREENCHER: link Cakto V1]]",            // ← link do checkout Cakto (BR)
   PRODUCT_ID:   "site:plano_lua",                          // ← SKU do checkout interno (AR/Mercado Pago)
-  PIXEL_ID:     "SEU_PIXEL_ID",                            // ← Meta Pixel
   PRECO:        "27,90",
   PRECO_ANCORA: "67",
   RECORRENCIA:  "/mês · cancela quando quiser",            // "" pra esconder
@@ -265,6 +265,7 @@ footer.site a{color:var(--cream-dim);text-decoration:none;border-bottom:1px soli
 </style>
 </head>
 <body>
+<noscript><img height="1" width="1" style="display:none" alt="" src="https://www.facebook.com/tr?id=2812114902493745&amp;ev=PageView&amp;noscript=1"></noscript>
 
 <div id="stars"></div>
 
@@ -581,13 +582,20 @@ footer.site a{color:var(--cream-dim);text-decoration:none;border-bottom:1px soli
   /* CTA + UTMs repassadas pro checkout */
   var isEs = location.pathname.startsWith('/es/');
   var qs = window.location.search;
+  if(window.fbq) fbq('track','ViewContent',{
+    content_ids:[C.PRODUCT_ID],
+    content_type:'product',
+    value:parseFloat(C.PRECO.replace('.','').replace(',','.')),
+    currency:isEs?'ARS':'BRL',
+    content_language:isEs?'es-AR':'pt-BR'
+  });
   if (isEs) {
     /* AR: checkout interno (Mercado Pago transparente) */
     var internalUrl = '/es/checkout?product=' + encodeURIComponent(C.PRODUCT_ID) + (qs ? '&' + qs.slice(1) : '');
     document.querySelectorAll('[data-cta]').forEach(function(a){
       a.href = internalUrl;
       a.addEventListener('click', function(){
-        if (window.fbq) fbq('track', 'InitiateCheckout', { value: parseFloat(C.PRECO.replace('.', '').replace(',', '.')), currency: 'ARS' });
+        if (window.fbq) fbq('track', 'InitiateCheckout', { value: parseFloat(C.PRECO.replace('.', '').replace(',', '.')), currency: 'ARS', content_language: 'es-AR' });
       });
     });
   } else {
@@ -601,7 +609,7 @@ footer.site a{color:var(--cream-dim);text-decoration:none;border-bottom:1px soli
           alert('O checkout seguro está sendo conectado e ficará disponível em breve.');
           return;
         }
-        if(window.fbq) fbq('track','InitiateCheckout',{value:parseFloat(C.PRECO.replace('.','').replace(',','.')),currency:'BRL'});
+        if(window.fbq) fbq('track','InitiateCheckout',{value:parseFloat(C.PRECO.replace('.','').replace(',','.')),currency:'BRL',content_language:'pt-BR'});
       });
     });
   }
@@ -641,13 +649,6 @@ footer.site a{color:var(--cream-dim);text-decoration:none;border-bottom:1px soli
   },{threshold:.12});
   document.querySelectorAll('.card,.deliver article,.step,.quote,.offer,details').forEach(function(n){io.observe(n)});
 
-  /* Meta Pixel */
-  if(C.PIXEL_ID && C.PIXEL_ID.indexOf('SEU_')<0){
-    !function(f,b,e,v,n,t,s){if(f.fbq)return;n=f.fbq=function(){n.callMethod?n.callMethod.apply(n,arguments):n.queue.push(arguments)};
-    if(!f._fbq)f._fbq=n;n.push=n;n.loaded=!0;n.version='2.0';n.queue=[];t=b.createElement(e);t.async=!0;
-    t.src=v;s=b.getElementsByTagName(e)[0];s.parentNode.insertBefore(t,s)}(window,document,'script','https://connect.facebook.net/en_US/fbevents.js');
-    fbq('init',C.PIXEL_ID); fbq('track','PageView');
-  }
 })();
 </script>
 </body>

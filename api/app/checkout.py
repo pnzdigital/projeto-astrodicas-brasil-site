@@ -115,6 +115,30 @@ def open_order(body: OrderBody, db: Session = Depends(get_db)) -> dict:
     }
 
 
+@router.get("/api/checkout/order/{order_id}/conversion", dependencies=[Depends(checkout_rate_limit)])
+def purchase_conversion(order_id: str, db: Session = Depends(get_db)) -> dict:
+    """Retorna somente os dados não pessoais de uma compra confirmada.
+
+    A página de obrigado usa este endpoint como fonte de verdade antes de
+    disparar o evento manual ``Purchase`` do Meta Pixel. Ordens inexistentes e
+    ainda não pagas têm a mesma resposta para não expor seu estado.
+    """
+    order = db.get(Order, order_id) if len(order_id) <= 36 else None
+    if not order or order.status not in PAID_STATUSES:
+        raise HTTPException(status_code=404, detail="Compra confirmada não encontrada.")
+    return {
+        "event_id": f"site-purchase-{order.id}",
+        "order_id": order.id,
+        "content_ids": [order.product_id],
+        "content_name": pricing.title_for(order.product_id, order.locale),
+        "content_type": "product",
+        "num_items": 1,
+        "value": round(order.amount_minor / 100, 2),
+        "currency": order.currency,
+        "content_language": order.locale,
+    }
+
+
 @router.post("/api/checkout/payment")
 def pay(body: PaymentBody, db: Session = Depends(get_db)) -> dict:
     order = db.get(Order, body.order_id)
