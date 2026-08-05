@@ -15,7 +15,7 @@ from sqlalchemy.orm import Session
 
 from .db import Base, engine, get_db
 from .astrology import resolve_coordinates
-from . import admin, checkout, migrations, preview, pricing
+from . import admin, checkout, migrations, preview, pricing, security, sessions
 from .ratelimit import auth_rate_limit, password_reset_rate_limit, webhook_rate_limit
 from .engine import generate_reading
 from .models import Entitlement, Order, PasswordResetToken, Profile, Reading, User, WebhookEvent
@@ -46,6 +46,24 @@ app.add_middleware(
 app.include_router(checkout.router)
 app.include_router(admin.router)
 app.include_router(preview.router)
+
+
+@app.middleware("http")
+async def refresh_session(request: Request, call_next):
+    """Estende a sessão de quem está usando o site.
+
+    A janela é de 7 dias contados da emissão, então sem isso um cliente ativo
+    seria deslogado no meio do uso. Só reescrevemos o cookie depois que o token
+    passou de ``REFRESH_AFTER_SECONDS``, e nunca em resposta de erro — assim um
+    401 não devolve sessão nova.
+    """
+    response = await call_next(request)
+    if response.status_code >= 400:
+        return response
+    payload = decode_token(request.cookies.get("site_session") or "")
+    if payload and security.should_refresh(payload["issued_at"]):
+        _write_session_cookie(response, payload["user_id"], payload["epoch"])
+    return response
 
 
 # --- Localized user-facing copy ----------------------------------------------
@@ -245,16 +263,19 @@ def current_user(session: str | None, db: Session, locale: str | None = None, ac
     return user
 
 
-def set_session(response: Response, user: User) -> None:
-    epoch = int(getattr(user, "token_epoch", 0) or 0)
+def _write_session_cookie(response: Response, user_id: str, epoch: int) -> None:
     response.set_cookie(
         "site_session",
-        create_token(user.id, epoch),
+        create_token(user_id, epoch),
         httponly=True,
         secure=os.getenv("COOKIE_SECURE", "1") == "1",
         samesite="lax",
-        max_age=60 * 60 * 24 * 30,
+        max_age=security.SESSION_TTL_SECONDS,
     )
+
+
+def set_session(response: Response, user: User) -> None:
+    _write_session_cookie(response, user.id, sessions.current_epoch(user))
 
 
 def validate_production_config() -> None:
@@ -341,7 +362,19 @@ def login(body: LoginBody, request: Request, response: Response, db: Session = D
 
 
 @app.post("/api/auth/logout")
-def logout(response: Response) -> dict:
+def logout(
+    response: Response,
+    site_session: str | None = Cookie(default=None),
+    db: Session = Depends(get_db),
+) -> dict:
+    """Apagar o cookie não basta: quem já copiou o token continuaria dentro.
+    Incrementamos o epoch, então o token sai de circulação no servidor."""
+    payload = decode_token(site_session or "")
+    if payload:
+        user = db.get(User, payload["user_id"])
+        if user and payload["epoch"] == sessions.current_epoch(user):
+            sessions.revoke_sessions(user)
+            db.commit()
     response.delete_cookie("site_session")
     return {"ok": True}
 

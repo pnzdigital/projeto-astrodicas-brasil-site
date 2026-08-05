@@ -30,7 +30,11 @@ def test_round_trip_returns_same_user_id(strong_secret):
     token = strong_secret.create_token(user_id)
     assert isinstance(token, str) and token
     payload = strong_secret.decode_token(token)
-    assert payload == {"user_id": user_id, "epoch": 0}
+    # ``issued_at`` entrou junto com a sessão de 7 dias: é o que diz quando
+    # renovar o cookie de quem está usando o site.
+    assert payload["user_id"] == user_id
+    assert payload["epoch"] == 0
+    assert payload["issued_at"] > 0
 
 
 def test_decode_rejects_expired_token(strong_secret):
