@@ -168,7 +168,47 @@ fatalista. Não cite inteligência artificial. Não use markdown, listas, HTML o
 parágrafos, separados por uma linha em branco.{assumed_warning}"""
 
 
-def _call_minimax(prompt: str) -> str:
+# Um caractere fora do alfabeto latino no meio de uma leitura paga destrói a
+# credibilidade do produto inteiro. O MiniMax-M2.1 troca uma palavra solta pelo
+# equivalente em chinês, árabe ou russo algumas vezes por texto — validado em
+# 2026-08-05 sobre 4 leituras reais: "a natureza já حساسة do Ascendente",
+# "sugere que成长 pessoal", "estar стимулируя mudanças". Não é falha de encoding
+# (o UTF-8 chega íntegro), é o próprio modelo derrapando de idioma.
+#
+# Permitimos ASCII, Latin-1 suplementar e Latin Extended-A (cobre pt-BR e
+# es-AR), mais a pontuação tipográfica que o modelo usa legitimamente (aspas
+# curvas, travessão, reticências). Qualquer outra coisa reprova o texto.
+_ALLOWED_TEXT = re.compile(r"^[\x09\x0a\x0d\x20-\x7e\xa0-ſ‐-‧‰-⁞]*$")
+
+
+def _has_foreign_script(text: str) -> bool:
+    """True quando o texto tem caractere fora do alfabeto latino esperado."""
+    return not _ALLOWED_TEXT.match(text)
+
+
+def _foreign_sample(text: str, limit: int = 5) -> str:
+    """Os caracteres reprovados, para o log dizer o que exatamente derrapou."""
+    seen: list[str] = []
+    for char in text:
+        if not _ALLOWED_TEXT.match(char) and char not in seen:
+            seen.append(char)
+            if len(seen) >= limit:
+                break
+    return "".join(seen)
+
+
+def _system_prompt(locale: str) -> str:
+    """Fixa o idioma explicitamente: reduz (não elimina) a derrapagem do modelo."""
+    language = "espanhol rioplatense (es-AR)" if locale == "es-AR" else "português do Brasil (pt-BR)"
+    return (
+        "Siga o briefing editorial com precisão e entregue somente o texto final. "
+        f"Escreva integralmente em {language}. Cada palavra do texto deve estar nesse idioma: "
+        "nunca insira palavras, caracteres ou ideogramas de outro idioma (chinês, árabe, russo, inglês) "
+        "nem no meio de uma frase."
+    )
+
+
+def _call_minimax(prompt: str, locale: str = "pt-BR") -> str:
     api_key = os.getenv("MINIMAX_API_KEY", "").strip()
     if not api_key:
         raise RuntimeError("MINIMAX_API_KEY não configurada")
@@ -178,7 +218,7 @@ def _call_minimax(prompt: str) -> str:
         {
             "model": model,
             "messages": [
-                {"role": "system", "content": "Siga o briefing editorial com precisão e entregue somente o texto final."},
+                {"role": "system", "content": _system_prompt(locale)},
                 {"role": "user", "content": prompt},
             ],
             "temperature": 0.85,
@@ -256,8 +296,25 @@ def generate_reading(content_id: str, title: str, profile, locale: str = "pt-BR"
         else None
     )
     if os.getenv("MINIMAX_API_KEY", "").strip():
-        try:
-            raw = _call_minimax(_prompt(content_id, title, profile, locale, customer_name))
+        prompt = _prompt(content_id, title, profile, locale, customer_name)
+        # O drift de idioma é estocástico: a mesma chamada repetida costuma sair
+        # limpa. Preferimos gastar uma segunda chamada a entregar uma leitura
+        # paga com ideograma no meio da frase.
+        attempts = max(1, int(os.getenv("MINIMAX_MAX_ATTEMPTS", "3")))
+        for attempt in range(1, attempts + 1):
+            try:
+                raw = _call_minimax(prompt, locale)
+            except RuntimeError as exc:
+                logger.warning("MiniMax falhou; usando fallback editorial: %s", exc)
+                break
+            if _has_foreign_script(raw):
+                logger.warning(
+                    "MiniMax devolveu caractere fora do alfabeto latino (%s) na tentativa %d/%d; refazendo.",
+                    _foreign_sample(raw),
+                    attempt,
+                    attempts,
+                )
+                continue
             generated = _paragraphs_to_html(raw)
             if generated:
                 return ReadingResult(
@@ -266,8 +323,10 @@ def generate_reading(content_id: str, title: str, profile, locale: str = "pt-BR"
                     birth_time_assumed=birth_time_assumed,
                     ascendant_warning=ascendant_warning,
                 )
-        except RuntimeError as exc:
-            logger.warning("MiniMax falhou; usando fallback editorial: %s", exc)
+        else:
+            logger.error(
+                "MiniMax derrapou de idioma em todas as %d tentativas; usando fallback editorial.", attempts
+            )
     fallback = _fallback_reading(profile, locale)
     return ReadingResult(
         body_html=fallback,

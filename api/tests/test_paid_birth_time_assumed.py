@@ -101,7 +101,7 @@ def test_profile_context_propagates_birth_time_assumed_to_prompt():
 
     real_call = engine._call_minimax
 
-    def spy(prompt):
+    def spy(prompt, locale="pt-BR"):
         captured["prompt"] = prompt
         # Devolve texto curto sem chamar a rede: o teste só inspeciona o prompt.
         return "<p>Texto curto de teste.</p>"

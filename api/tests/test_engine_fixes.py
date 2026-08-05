@@ -188,7 +188,7 @@ def test_generate_reading_indicates_fallback_when_no_api_key(monkeypatch):
 
 def test_generate_reading_returns_source_llm_when_live(monkeypatch):
     monkeypatch.setenv("MINIMAX_API_KEY", "test-key")
-    monkeypatch.setattr(engine, "_call_minimax", lambda prompt: "Parágrafo um.\n\nParágrafo dois.")
+    monkeypatch.setattr(engine, "_call_minimax", lambda prompt, locale="pt-BR": "Parágrafo um.\n\nParágrafo dois.")
     result = engine.generate_reading(
         "site:content:horoscopo_diario", "Horóscopo diário", _Profile(), "pt-BR", "Alex"
     )
@@ -200,7 +200,7 @@ def test_generate_reading_returns_source_llm_when_live(monkeypatch):
 def test_generate_reading_fallback_when_live_errors(monkeypatch):
     monkeypatch.setenv("MINIMAX_API_KEY", "test-key")
 
-    def boom(_):
+    def boom(_prompt, _locale="pt-BR"):
         raise RuntimeError("MiniMax indisponível: HTTPError")
 
     monkeypatch.setattr(engine, "_call_minimax", boom)
