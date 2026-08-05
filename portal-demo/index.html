@@ -11,8 +11,11 @@
   <link rel="apple-touch-icon" href="/assets/apple-touch-icon.png">
   <script>
     (function () {
-      var isDashboard = location.hostname === 'dash.astrodicas.pnzdigital.com.br' || location.hostname.indexOf('dash.') === 0;
+      var host = String(location.hostname || '').toLowerCase();
+      var isDashboard = host === 'dash.astrodicas.pnzdigital.com.br' || host.indexOf('dash.') === 0;
       var isPaidDemo = new URLSearchParams(location.search).get('demo') === 'paid';
+      // Gate must land before first paint: unauthenticated visitors on the dash host
+      // must never see the app-shell, not even for a single frame.
       if (isDashboard && !isPaidDemo) document.documentElement.classList.add('dashboard-auth-pending');
       // Botões de leitura dependem do módulo carregar (import de config + bootstrap).
       // Sem isso, cliques antes do listener anexar eram engolidos em silêncio.
@@ -447,7 +450,7 @@
     .dashboard-demo-pending .toast,
     .dashboard-auth-locked .app-shell,
     .dashboard-auth-locked .mobile-nav,
-    .dashboard-auth-locked .toast { display: none; }
+    .dashboard-auth-locked .toast { display: none !important; }
     .boot-status { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
     .app-booting .app-shell { opacity: .5; pointer-events: none; cursor: wait; transition: opacity .2s ease; }
     @media (prefers-reduced-motion: reduce) { .app-booting .app-shell { transition: none; } }
