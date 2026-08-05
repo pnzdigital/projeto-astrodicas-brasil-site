@@ -22,14 +22,17 @@ def sent_emails(monkeypatch):
 
 
 def test_argentine_price_is_the_brazilian_price_converted():
-    # Mesma taxa em todo o catálogo: qualquer desconto percentual se preserva.
-    assert pricing.amount_minor("site:plano_lua", "pt-BR") == 2790
-    assert pricing.amount_minor("site:plano_lua", "es-AR") == 2790 * 310
-    assert pricing.format_amount(pricing.amount_minor("site:plano_lua", "es-AR"), "ARS") == "ARS 8.649"
-    assert pricing.format_amount(pricing.amount_minor("site:oferta_plano_lua_premium", "es-AR"), "ARS") == "ARS 30.070"
-    ratio_premium = pricing.amount_minor("site:oferta_plano_lua_premium", "es-AR") / pricing.amount_minor("site:oferta_plano_lua_premium", "pt-BR")
-    ratio_lua = pricing.amount_minor("site:plano_lua", "es-AR") / pricing.amount_minor("site:plano_lua", "pt-BR")
-    assert ratio_premium == ratio_lua
+    """A conversão vale para o catálogo geral. Plano Lua, Premium e a oferta de
+    saída têm preço argentino próprio, definido comercialmente — esses estão em
+    test_pricing_ar_overrides."""
+    assert pricing.amount_minor("site:mapa_astral", "pt-BR") == 4700
+    assert pricing.amount_minor("site:mapa_astral", "es-AR") == 4700 * 310
+    ratio_mapa = pricing.amount_minor("site:mapa_astral", "es-AR") / pricing.amount_minor("site:mapa_astral", "pt-BR")
+    ratio_combo = pricing.amount_minor("site:combo_mapa_astral_amor", "es-AR") / pricing.amount_minor("site:combo_mapa_astral_amor", "pt-BR")
+    assert ratio_mapa == ratio_combo
+    # Preços próprios do mercado AR.
+    assert pricing.format_amount(pricing.amount_minor("site:plano_lua", "es-AR"), "ARS") == "ARS 9.900"
+    assert pricing.format_amount(pricing.amount_minor("site:oferta_plano_lua_premium", "es-AR"), "ARS") == "ARS 34.900"
 
 
 def test_catalog_endpoint_serves_each_market(client):
@@ -38,7 +41,7 @@ def test_catalog_endpoint_serves_each_market(client):
     assert br["currency"] == "BRL" and ar["currency"] == "ARS"
     assert ar["checkout"]["provider"] == "mercadopago" and ar["checkout"]["transparent"] is True
     lua_ar = next(p for p in ar["products"] if p["product_id"] == "site:plano_lua")
-    assert lua_ar["price_label"] == "ARS 8.649"
+    assert lua_ar["price_label"] == "ARS 9.900"
 
 
 def test_order_uses_server_price_and_rejects_unknown_product(client):
@@ -51,8 +54,8 @@ def test_order_uses_server_price_and_rejects_unknown_product(client):
     )
     assert response.status_code == 200, response.text
     body = response.json()
-    assert body["amount"] == 30070.0
-    assert body["amount_minor"] == 9700 * 310
+    assert body["amount"] == 34900.0
+    assert body["amount_minor"] == pricing.PRICES_ARS_MINOR["site:oferta_plano_lua_premium"]
     assert body["currency"] == "ARS"
 
 
@@ -77,7 +80,7 @@ def test_payment_approved_creates_account_grants_bundle_and_emails(client, monke
     assert response.status_code == 200, response.text
     assert response.json()["approved"] is True
     # O valor cobrado é o do servidor, não o que o navegador mandou.
-    assert captured["amount"] == 30070.0
+    assert captured["amount"] == 34900.0
 
     login = client.post("/api/auth/login", json={"email": "nova@cliente.com", "password": "qualquer"})
     assert login.status_code == 401  # senha provisória é aleatória, não adivinhável

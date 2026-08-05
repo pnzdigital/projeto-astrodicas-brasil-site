@@ -6,14 +6,17 @@ Mercado Pago recebe o valor calculado aqui, nunca o valor enviado pelo
 cliente.
 
 Mercado ``BR`` cobra em BRL; mercado ``AR`` cobra em ARS pela conta argentina.
-O preço argentino é o preço brasileiro convertido pela mesma taxa para todos os
-produtos, de modo que qualquer desconto percentual da página brasileira
-continue valendo igual na página argentina.
+A maioria dos produtos argentinos continua derivada do preço brasileiro pela
+mesma taxa (BRL_TO_ARS), de modo que qualquer desconto percentual da página
+brasileira continue valendo igual na página argentina. Alguns produtos
+listados em PRICES_ARS_MINOR fogem da conversão: a decisão comercial fixou
+um preço próprio em ARS para eles, e amount_minor() consulta o override
+antes de cair na taxa.
 """
 
 from __future__ import annotations
 
-BRL_TO_ARS = 310  # ARS 8.649/mês = R$ 27,90 × 310. Mesma taxa em todo o catálogo.
+BRL_TO_ARS = 310  # taxa de referência entre catálogos; valores próprios em PRICES_ARS_MINOR escapam dela.
 
 # product_id -> preço em centavos de BRL.
 PRICES_BRL_MINOR: dict[str, int] = {
@@ -37,6 +40,15 @@ PRICES_BRL_MINOR: dict[str, int] = {
     # percentual de desconto é idêntico nos dois mercados.
     "site:oferta_plano_lua_premium_bump": 5790,
     "site:oferta_plano_lua_exit": 2090,
+}
+
+# product_id -> preço em centavos de ARS.
+# Estes preços são fixos em reais argentinos: não acompanham BRL_TO_ARS.
+# Tudo o que não estiver aqui continua sendo convertido pela taxa.
+PRICES_ARS_MINOR: dict[str, int] = {
+    "site:plano_lua": 990000,                # ARS 9.900/mês
+    "site:oferta_plano_lua_premium": 3490000,  # ARS 34.900 pagamento único
+    "site:oferta_plano_lua_exit": 690000,    # ARS 6.900, ~30% abaixo do Plano Lua
 }
 
 PRODUCT_TITLES: dict[str, dict[str, str]] = {
@@ -117,7 +129,10 @@ def is_known_product(product_id: str) -> bool:
 def amount_minor(product_id: str, locale: str | None) -> int:
     """Preço em centavos da moeda do mercado."""
     base = PRICES_BRL_MINOR[product_id]
-    return base * BRL_TO_ARS if market_for(locale) == "AR" else base
+    if market_for(locale) == "AR":
+        override = PRICES_ARS_MINOR.get(product_id)
+        return override if override is not None else base * BRL_TO_ARS
+    return base
 
 
 def amount_units(product_id: str, locale: str | None) -> float:

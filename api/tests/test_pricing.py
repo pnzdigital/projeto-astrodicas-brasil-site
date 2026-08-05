@@ -9,13 +9,17 @@ def test_all_brl_prices_match_readme():
 
 
 def test_all_ars_prices_match_readme():
-    assert pricing.format_amount(pricing.amount_minor("site:plano_lua", "es-AR"), "ARS") == "ARS 8.649"
-    assert pricing.format_amount(pricing.amount_minor("site:oferta_plano_lua_premium", "es-AR"), "ARS") == "ARS 30.070"
+    assert pricing.format_amount(pricing.amount_minor("site:plano_lua", "es-AR"), "ARS") == "ARS 9.900"
+    assert pricing.format_amount(pricing.amount_minor("site:oferta_plano_lua_premium", "es-AR"), "ARS") == "ARS 34.900"
 
 
-def test_every_sku_has_ar_conversion_at_the_same_rate():
+def test_every_sku_without_an_override_converts_at_the_same_rate():
+    """A conversão continua valendo para todo produto que não tem preço
+    argentino próprio; os que têm são verificados em test_pricing_ar_overrides."""
     for product_id, brl_minor in pricing.PRICES_BRL_MINOR.items():
         assert pricing.amount_minor(product_id, "pt-BR") == brl_minor
+        if product_id in pricing.PRICES_ARS_MINOR:
+            continue
         assert pricing.amount_minor(product_id, "es-AR") == brl_minor * pricing.BRL_TO_ARS
 
 

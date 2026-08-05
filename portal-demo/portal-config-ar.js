@@ -7,12 +7,12 @@
 import base from "./portal-config.js";
 
 const ARS_PRICES = Object.freeze({
-  "site:plano_lua": "ARS 8.649 / mes",
+  "site:plano_lua": "ARS 9.900 / mes",
   "site:mapa_astral": "ARS 14.570",
   "site:mapa_amor_sinastria": "ARS 14.570",
   "site:mapa_carreira": "ARS 14.570",
   "site:mapa_prosperidade": "ARS 14.570",
-  "site:oferta_plano_lua_premium": "ARS 30.070",
+  "site:oferta_plano_lua_premium": "ARS 34.900",
   "site:combo_mapa_astral_amor": "ARS 24.490",
   "site:combo_mapa_astral_carreira": "ARS 24.490",
   "site:combo_mapa_astral_prosperidade": "ARS 24.490",
