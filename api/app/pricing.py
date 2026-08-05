@@ -48,7 +48,7 @@ PRICES_BRL_MINOR: dict[str, int] = {
 PRICES_ARS_MINOR: dict[str, int] = {
     "site:plano_lua": 990000,                # ARS 9.900/mês
     "site:oferta_plano_lua_premium": 3490000,  # ARS 34.900 pagamento único
-    "site:oferta_plano_lua_exit": 690000,    # ARS 6.900, ~30% abaixo do Plano Lua
+    "site:oferta_plano_lua_exit": 890000,    # ARS 8.900, abaixo do Plano Lua
 }
 
 PRODUCT_TITLES: dict[str, dict[str, str]] = {

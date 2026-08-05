@@ -21,11 +21,10 @@ def test_premium_has_its_own_ar_price():
 
 
 def test_exit_offer_undercuts_the_plan():
-    assert _label("site:oferta_plano_lua_exit") == "ARS 6.900"
+    assert _label("site:oferta_plano_lua_exit") == "ARS 8.900"
     lua = pricing.amount_minor("site:plano_lua", "es-AR")
     exit_offer = pricing.amount_minor("site:oferta_plano_lua_exit", "es-AR")
-    discount = 1 - exit_offer / lua
-    assert 0.28 < discount < 0.32, "a oferta de saída deve ficar perto de 30% off"
+    assert exit_offer < lua, "uma oferta de saída mais cara que o plano não é oferta"
 
 
 def test_brazil_is_untouched_by_the_ar_decision():
