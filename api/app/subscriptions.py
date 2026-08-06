@@ -97,12 +97,27 @@ def message(key: str, locale: str) -> str:
 
 
 class TrialBody(BaseModel):
+    """O corpo aceita o formato do Payment Brick como ele vem.
+
+    O Brick do Mercado Pago entrega ``formData`` com a chave ``token``, e a
+    landing repassa isso inteiro. A API de preapproval chama o mesmo dado de
+    ``card_token_id``. Aceitar os dois nomes evita uma tradução no navegador —
+    onde ela sumiria em silêncio se o Brick mudasse o shape.
+    """
+
+    model_config = {"extra": "ignore"}
+
     email: EmailStr
     name: str = Field(default="", max_length=160)
     locale: str = Field(default="es-AR", max_length=10)
     # Token do cartão gerado pelo SDK do Mercado Pago no navegador. O número do
     # cartão nunca chega aqui — é a razão de existir do token.
-    card_token_id: str = Field(min_length=8, max_length=120)
+    card_token_id: str = Field(default="", max_length=120)
+    token: str = Field(default="", max_length=120)
+
+    @property
+    def card_token(self) -> str:
+        return (self.card_token_id or self.token).strip()
 
 
 def _now() -> datetime:
@@ -190,7 +205,7 @@ def start_trial(body: TrialBody, db: Session = Depends(get_db)) -> dict:
         raise HTTPException(status_code=409, detail=message("trial_unavailable", locale))
     if not mp.is_enabled():
         raise HTTPException(status_code=503, detail=message("provider_off", locale))
-    if not body.card_token_id.strip():
+    if not body.card_token:
         raise HTTPException(status_code=400, detail=message("card_required", locale))
 
     email = body.email.lower()
@@ -227,7 +242,7 @@ def start_trial(body: TrialBody, db: Session = Depends(get_db)) -> dict:
             currency=currency,
             reason=pricing.title_for(PRODUCT_ID, locale),
             payer_email=email,
-            card_token_id=body.card_token_id,
+            card_token_id=body.card_token,
             external_reference=subscription.id,
             trial_days=TRIAL_DAYS,
             back_url=portal_url(),

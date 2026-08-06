@@ -294,3 +294,22 @@ def test_ruido_do_painel_responde_ok_sem_mexer_em_nada(client, preapproval_criad
 
     assert response.status_code == 200
     assert "ignored" in response.json()
+
+
+def test_aceita_o_token_do_payment_brick_como_ele_vem(client, preapproval_criado):
+    """O Brick manda ``token``; a API de preapproval chama ``card_token_id``."""
+    payload = {key: value for key, value in TRIAL.items() if key != "card_token_id"}
+    response = client.post(
+        "/api/trial/start",
+        json={**payload, "token": "token-do-brick", "payment_method_id": "visa", "installments": 1},
+    )
+
+    assert response.status_code == 200, response.text
+    assert preapproval_criado["card_token_id"] == "token-do-brick"
+
+
+def test_sem_token_de_cartao_a_rota_recusa(client, preapproval_criado):
+    payload = {key: value for key, value in TRIAL.items() if key != "card_token_id"}
+    response = client.post("/api/trial/start", json=payload)
+
+    assert response.status_code == 400
