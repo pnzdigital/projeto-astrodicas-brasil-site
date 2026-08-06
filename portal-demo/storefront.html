@@ -128,6 +128,7 @@
     document.querySelectorAll('[data-copy]').forEach(el=>{const value=copy[el.dataset.copy];if(value)el.textContent=value});
     document.querySelectorAll('[data-copy-html]').forEach(el=>{const value=copy[el.dataset.copyHtml];if(value)el.innerHTML=value});
     document.querySelector(`[data-lang="${es?'es':'pt'}"]`)?.classList.add('active');
+    if(window.fbq) fbq('track','ViewContent',{content_name:'storefront',content_language:locale});
     if(es){ document.getElementById('mp-badge')?.style.removeProperty('display'); }
     document.querySelectorAll('[data-offer-route]').forEach(link=>{link.href=(es?'/es':'')+(link.dataset.offerRoute==='lua2'?'/oferta-lua-2':'/oferta-lua-1')});
     if(es)document.querySelectorAll('#legal-links a').forEach(link=>{link.href='/es'+link.getAttribute('href')});
