@@ -69,6 +69,51 @@ ASPECT_PRIORITY = {"fusao": 0, "tenso": 1, "harmonico": 2}
 
 NATAL_POINTS = ("Sol", "Lua", "Ascendente")
 
+# Regente do dia da semana — camada clássica independente do mapa da pessoa,
+# muda todo dia e dá o clima geral antes de entrar nos trânsitos individuais.
+# datetime.weekday(): 0=segunda ... 6=domingo.
+WEEKDAY_RULER = ("Lua", "Marte", "Mercúrio", "Júpiter", "Vênus", "Saturno", "Sol")
+
+DAY_RULER_TEXT: dict[str, dict[str, str]] = {
+    "pt-BR": {
+        "Sol": "Hoje é dia regido pelo Sol: o clima geral favorece o que precisa de exposição e decisão de quem está no comando — inclusive a sua, sobre a própria vida.",
+        "Lua": "Hoje é dia regido pela Lua: o clima geral favorece o que é íntimo, doméstico e emocional, e pede menos exposição do que outros dias.",
+        "Marte": "Hoje é dia regido por Marte: o clima geral favorece iniciativa e confronto direto, mas também deixa a mecha mais curta que o normal.",
+        "Mercúrio": "Hoje é dia regido por Mercúrio: o clima geral favorece comunicação, negociação e resolver por trâmite em vez de força.",
+        "Júpiter": "Hoje é dia regido por Júpiter: o clima geral favorece expansão, aprendizado e pedir mais do que você pediria em outro dia.",
+        "Vênus": "Hoje é dia regido por Vênus: o clima geral favorece vínculo, prazer e negociação através do afeto em vez do embate.",
+        "Saturno": "Hoje é dia regido por Saturno: o clima geral favorece estrutura, prazo e o tipo de trabalho que não dá resultado visível na hora.",
+    },
+    "es-AR": {
+        "Sol": "Hoy es día regido por el Sol: el clima general favorece lo que necesita exposición y la decisión de quien está al mando — también la tuya, sobre tu propia vida.",
+        "Lua": "Hoy es día regido por la Luna: el clima general favorece lo íntimo, lo doméstico y lo emocional, y pide menos exposición que otros días.",
+        "Marte": "Hoy es día regido por Marte: el clima general favorece la iniciativa y el enfrentamiento directo, pero también deja la mecha más corta que lo normal.",
+        "Mercúrio": "Hoy es día regido por Mercurio: el clima general favorece la comunicación, la negociación y resolver por trámite en vez de por fuerza.",
+        "Júpiter": "Hoy es día regido por Júpiter: el clima general favorece la expansión, el aprendizaje y pedir más de lo que pedirías otro día.",
+        "Vênus": "Hoy es día regido por Venus: el clima general favorece el vínculo, el placer y negociar a través del afecto en vez del choque.",
+        "Saturno": "Hoy es día regido por Saturno: el clima general favorece la estructura, el plazo y el tipo de trabajo que no da resultado visible al toque.",
+    },
+}
+
+# Fase lunar — ciclo de ~29,5 dias, camada mais lenta que o signo da Lua
+# (~2,5 dias) e mais rápida que o trânsito de planetas pesados. Bucket de 90°
+# em torno das quatro fases cardeais é aproximação honesta sem precisar de
+# tabela de fases exatas.
+MOON_PHASE_TEXT: dict[str, dict[str, str]] = {
+    "pt-BR": {
+        "nova": "A Lua está em fase nova: é território de começo baixo, sem plateia — o que você planta agora ainda não precisa ser mostrado a ninguém.",
+        "crescente": "A Lua está em fase crescente: é fase de construir em cima do que já foi decidido, não de recomeçar do zero.",
+        "cheia": "A Lua está em fase cheia: é fase de coisa aparecer — o que estava sendo evitado tende a virar visível hoje, com força maior que o normal.",
+        "minguante": "A Lua está em fase minguante: é fase de soltar e fechar, não de iniciar — o que resiste em terminar pede mais atenção do que o que quer começar.",
+    },
+    "es-AR": {
+        "nova": "La Luna está en fase nueva: es territorio de comienzo bajo, sin público — lo que plantás ahora todavía no necesita mostrarse a nadie.",
+        "crescente": "La Luna está en fase creciente: es momento de construir sobre lo ya decidido, no de arrancar de cero.",
+        "cheia": "La Luna está en fase llena: es momento en que las cosas aparecen — lo que se venía evitando tiende a volverse visible hoy, con más fuerza que de costumbre.",
+        "minguante": "La Luna está en fase menguante: es momento de soltar y cerrar, no de iniciar — lo que se resiste a terminar pide más atención que lo que quiere empezar.",
+    },
+}
+
 # A Lua em trânsito é o relógio do dia: troca de signo a cada ~2,5 dias e é o
 # que faz o texto de hoje não ser o de ontem.
 MOON_TRANSIT: dict[str, dict[str, str]] = {
@@ -144,6 +189,36 @@ ASPECT_LINE: dict[str, dict[str, str]] = {
     },
 }
 
+# Segundo aspecto mais fechado do dia — mesma lógica do ASPECT_LINE, fraseado
+# como camada adicional em vez de repetir "o assunto de hoje é" duas vezes.
+SECOND_ASPECT_LINE: dict[str, dict[str, str]] = {
+    "pt-BR": {
+        "fusao": "Tem outro fio puxando junto: o tema de {theme} também toca {point} hoje, reforçando o primeiro ponto em vez de disputar espaço com ele.",
+        "harmonico": "Ainda corre a favor um segundo sinal: o assunto de {theme} encontra {point} sem atrito, uma abertura menor que a primeira, mas real.",
+        "tenso": "Um segundo ponto de tensão aparece: o tema de {theme} também cobra de {point}, então o ajuste do dia não fica numa frente só.",
+    },
+    "es-AR": {
+        "fusao": "Hay otro hilo tirando junto: el tema de {theme} también toca {point} hoy, reforzando el primer punto en vez de disputarle espacio.",
+        "harmonico": "Todavía corre a favor una segunda señal: el asunto de {theme} encuentra a {point} sin fricción, una apertura menor que la primera, pero real.",
+        "tenso": "Aparece un segundo punto de tensión: el tema de {theme} también le pide algo a {point}, así que el ajuste del día no queda en un solo frente.",
+    },
+}
+
+# Anexado à frase do aspecto quando o planeta em trânsito está retrógrado —
+# muda o conselho de "decidir" para "revisar", que é a leitura correta do
+# fenômeno.
+RETROGRADE_NOTE: dict[str, str] = {
+    "pt-BR": " {transit} está retrógrado agora, e isso muda o conselho: esse assunto pede revisão do que já foi feito, não decisão nova.",
+    "es-AR": " {transit} está retrógrado ahora, y eso cambia el consejo: este tema pide revisar lo que ya hiciste, no una decisión nueva.",
+}
+
+# Só entra quando a hora de nascimento foi assumida. Diz com honestidade o que
+# não está sendo lido em vez de fingir precisão que a rota não tem.
+BIRTH_TIME_HONESTY: dict[str, str] = {
+    "pt-BR": "Um detalhe importante: você não informou o horário de nascimento, então o Ascendente usado aqui é estimado e pode errar o signo se você tiver nascido perto da virada. O resto da leitura — Sol, Lua e os trânsitos de hoje — não depende disso.",
+    "es-AR": "Un detalle importante: no indicaste la hora de nacimiento, así que el Ascendente que se usó acá es estimado y puede errar el signo si naciste cerca del cambio. El resto de la lectura — Sol, Luna y los tránsitos de hoy — no depende de eso.",
+}
+
 # Sem aspecto fechado o dia é de fundo, e dizer isso é mais honesto do que
 # inventar um evento astrológico que não está acontecendo.
 QUIET_DAY: dict[str, str] = {
@@ -217,6 +292,11 @@ class HoroscopeBody(BaseModel):
     # geocodificaria a cidade no país errado e o mapa inteiro sairia errado. Na
     # ausência do campo, o país e o fuso saem do idioma da vitrine.
     birth_country: str | None = Field(default=None, min_length=2, max_length=2)
+    # UF (BR) ou provincia (AR). Cidades homônimas dentro do mesmo país —
+    # "Santa Cruz" existe em vários estados do Brasil — só se resolvem certo
+    # com isso. Opcional de propósito: requisição sem o campo (todo o
+    # tráfego que já está no ar) cai no comportamento atual, sem quebrar.
+    birth_state: str | None = Field(default=None, max_length=64)
     birth_timezone: str | None = Field(default=None, max_length=64)
     locale: str | None = Field(default=None, max_length=10)
 
@@ -237,7 +317,7 @@ def natal_chart(body: HoroscopeBody, locale: str) -> dict:
     default_country, default_timezone = LOCALE_DEFAULTS[locale]
     country = (body.birth_country or default_country).upper()
     timezone_name = body.birth_timezone or default_timezone
-    coordinates = astrology.resolve_coordinates(body.birth_city, country)
+    coordinates = astrology.resolve_coordinates(body.birth_city, country, body.birth_state)
     if not coordinates:
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
@@ -273,15 +353,13 @@ def natal_chart(body: HoroscopeBody, locale: str) -> dict:
     return {"points": points, "assumed_time": assumed_time}
 
 
-def strongest_aspect(natal_points: dict, transits: dict) -> dict | None:
-    """O aspecto que descreve o dia: orbe mais fechado, desempate por qualidade.
-
-    Percorremos só ``TRANSIT_PLANETS`` contra Sol, Lua e Ascendente natais. O
-    orbe de 3° é mais apertado que os 5° do mapa completo de propósito: aqui a
-    pergunta é "o que está acontecendo HOJE", e 5° de orbe da Lua cobre mais de
-    meio dia de margem.
+def _closed_aspects(natal_points: dict, transits: dict) -> list[dict]:
+    """Todo aspecto fechado (orbe <= 3°) entre trânsito rápido e ponto natal,
+    ordenado por orbe e depois por qualidade — o mesmo critério de
+    :func:`strongest_aspect`, só que devolvendo a lista inteira em vez de só
+    o primeiro item, para permitir um segundo parágrafo de trânsito real.
     """
-    best: dict | None = None
+    candidates: list[dict] = []
     for transit_name in TRANSIT_PLANETS:
         transit = transits.get(transit_name)
         if not transit:
@@ -297,22 +375,82 @@ def strongest_aspect(natal_points: dict, transits: dict) -> dict | None:
                 if orb > 3.0:
                     continue
                 quality = ASPECT_QUALITY[label]
-                candidate = {
-                    "transit": transit_name,
-                    "point": point_name,
-                    "aspect": label,
-                    "quality": quality,
-                    "orb": round(orb, 2),
-                }
-                key = (round(orb, 2), ASPECT_PRIORITY[quality])
-                if best is None or key < (best["orb"], ASPECT_PRIORITY[best["quality"]]):
-                    best = candidate
+                candidates.append(
+                    {
+                        "transit": transit_name,
+                        "point": point_name,
+                        "aspect": label,
+                        "quality": quality,
+                        "orb": round(orb, 2),
+                    }
+                )
                 break
-    return best
+    candidates.sort(key=lambda item: (item["orb"], ASPECT_PRIORITY[item["quality"]]))
+    return candidates
 
 
-def compose(name: str, natal: dict, transits: dict, aspect: dict | None, locale: str) -> dict:
-    """Monta os três parágrafos. Determinístico: mesma entrada, mesmo texto."""
+def strongest_aspect(natal_points: dict, transits: dict) -> dict | None:
+    """O aspecto que descreve o dia: orbe mais fechado, desempate por qualidade.
+
+    Percorremos só ``TRANSIT_PLANETS`` contra Sol, Lua e Ascendente natais. O
+    orbe de 3° é mais apertado que os 5° do mapa completo de propósito: aqui a
+    pergunta é "o que está acontecendo HOJE", e 5° de orbe da Lua cobre mais de
+    meio dia de margem.
+    """
+    candidates = _closed_aspects(natal_points, transits)
+    return candidates[0] if candidates else None
+
+
+def secondary_aspect(natal_points: dict, transits: dict, primary: dict | None) -> dict | None:
+    """O segundo aspecto mais fechado do dia, distinto do primeiro.
+
+    Duas pessoas raramente têm só um trânsito fechado no mesmo dia; usar os
+    dois é sinal real a mais sem inventar nada — o segundo mais próximo do
+    orbe exato ainda é astronomia, só é menos prioritário que o primeiro.
+    """
+    candidates = _closed_aspects(natal_points, transits)
+    for candidate in candidates:
+        if primary and candidate["transit"] == primary["transit"] and candidate["point"] == primary["point"]:
+            continue
+        return candidate
+    return None
+
+
+def moon_phase(transits: dict) -> str:
+    """Fase lunar a partir do ângulo Sol-Lua em trânsito, em bucket de 90°.
+
+    0-90 nova, 90-180 crescente, 180-270 cheia, 270-360 minguante — ciclo de
+    ~29,5 dias, mais lento que o signo da Lua e mais rápido que os trânsitos
+    de planetas pesados, então dá mais uma camada de variação real ao longo
+    do mês sem depender de tabela de fases exatas.
+    """
+    angle = (transits["Lua"]["longitude"] - transits["Sol"]["longitude"]) % 360
+    if angle < 90:
+        return "nova"
+    if angle < 180:
+        return "crescente"
+    if angle < 270:
+        return "cheia"
+    return "minguante"
+
+
+def compose(
+    name: str,
+    natal: dict,
+    transits: dict,
+    aspect: dict | None,
+    locale: str,
+    weekday: int = 0,
+    second_aspect: dict | None = None,
+) -> dict:
+    """Monta a leitura do dia. Determinístico: mesma entrada, mesmo texto.
+
+    Estrutura: abertura personalizada (Lua em trânsito + nome), clima geral
+    do dia (regente da semana + fase lunar), 1-2 blocos de trânsito real
+    (aspecto mais fechado, e o segundo quando existir, com nota de
+    retrógrado quando for o caso), honestidade sobre o Ascendente quando a
+    hora foi assumida, e fechamento acionável ancorado no Sol natal.
+    """
     first_name = _first_name(name)
     moon_sign = transits["Lua"]["sign"]
     sun_sign = natal["points"]["Sol"]["sign"]
@@ -322,20 +460,42 @@ def compose(name: str, natal: dict, transits: dict, aspect: dict | None, locale:
     # de mala direta que denuncia texto automático.
     first = f"{first_name}, {opening[0].lower()}{opening[1:]}" if first_name else opening
 
+    day_ruler = WEEKDAY_RULER[weekday % 7]
+    climate = f"{DAY_RULER_TEXT[locale][day_ruler]} {MOON_PHASE_TEXT[locale][moon_phase(transits)]}"
+
+    paragraphs = [first, climate]
+
     if aspect:
-        middle = ASPECT_LINE[locale][aspect["quality"]].format(
+        primary = ASPECT_LINE[locale][aspect["quality"]].format(
             theme=TRANSIT_THEME[locale][aspect["transit"]],
             point=NATAL_POINT_LABELS[locale][aspect["point"]],
         )
-    else:
-        middle = QUIET_DAY[locale]
+        if transits[aspect["transit"]]["retrograde"]:
+            primary += RETROGRADE_NOTE[locale].format(transit=PLANET_LABELS[locale][aspect["transit"]])
+        paragraphs.append(primary)
 
-    closing = PRACTICAL[locale][sun_sign]
+        if second_aspect:
+            secondary = SECOND_ASPECT_LINE[locale][second_aspect["quality"]].format(
+                theme=TRANSIT_THEME[locale][second_aspect["transit"]],
+                point=NATAL_POINT_LABELS[locale][second_aspect["point"]],
+            )
+            if transits[second_aspect["transit"]]["retrograde"]:
+                secondary += RETROGRADE_NOTE[locale].format(
+                    transit=PLANET_LABELS[locale][second_aspect["transit"]]
+                )
+            paragraphs.append(secondary)
+    else:
+        paragraphs.append(QUIET_DAY[locale])
+
+    if natal["assumed_time"]:
+        paragraphs.append(BIRTH_TIME_HONESTY[locale])
+
+    paragraphs.append(PRACTICAL[locale][sun_sign])
 
     return {
         "title": TITLE[locale].format(name=first_name) if first_name else TITLE[locale].format(name="").rstrip(", "),
-        "paragraphs": [first, middle, closing],
-        "body_html": "".join(f"<p>{paragraph}</p>" for paragraph in (first, middle, closing)),
+        "paragraphs": paragraphs,
+        "body_html": "".join(f"<p>{paragraph}</p>" for paragraph in paragraphs),
     }
 
 
@@ -356,7 +516,16 @@ def free_horoscope(body: HoroscopeBody, request: Request) -> dict:
     transits = astrology._planet_positions(_julian_day(today))
 
     aspect = strongest_aspect(natal["points"], transits)
-    text = compose(body.name, natal, transits, aspect, locale)
+    second_aspect = secondary_aspect(natal["points"], transits, aspect) if aspect else None
+    text = compose(
+        body.name,
+        natal,
+        transits,
+        aspect,
+        locale,
+        weekday=today.weekday(),
+        second_aspect=second_aspect,
+    )
 
     return {
         "locale": locale,
@@ -376,6 +545,14 @@ def free_horoscope(body: HoroscopeBody, request: Request) -> dict:
                 "transit_label": PLANET_LABELS[locale][aspect["transit"]],
             }
             if aspect
+            else None
+        ),
+        "second_aspect": (
+            {
+                **second_aspect,
+                "transit_label": PLANET_LABELS[locale][second_aspect["transit"]],
+            }
+            if second_aspect
             else None
         ),
         # Hora não informada faz o Ascendente ser chute, e o Ascendente entra na

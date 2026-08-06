@@ -9,7 +9,7 @@ Duas propriedades sustentam a rota, e as duas quebram silenciosamente:
    aspectos contra o mapa delas são diferentes.
 """
 
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta, timezone
 
 import pytest
 
@@ -20,7 +20,7 @@ from app import astrology, horoscope_free
 def geocoded(monkeypatch):
     # São Paulo. Geocoding real na suíte deixaria o teste dependente da rede e
     # da política de uso do Nominatim.
-    monkeypatch.setattr(astrology, "resolve_coordinates", lambda city, country: (-23.55, -46.63))
+    monkeypatch.setattr(astrology, "resolve_coordinates", lambda city, country, state=None: (-23.55, -46.63))
 
 
 BASE = {
@@ -42,7 +42,7 @@ def test_devolve_horoscopo_do_dia_com_o_nome_da_pessoa(client, geocoded):
     assert "Mariana" in body["paragraphs"][0]
     # Sobrenome não entra: é assim que uma pessoa chama a outra.
     assert "Alves" not in body["body_html"]
-    assert len(body["paragraphs"]) == 3
+    assert len(body["paragraphs"]) >= 4
     assert body["date"] == date.today().isoformat()
     assert body["locked"] is True
 
@@ -128,7 +128,7 @@ def test_data_futura_e_recusada_na_lingua_do_visitante(client, geocoded):
 
 
 def test_cidade_desconhecida_devolve_erro_legivel(client, monkeypatch):
-    monkeypatch.setattr(astrology, "resolve_coordinates", lambda city, country: None)
+    monkeypatch.setattr(astrology, "resolve_coordinates", lambda city, country, state=None: None)
     response = client.post("/api/horoscopo/gratis", json={**BASE, "locale": "pt-BR"})
 
     assert response.status_code == 422
@@ -163,7 +163,7 @@ def test_vitrine_argentina_geocodifica_na_argentina(client, monkeypatch):
     monkeypatch.setattr(
         astrology,
         "resolve_coordinates",
-        lambda city, country: paises.append(country) or (-31.42, -64.18),
+        lambda city, country, state=None: paises.append(country) or (-31.42, -64.18),
     )
     payload = {key: value for key, value in BASE.items() if key != "birth_country"}
 
@@ -171,3 +171,58 @@ def test_vitrine_argentina_geocodifica_na_argentina(client, monkeypatch):
     client.post("/api/horoscopo/gratis", json={**payload, "birth_city": "Córdoba", "locale": "pt-BR"})
 
     assert paises == ["AR", "BR"], paises
+
+
+def test_leitura_gratis_e_bem_mais_longa_que_a_versao_antiga(client, geocoded):
+    """Alvo do alongamento: pelo menos ~3x o tamanho do texto de 3 parágrafos antigo."""
+    body = client.post("/api/horoscopo/gratis", json={**BASE, "locale": "pt-BR"}).json()
+
+    assert len(body["paragraphs"]) >= 4
+    assert len(body["body_html"]) >= 900, len(body["body_html"])
+
+
+def test_leitura_traz_clima_geral_do_dia(client, geocoded):
+    """Regente do dia da semana + fase lunar formam o bloco de clima geral."""
+    body = client.post("/api/horoscopo/gratis", json={**BASE, "locale": "pt-BR"}).json()
+
+    assert "regido" in body["paragraphs"][1]
+    assert "Lua está em fase" in body["paragraphs"][1]
+
+
+def test_sem_hora_o_texto_avisa_honestamente_sobre_o_ascendente(client, geocoded):
+    payload = {key: value for key, value in BASE.items() if key != "birth_time"}
+    body = client.post("/api/horoscopo/gratis", json={**payload, "locale": "pt-BR"}).json()
+
+    assert any("Ascendente" in paragrafo and "estimado" in paragrafo for paragrafo in body["paragraphs"])
+
+
+def test_com_hora_o_texto_nao_traz_aviso_de_ascendente_estimado(client, geocoded):
+    body = client.post("/api/horoscopo/gratis", json={**BASE, "locale": "pt-BR"}).json()
+
+    assert not any("estimado" in paragrafo for paragrafo in body["paragraphs"])
+
+
+def test_segundo_aspecto_entra_no_texto_quando_existe(geocoded):
+    """Duas pessoas com aspectos diferentes hoje geram blocos de trânsito diferentes."""
+    from app.horoscope_free import HoroscopeBody, compose, natal_chart, secondary_aspect, strongest_aspect
+
+    body = HoroscopeBody(**BASE, locale="pt-BR")
+    natal = natal_chart(body, "pt-BR")
+    transitos = astrology._planet_positions(horoscope_free._julian_day(datetime(2026, 3, 1, 12, tzinfo=timezone.utc)))
+
+    aspecto = strongest_aspect(natal["points"], transitos)
+    segundo = secondary_aspect(natal["points"], transitos, aspecto)
+
+    if segundo:
+        assert segundo["transit"] != aspecto["transit"] or segundo["point"] != aspecto["point"]
+        texto = compose("Mariana", natal, transitos, aspecto, "pt-BR", second_aspect=segundo)
+        assert len(texto["paragraphs"]) >= 5
+
+
+@pytest.mark.parametrize(
+    "locale,proibida",
+    [("es-AR", "clima geral"), ("pt-BR", "clima general")],
+)
+def test_bloco_de_clima_geral_nao_vaza_idioma(client, geocoded, locale, proibida):
+    body = client.post("/api/horoscopo/gratis", json={**BASE, "locale": locale}).json()
+    assert proibida not in body["body_html"], body["body_html"]
