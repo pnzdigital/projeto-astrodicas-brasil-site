@@ -26,7 +26,7 @@ BIRTH = {
 def geocoded(monkeypatch):
     """Geocoding é desligado no conftest; aqui fixamos coordenadas reais de
     Recife para exercitar o caminho feliz sem tocar a rede."""
-    monkeypatch.setattr(astrology, "resolve_coordinates", lambda city, country: (-8.0476, -34.877))
+    monkeypatch.setattr(astrology, "resolve_coordinates", lambda city, country, state=None: (-8.0476, -34.877))
     yield
 
 
@@ -134,7 +134,7 @@ def test_preview_texts_are_localized_for_es_ar(client, geocoded):
 
 
 def test_preview_unknown_city_returns_localized_error(client, monkeypatch):
-    monkeypatch.setattr(astrology, "resolve_coordinates", lambda city, country: None)
+    monkeypatch.setattr(astrology, "resolve_coordinates", lambda city, country, state=None: None)
 
     response = client.post("/api/preview/natal", json={**BIRTH, "birth_city": "Zzzz Inexistente"})
     assert response.status_code == 422

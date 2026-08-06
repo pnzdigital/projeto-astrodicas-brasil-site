@@ -105,3 +105,25 @@ OFFLINE_CITIES: dict[str, dict[str, tuple[float, float]]] = {
         "rio cuarto": (-33.1237585, -64.3489782),
     },
 }
+
+"""Cidades homônimas: mesmo nome, coordenadas bem diferentes conforme o
+estado/provincia. "Santa Cruz" existe em varios estados do Brasil (aqui: Rio
+Grande do Norte e Pernambuco) e "Cordoba"/"Santa Fe" existem tanto na
+Argentina quanto fora dela — por isso o pais ja resolve esse ultimo caso.
+Dentro do mesmo pais, so o estado/provincia desambigua.
+
+Chave externa: pais (BR/AR). Chave do meio: sigla da UF (BR, minuscula) ou
+provincia normalizada por normalize_city_query (AR). Chave interna: cidade
+normalizada, igual a tabela de cima.
+"""
+OFFLINE_CITIES_BY_STATE: dict[str, dict[str, dict[str, tuple[float, float]]]] = {
+    "BR": {
+        "rn": {
+            "santa cruz": (-6.2280556, -36.0263889),
+        },
+        "pe": {
+            "santa cruz": (-7.9768923, -39.0300758),
+        },
+    },
+    "AR": {},
+}

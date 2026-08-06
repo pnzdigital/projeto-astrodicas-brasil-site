@@ -49,7 +49,7 @@ def recife_coords(monkeypatch):
     monkeypatch.setattr(
         astrology,
         "resolve_coordinates",
-        lambda city, country: (-8.0476, -34.877),
+        lambda city, country, state=None: (-8.0476, -34.877),
     )
 
 

@@ -9,7 +9,7 @@ from zoneinfo import ZoneInfo
 
 import swisseph as swe
 
-from .geocoding_data import OFFLINE_CITIES
+from .geocoding_data import OFFLINE_CITIES, OFFLINE_CITIES_BY_STATE
 
 
 SIGNS = (
@@ -44,11 +44,12 @@ def normalize_city_query(raw: str) -> str:
 # a cota e reintroduz o mesmo risco que a tabela offline resolve. Cache de
 # processo é suficiente aqui — não é dado sensível e o processo reinicia a
 # cada deploy.
-_ONLINE_CACHE: dict[tuple[str, str], tuple[float, float] | None] = {}
+_ONLINE_CACHE: dict[tuple[str, str, str | None], tuple[float, float] | None] = {}
 
 
-def _geocode_online(city: str, country: str) -> tuple[float, float] | None:
-    query = urlencode({"q": f"{city}, {country}", "format": "jsonv2", "limit": 1})
+def _geocode_online(city: str, country: str, state: str | None = None) -> tuple[float, float] | None:
+    location = f"{city}, {state}, {country}" if state else f"{city}, {country}"
+    query = urlencode({"q": location, "format": "jsonv2", "limit": 1})
     request = Request(
         f"https://nominatim.openstreetmap.org/search?{query}",
         headers={"User-Agent": "AstroDicas/1.0 (portal astrodicas.pnzdigital.com.br)"},
@@ -63,26 +64,39 @@ def _geocode_online(city: str, country: str) -> tuple[float, float] | None:
     return None
 
 
-def resolve_coordinates(city: str, country: str) -> tuple[float, float] | None:
+def resolve_coordinates(city: str, country: str, state: str | None = None) -> tuple[float, float] | None:
     """Cidade -> (lat, lon), sem depender só do Nominatim.
 
-    Ordem: tabela offline das capitais/polos urbanos do BR e da AR (rápida,
-    sem rede, cobre a maior parte do tráfego pago) e só então o Nominatim
-    como reforço para cidades fora da tabela — nunca como via única, e com
-    cache de processo para não repetir a mesma chamada.
+    Ordem: tabela offline por estado/provincia (desambigua homônimas como
+    "Santa Cruz", quando o estado veio preenchido), depois a tabela offline
+    das capitais/polos urbanos do BR e da AR (rápida, sem rede, cobre a maior
+    parte do tráfego pago) e só então o Nominatim como reforço para cidades
+    fora das duas — nunca como via única, e com cache de processo para não
+    repetir a mesma chamada.
+
+    ``state`` é opcional: requisição sem esse campo (todo o tráfego que já
+    está no ar) cai direto na tabela plana / Nominatim, exatamente como antes.
     """
     if not city or os.getenv("GEOCODING_ENABLED", "1") != "1":
         return None
     country = (country or "").upper()
     normalized = normalize_city_query(city)
+    normalized_state = normalize_city_query(state) if state else None
+
+    if normalized_state:
+        by_state = OFFLINE_CITIES_BY_STATE.get(country, {}).get(normalized_state, {})
+        offline_with_state = by_state.get(normalized)
+        if offline_with_state:
+            return offline_with_state
+
     offline = OFFLINE_CITIES.get(country, {}).get(normalized)
     if offline:
         return offline
 
-    cache_key = (normalized, country)
+    cache_key = (normalized, country, normalized_state)
     if cache_key in _ONLINE_CACHE:
         return _ONLINE_CACHE[cache_key]
-    result = _geocode_online(city, country)
+    result = _geocode_online(city, country, state)
     _ONLINE_CACHE[cache_key] = result
     return result
 

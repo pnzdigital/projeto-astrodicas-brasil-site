@@ -70,6 +70,7 @@ test('Lead dispara ao enviar o formulário e receber a leitura (pt-BR)', async (
   document.getElementById('f-date').value = '1990-01-01';
   document.getElementById('f-time').value = '10:00';
   document.getElementById('f-city').value = 'São Paulo';
+  [...document.getElementById('f-state').options].find((o) => o.value === 'SP').selected = true;
   const form = document.getElementById('form');
   form.dispatchEvent(new form.ownerDocument.defaultView.Event('submit', { cancelable: true, bubbles: true }));
   await new Promise((r) => setTimeout(r, 20));
@@ -83,6 +84,7 @@ test('InitiateCheckout dispara ao clicar no CTA do Plano Lua (pt-BR)', async () 
   document.getElementById('f-date').value = '1990-01-01';
   document.getElementById('f-time').value = '10:00';
   document.getElementById('f-city').value = 'São Paulo';
+  [...document.getElementById('f-state').options].find((o) => o.value === 'SP').selected = true;
   const form = document.getElementById('form');
   form.dispatchEvent(new form.ownerDocument.defaultView.Event('submit', { cancelable: true, bubbles: true }));
   await new Promise((r) => setTimeout(r, 20));
