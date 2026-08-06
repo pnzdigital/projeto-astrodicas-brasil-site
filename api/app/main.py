@@ -1,7 +1,9 @@
 import hashlib
 import hmac
 import json
+import logging
 import os
+import secrets
 from datetime import date, datetime, time, timedelta, timezone
 from pathlib import Path
 
@@ -14,6 +16,7 @@ from sqlalchemy.orm import Session
 
 from .db import Base, engine, get_db
 from .astrology import resolve_coordinates
+from .mailer import send_purchase_confirmation
 from . import admin, checkout, entitlements, horoscope_free, migrations, preview, pricing, security, sessions, subscriptions
 from .ratelimit import auth_rate_limit, password_reset_rate_limit, webhook_rate_limit
 from .engine import generate_reading
@@ -27,6 +30,8 @@ from .security import (
     verify_password,
 )
 
+
+logger = logging.getLogger(__name__)
 
 SITE_ROOT = Path(__file__).resolve().parents[2]
 app = FastAPI(title="AstroDicas Site API", version="1.0.0")
@@ -571,8 +576,14 @@ async def webhook(provider: str, body: WebhookBody, request: Request, db: Sessio
     event = WebhookEvent(provider=provider, event_id=body.event_id, payload=body.model_dump(mode="json"))
     db.add(event)
     user = db.scalar(select(User).where(User.email == body.email.lower()))
+    temp_password: str | None = None
     if not user:
-        user = User(email=body.email.lower(), password_hash=hash_password(os.urandom(18).hex()), name="Cliente AstroDicas")
+        # A senha precisa sair daqui para o e-mail. Antes ela era descartada no
+        # mesmo instante em que nascia (``os.urandom`` direto no hash), e o
+        # cliente pagava, ganhava a conta e não tinha como entrar nela: sobrava
+        # o "esqueci a senha", que depende do mesmo e-mail que ninguém mandou.
+        temp_password = secrets.token_urlsafe(9)
+        user = User(email=body.email.lower(), password_hash=hash_password(temp_password), name="Cliente AstroDicas")
         db.add(user)
         db.flush()
     order = Order(user_id=user.id, provider=provider, external_id=body.external_id or body.event_id, product_id=body.product_id, status=body.status, amount_minor=body.amount_minor, currency=body.currency, customer_email=user.email, raw_payload=body.model_dump(mode="json"))
@@ -584,6 +595,25 @@ async def webhook(provider: str, body: WebhookBody, request: Request, db: Sessio
         else:
             entitlement.status = "available"
     db.commit()
+
+    # Depois do commit de propósito: o acesso é o que a pessoa pagou, e ele não
+    # pode depender do provedor de e-mail estar de pé. Se o envio falhar, a
+    # compra continua válida e o log grita — silêncio aqui significa cliente
+    # pagante trancado do lado de fora, que é o pior jeito de descobrir.
+    delivery = send_purchase_confirmation(
+        email=user.email,
+        name=user.name,
+        product_title=pricing.title_for(body.product_id, None),
+        amount_label=pricing.format_amount(body.amount_minor, body.currency),
+        temp_password=temp_password,
+    )
+    if not delivery.get("sent"):
+        logger.error(
+            "Compra confirmada sem e-mail entregue: user=%s product=%s erro=%s",
+            user.id,
+            body.product_id,
+            delivery.get("error"),
+        )
     return {"ok": True, "user_id": user.id, "product_id": body.product_id}
 
 
