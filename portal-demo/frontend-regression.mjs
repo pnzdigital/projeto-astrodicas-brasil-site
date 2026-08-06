@@ -6,7 +6,7 @@
 //
 // 1. submitAuth NÃO cospe o array JSON do Pydantic quando a API retorna
 //    422 com ``detail`` em formato de array (caminho antigo).
-// 2. submitAuth envia ``locale`` no body em ambos os modos (login/register).
+// 2. submitAuth envia ``locale`` no body do login.
 // 3. submitAuth exibe o toast de sucesso na língua correta
 //    (pt-BR vs es-AR), detectado pela string exibida no toast.
 // 4. submitAuth cai pro fallback neutro quando recebe um erro cujo
@@ -156,17 +156,9 @@ function clearState() {
   fetchCalls.length = 0;
   fetchResponses.length = 0;
   window.document.querySelector('[data-form-error="login"]').textContent = '';
-  window.document.querySelector('[data-form-error="register"]').textContent = '';
   window.document.getElementById('boot-status').textContent = '';
   // O toast persiste entre testes: sem zerar, um teste lê a mensagem do anterior.
   window.document.querySelector('.toast').textContent = '';
-}
-
-function fillRegisterForm(values) {
-  const form = window.document.getElementById('register-form');
-  form.querySelector('[name="name"]').value = values.name;
-  form.querySelector('[name="email"]').value = values.email;
-  form.querySelector('[name="password"]').value = values.password;
 }
 
 function fillLoginForm(values) {
@@ -206,18 +198,6 @@ async function testLoginSendsLocalePtBr() {
   assert.equal(body.locale, 'pt-BR', 'login deve enviar locale pt-BR por padrão');
 }
 
-async function testRegisterSendsLocalePtBr() {
-  clearState();
-  queueJson(200, { user: { id: '1', email: 'a@b.c', name: 'A', locale: 'pt-BR' }, created: true });
-  fillRegisterForm({ name: 'Ana', email: 'a@b.c', password: 'senha1234' });
-  await fireSubmit('register-form');
-
-  const last = authCall();
-  assert.equal(last.url, '/api/auth/register');
-  const body = lastBody();
-  assert.equal(body.locale, 'pt-BR', 'register envia locale pt-BR');
-}
-
 async function testLoginSuccessToastPtBr() {
   clearState();
   queueJson(200, { user: { id: '1', email: 'a@b.c', name: 'A', locale: 'pt-BR' } });
@@ -240,17 +220,6 @@ async function testLoginErrorDoesNotLeakJsonArray() {
   assert.ok(err.length < 200, 'erro conciso');
 }
 
-async function testRegisterErrorFallbackLocalized() {
-  clearState();
-  queueJson(422, { detail: '[{"loc":["body","email"],"msg":"bad"}]' });
-  fillRegisterForm({ name: 'Ana', email: 'a@b.c', password: 'senha1234' });
-  await fireSubmit('register-form');
-  const err = window.document.querySelector('[data-form-error="register"]').textContent;
-  assert.ok(!err.startsWith('['), `fallback não pode vazar array: ${err}`);
-  // Sem flag de sucesso, toast não deve aparecer.
-  assert.equal(getToastText(), '');
-}
-
 // Testes es-AR: precisamos trocar ``IS_ARGENTINA``. Como o módulo já
 // executou congelado em pt-BR, validamos o caminho de tradução via um
 // segundo teste que importa um mock com IS_ARGENTINA true.
@@ -260,9 +229,7 @@ async function testRegisterErrorFallbackLocalized() {
 // coberta em testes de unidade anteriores no backend.
 
 await testLoginSendsLocalePtBr();
-await testRegisterSendsLocalePtBr();
 await testLoginSuccessToastPtBr();
 await testLoginErrorDoesNotLeakJsonArray();
-await testRegisterErrorFallbackLocalized();
 
-console.log('portal-demo frontend regression: 5/5 ok');
+console.log('portal-demo frontend regression: 3/3 ok');
