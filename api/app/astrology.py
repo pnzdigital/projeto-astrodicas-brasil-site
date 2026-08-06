@@ -1,11 +1,15 @@
 import json
 import os
+import re
+import unicodedata
 from datetime import datetime, timezone
 from urllib.parse import urlencode
 from urllib.request import Request, urlopen
 from zoneinfo import ZoneInfo
 
 import swisseph as swe
+
+from .geocoding_data import OFFLINE_CITIES
 
 
 SIGNS = (
@@ -21,9 +25,29 @@ PLANETS = (
 ASPECTS = ((0, "conjunção"), (60, "sextil"), (90, "quadratura"), (120, "trígono"), (180, "oposição"))
 
 
-def resolve_coordinates(city: str, country: str) -> tuple[float, float] | None:
-    if not city or os.getenv("GEOCODING_ENABLED", "1") != "1":
-        return None
+# Cidade pode chegar como "Petrolina/PE", "Petrolina - PE" ou "Petrolina, Brasil":
+# a landing não força formato. Isolamos só o nome da cidade (primeiro token
+# antes do separador) tanto para bater na tabela offline quanto para montar
+# uma query online mais limpa.
+_CITY_SEPARATORS = re.compile(r"\s*(?:/|-|,)\s*")
+
+
+def normalize_city_query(raw: str) -> str:
+    city = _CITY_SEPARATORS.split(raw.strip(), maxsplit=1)[0]
+    stripped = unicodedata.normalize("NFD", city)
+    without_accents = "".join(ch for ch in stripped if unicodedata.category(ch) != "Mn")
+    return re.sub(r"\s+", " ", re.sub(r"[^a-zA-Z ]", " ", without_accents)).strip().lower()
+
+
+# Nominatim é de uso público e cobrado por chamada (política de 1 req/s sem
+# chave): repetir a mesma cidade em cada acesso ao horóscopo grátis desperdiça
+# a cota e reintroduz o mesmo risco que a tabela offline resolve. Cache de
+# processo é suficiente aqui — não é dado sensível e o processo reinicia a
+# cada deploy.
+_ONLINE_CACHE: dict[tuple[str, str], tuple[float, float] | None] = {}
+
+
+def _geocode_online(city: str, country: str) -> tuple[float, float] | None:
     query = urlencode({"q": f"{city}, {country}", "format": "jsonv2", "limit": 1})
     request = Request(
         f"https://nominatim.openstreetmap.org/search?{query}",
@@ -37,6 +61,30 @@ def resolve_coordinates(city: str, country: str) -> tuple[float, float] | None:
     except (OSError, ValueError, KeyError, IndexError):
         return None
     return None
+
+
+def resolve_coordinates(city: str, country: str) -> tuple[float, float] | None:
+    """Cidade -> (lat, lon), sem depender só do Nominatim.
+
+    Ordem: tabela offline das capitais/polos urbanos do BR e da AR (rápida,
+    sem rede, cobre a maior parte do tráfego pago) e só então o Nominatim
+    como reforço para cidades fora da tabela — nunca como via única, e com
+    cache de processo para não repetir a mesma chamada.
+    """
+    if not city or os.getenv("GEOCODING_ENABLED", "1") != "1":
+        return None
+    country = (country or "").upper()
+    normalized = normalize_city_query(city)
+    offline = OFFLINE_CITIES.get(country, {}).get(normalized)
+    if offline:
+        return offline
+
+    cache_key = (normalized, country)
+    if cache_key in _ONLINE_CACHE:
+        return _ONLINE_CACHE[cache_key]
+    result = _geocode_online(city, country)
+    _ONLINE_CACHE[cache_key] = result
+    return result
 
 
 def _sign_position(longitude: float) -> dict:
