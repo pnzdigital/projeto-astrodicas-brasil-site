@@ -53,6 +53,25 @@ def test_fallback_reading_es_ar_locale():
     assert result.startswith("<p>")
 
 
+def test_fallback_reading_es_ar_translates_sun_sign():
+    # Bug reproduzido em QA local (2026-08-06): o fallback es-AR embutia o
+    # nome do signo em pt-BR ("Escorpião") porque sun_sign() ignorava locale.
+    # O guard de idioma (_has_foreign_script) não pega isso: alfabeto latino
+    # em ambos os idiomas. Trava aqui, com os pares mais divergentes.
+    result = engine._fallback_reading(_Profile(date(1990, 10, 25), "Buenos Aires"), "es-AR")
+    assert "Escorpio" in result
+    assert "Escorpião" not in result
+
+    result_br = engine._fallback_reading(_Profile(date(1990, 10, 25), "São Paulo"), "pt-BR")
+    assert "Escorpião" in result_br
+
+
+def test_sun_sign_es_ar_uses_spanish_names():
+    assert engine.sun_sign(date(2000, 4, 20), "es-AR") == "Tauro"
+    assert engine.sun_sign(date(2000, 1, 1), "es-AR") == "Capricornio"
+    assert engine.sun_sign(None, "es-AR") == "tu signo solar"
+
+
 def test_fallback_reading_without_profile():
     result = engine._fallback_reading(None, "pt-BR")
     assert "seu signo solar" in result or "signo solar" in result

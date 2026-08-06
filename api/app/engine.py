@@ -75,9 +75,23 @@ class ReadingResult:
 # body. To detect the source, callers should use ``isinstance(result, ReadingResult)``.
 
 
-def sun_sign(birth_date: date | None) -> str:
+# Nomes de signo em pt-BR (chave usada internamente e no prompt do LLM) mapeados
+# para o equivalente em es-AR. O fallback editorial embute esse nome diretamente
+# no texto entregue ao cliente, então precisa estar no idioma certo — um nome em
+# português dentro de uma leitura es-AR é o mesmo tipo de vazamento de idioma que
+# o _has_foreign_script tenta pegar, só que em alfabeto latino (não detectável
+# por aquele guard).
+SIGN_NAMES_ES_AR = {
+    "Aquário": "Acuario", "Peixes": "Piscis", "Áries": "Aries",
+    "Touro": "Tauro", "Gêmeos": "Géminis", "Câncer": "Cáncer",
+    "Leão": "Leo", "Virgem": "Virgo", "Libra": "Libra",
+    "Escorpião": "Escorpio", "Sagitário": "Sagitario", "Capricórnio": "Capricornio",
+}
+
+
+def sun_sign(birth_date: date | None, locale: str = "pt-BR") -> str:
     if not birth_date:
-        return "seu signo solar"
+        return "tu signo solar" if locale == "es-AR" else "seu signo solar"
     month_day = (birth_date.month, birth_date.day)
     signs = [
         ((1, 20), "Aquário"), ((2, 19), "Peixes"), ((3, 21), "Áries"),
@@ -85,10 +99,14 @@ def sun_sign(birth_date: date | None) -> str:
         ((7, 23), "Leão"), ((8, 23), "Virgem"), ((9, 23), "Libra"),
         ((10, 23), "Escorpião"), ((11, 22), "Sagitário"), ((12, 22), "Capricórnio"),
     ]
+    name = "Capricórnio"
     for boundary, sign in reversed(signs):
         if month_day >= boundary:
-            return sign
-    return "Capricórnio"
+            name = sign
+            break
+    if locale == "es-AR":
+        return SIGN_NAMES_ES_AR.get(name, name)
+    return name
 
 
 def _profile_context(profile, customer_name: str = "") -> dict:
@@ -253,7 +271,7 @@ def _paragraphs_to_html(text: str) -> str:
 
 
 def _fallback_reading(profile, locale: str) -> str:
-    sign = sun_sign(profile.birth_date if profile else None)
+    sign = sun_sign(profile.birth_date if profile else None, locale)
     city = profile.birth_city if profile and profile.birth_city else "seu lugar de nascimento"
     if locale == "es-AR":
         return (
