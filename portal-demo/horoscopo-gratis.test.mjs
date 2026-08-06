@@ -86,7 +86,39 @@ test('renderReading escolhe a oferta certa por idioma: es -> trial, pt -> Plano 
 // ── Copy honesta do trial: cancelamento explícito, sem cobrança nos 3 dias ──
 
 test('copy es-AR do trial deixa explícito que dá pra cancelar sem pagar nada', () => {
-  assert.match(html, /cancelás cuando quieras antes de que terminen y no pagás nada/i);
+  assert.match(html, /cancelás cuando quieras y no pagás nada/i);
+});
+
+test('copy es-AR deixa explícita a cobrança futura: dia 4 cobra o Plan Luna', () => {
+  assert.match(html, /día 4.*se cobra el Plan Luna/i);
+});
+
+test('copy pt-BR NÃO promete trial nem período grátis com cartão', () => {
+  const match = html.match(/\} : \{([\s\S]*?)\n\s*\};/);
+  assert.ok(match, 'objeto de copy pt-BR não encontrado');
+  const ptCopy = match[1];
+  for (const termoTrial of ['dias grátis', 'trial', 'não se cobra nada hoje']) {
+    assert.ok(!ptCopy.toLowerCase().includes(termoTrial.toLowerCase()), `pt-BR promete trial: "${termoTrial}"`);
+  }
+});
+
+test('copy pt-BR deixa explícita a cobrança recorrente mensal a partir de hoje', () => {
+  assert.match(html, /cobrança recorrente a partir de hoje/i);
+  assert.match(html, /Cancela quando quiser.*para de cobrar no ciclo seguinte/i);
+});
+
+test('bullets do Plano Lua batem com o que o produto realmente entrega (horóscopo diário + guia do mês), sem prometer Mapa Astral de brinde', () => {
+  const match = html.match(/\} : \{([\s\S]*?)\n\s*\};/);
+  const ptCopy = match[1];
+  assert.ok(/[Gg]uia do [Mm]ês/.test(ptCopy), 'bullet do Guia do Mês ausente no pt-BR');
+  assert.ok(!/[Mm]apa [Aa]stral.*brinde/.test(ptCopy), 'pt-BR promete Mapa Astral de brinde, que o Plano Lua não entrega');
+  const esMatch = html.match(/const copy = es \? \{([\s\S]*?)\n\s*\} : \{/);
+  const esCopy = esMatch[1];
+  assert.ok(/[Gg]uía del mes/.test(esCopy), 'bullet da Guía del mes ausente no es-AR');
+});
+
+test('preço do offer-price pt-BR usa priceLabel vindo do /api/catalog (via offerBilling), não valor fixo', () => {
+  assert.match(html, /offerBilling\.replace\('\{price\}', priceLabel\)/);
 });
 
 // ── Localização: nada de PT vazando pro ES e vice-versa ─────────────────────

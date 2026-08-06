@@ -43,7 +43,9 @@
     .card{padding:26px;border:1px solid var(--line);background:linear-gradient(135deg,rgba(40,29,91,.72),rgba(14,11,46,.86))}
     .field{display:grid;gap:6px;margin-bottom:14px}
     label{color:var(--muted);font-size:12px;font-weight:600;letter-spacing:.04em;text-transform:uppercase}
-    input{min-height:47px;padding:0 13px;border:1px solid rgba(244,239,228,.18);border-radius:5px;background:rgba(8,7,25,.55);color:var(--cream);font:400 15px var(--body)}
+    input,select{min-height:47px;padding:0 13px;border:1px solid rgba(244,239,228,.18);border-radius:5px;background:rgba(8,7,25,.55);color:var(--cream);font:400 15px var(--body)}
+    select{-webkit-appearance:none;appearance:none}
+    select option{background:var(--ink);color:var(--cream)}
     small.hint{color:var(--faint);font-size:11px}
     .button{display:inline-flex;min-height:50px;width:100%;align-items:center;justify-content:center;gap:8px;padding:0 20px;border:1px solid var(--gold);border-radius:5px;color:#181006;background:var(--gold);font:700 15px var(--body);cursor:pointer;transition:transform .18s ease,background .18s ease}
     .button:hover{transform:translateY(-2px);background:var(--gold-lit)}.button[disabled]{opacity:.55;cursor:progress;transform:none}
@@ -87,6 +89,7 @@
         <div class="field"><label for="f-date" data-copy="dateLabel">Data de nascimento</label><input id="f-date" name="birth_date" type="date" required></div>
         <div class="field"><label for="f-time" data-copy="timeLabel">Hora de nascimento</label><input id="f-time" name="birth_time" type="time" required><small class="hint" data-copy="timeHint">A hora define seu Ascendente — a parte que o horóscopo de revista ignora.</small></div>
         <div class="field"><label for="f-city" data-copy="cityLabel">Cidade de nascimento</label><input id="f-city" name="birth_city" type="text" autocomplete="off" required></div>
+        <div class="field"><label for="f-state" data-copy="stateLabel">Estado de nascimento</label><select id="f-state" name="birth_state" required></select></div>
         <button class="button" type="submit" id="submit" data-copy="cta">Ver meu horóscopo grátis →</button>
         <p class="error" role="alert" id="form-error"></p>
         <p class="note" data-copy="note">Não pedimos e-mail nem cartão pra mostrar seu horóscopo de hoje.</p>
@@ -113,23 +116,25 @@
       timeLabel: 'Hora de nacimiento',
       timeHint: 'La hora define tu Ascendente — lo que el horóscopo de revista ignora.',
       cityLabel: 'Ciudad de nacimiento',
+      stateLabel: 'Provincia de nacimiento',
+      statePlaceholder: 'Elegí tu provincia',
       cta: 'Ver mi horóscopo gratis →',
       note: 'No pedimos e-mail ni tarjeta para mostrarte tu horóscopo de hoy.',
       disclaimer: 'Contenido de astrología con fines de autoconocimiento y entretenimiento. No reemplaza orientación médica, psicológica, jurídica ni financiera.',
-      missing: 'Completá nombre, fecha, hora y ciudad de nacimiento.',
+      missing: 'Completá nombre, fecha, hora, ciudad y provincia de nacimiento.',
       genericError: 'No pudimos calcular tu horóscopo ahora. Probá de nuevo en unos instantes.',
       loading: 'Calculando…',
       resultTitleFallback: 'Tu horóscopo de hoy',
-      offerTitle: '3 días de horóscopo diario gratis',
-      offerLede: 'Después de hoy, seguimos calculando tu cielo todos los días. Empezá los 3 días gratis — cancelás cuando quieras antes de que terminen y no pagás nada.',
+      offerTitle: 'Lo que acabás de leer es apenas hoy',
+      offerLede: 'Mañana tu cielo cambia y el Plan Luna sigue calculándolo por vos, todos los días. Empezá con 3 días gratis — la tarjeta se pide para activar el acceso, pero no se cobra nada hasta el día 4.',
       offerItems: [
-        'Horóscopo personalizado todos los días, calculado sobre tu carta',
+        'Horóscopo personalizado todos los días, calculado sobre tu carta — no una lectura genérica de revista',
+        'Guía del mes con los movimientos astrales que vienen',
         'Acceso a tu área en el sitio con todo guardado',
-        'Cancelás en un clic, cuando quieras, dentro de los 3 días — no se cobra nada',
       ],
       offerCardTitle: 'Empezar mis 3 días gratis',
-      offerCardLede: 'Pedimos tu tarjeta para activar el acceso, pero no se cobra nada hoy. Recién después de los 3 días gratis, si no cancelaste, se cobra el Plan Luna.',
-      honesty: 'Podés cancelar cuando quieras antes de que terminen los 3 días y no pagás nada. Si no cancelás, al final del período gratuito se activa el Plan Luna al precio que ves arriba.',
+      offerCardLede: 'Pedimos tu tarjeta para activar el acceso, pero no se cobra nada hoy. Recién el día 4, si no cancelaste, se cobra el Plan Luna.',
+      honesty: 'Día 1 a 3: gratis, cancelás cuando quieras y no pagás nada. Día 4: si no cancelaste, se cobra el Plan Luna al precio de arriba, todos los meses, hasta que canceles.',
       startTrialCta: 'Empezar 3 días gratis →',
       buyerName: 'Nombre',
       buyerEmail: 'E-mail',
@@ -145,21 +150,24 @@
       timeLabel: 'Hora de nascimento',
       timeHint: 'A hora define seu Ascendente — a parte que o horóscopo de revista ignora.',
       cityLabel: 'Cidade de nascimento',
+      stateLabel: 'Estado de nascimento',
+      statePlaceholder: 'Selecione seu estado',
       cta: 'Ver meu horóscopo grátis →',
       note: 'Não pedimos e-mail nem cartão pra mostrar seu horóscopo de hoje.',
       disclaimer: 'Conteúdo de astrologia com finalidade de autoconhecimento e entretenimento. Não substitui orientação médica, psicológica, jurídica ou financeira.',
-      missing: 'Preencha nome, data, hora e cidade de nascimento.',
+      missing: 'Preencha nome, data, hora, cidade e estado de nascimento.',
       genericError: 'Não conseguimos calcular seu horóscopo agora. Tente de novo em instantes.',
       loading: 'Calculando…',
       resultTitleFallback: 'Seu horóscopo de hoje',
-      offerTitle: 'Continue recebendo todo dia',
-      offerLede: 'A leitura de hoje foi só o começo. Conheça o Plano Lua: horóscopo personalizado todo dia, Mapa Astral Completo e Guia do Mês — cancelável quando quiser.',
+      offerTitle: 'O que você leu foi só o de hoje',
+      offerLede: 'Amanhã o céu muda e o Plano Lua continua calculando por você, todo dia. Assinatura mensal, cobrança já a partir de hoje — sem período de teste, sem pegadinha.',
       offerItems: [
-        'Horóscopo personalizado todos os dias, calculado no seu mapa',
-        'Mapa Astral Completo de brinde na primeira assinatura',
-        'Cancela quando quiser, direto na sua área',
+        'Horóscopo personalizado todos os dias, calculado no seu mapa — não uma leitura genérica de revista',
+        'Guia do Mês com os movimentos astrais que vêm por aí',
+        'Acesso direto na sua área do site, sem precisar pedir de novo',
       ],
-      offerCta: 'Conhecer o Plano Lua →',
+      offerBilling: 'Assinatura de {price} por mês, cobrança recorrente a partir de hoje. Cancela quando quiser, direto na sua área — para de cobrar no ciclo seguinte.',
+      offerCta: 'Assinar o Plano Lua →',
       priceFallback: 'Consultar',
     };
 
@@ -175,6 +183,49 @@
     }
     document.querySelectorAll('[data-copy]').forEach((el) => { const v = copy[el.dataset.copy]; if (v) el.textContent = v; });
     document.getElementById('year').textContent = new Date().getFullYear();
+
+    // 27 UFs do Brasil / 24 provincias da Argentina. Select em vez de texto
+    // livre: cidade + estado desambiguam homônimas ("Santa Cruz" existe em
+    // vários estados do Brasil) só se o estado vier de uma lista fechada —
+    // texto livre digitado errado ("Sao paulo", "Bs As") reintroduziria o
+    // mesmo problema que o campo existe para resolver.
+    const BR_STATES = [
+      ['AC','Acre'],['AL','Alagoas'],['AP','Amapá'],['AM','Amazonas'],['BA','Bahia'],
+      ['CE','Ceará'],['DF','Distrito Federal'],['ES','Espírito Santo'],['GO','Goiás'],
+      ['MA','Maranhão'],['MT','Mato Grosso'],['MS','Mato Grosso do Sul'],['MG','Minas Gerais'],
+      ['PA','Pará'],['PB','Paraíba'],['PR','Paraná'],['PE','Pernambuco'],['PI','Piauí'],
+      ['RJ','Rio de Janeiro'],['RN','Rio Grande do Norte'],['RS','Rio Grande do Sul'],
+      ['RO','Rondônia'],['RR','Roraima'],['SC','Santa Catarina'],['SP','São Paulo'],
+      ['SE','Sergipe'],['TO','Tocantins'],
+    ];
+    const AR_PROVINCES = [
+      'Buenos Aires','Catamarca','Chaco','Chubut','Córdoba','Corrientes','Entre Ríos',
+      'Formosa','Jujuy','La Pampa','La Rioja','Mendoza','Misiones','Neuquén','Río Negro',
+      'Salta','San Juan','San Luis','Santa Cruz','Santa Fe','Santiago del Estero',
+      'Tierra del Fuego','Tucumán','Ciudad Autónoma de Buenos Aires',
+    ];
+    const stateSelect = document.getElementById('f-state');
+    const statePlaceholderOption = document.createElement('option');
+    statePlaceholderOption.value = '';
+    statePlaceholderOption.textContent = copy.statePlaceholder;
+    statePlaceholderOption.disabled = true;
+    statePlaceholderOption.selected = true;
+    stateSelect.appendChild(statePlaceholderOption);
+    if (es) {
+      AR_PROVINCES.forEach((name) => {
+        const option = document.createElement('option');
+        option.value = name;
+        option.textContent = name;
+        stateSelect.appendChild(option);
+      });
+    } else {
+      BR_STATES.forEach(([uf, name]) => {
+        const option = document.createElement('option');
+        option.value = uf;
+        option.textContent = `${name} (${uf})`;
+        stateSelect.appendChild(option);
+      });
+    }
 
     if (window.fbq) fbq('track', 'ViewContent', { content_name: 'horoscopo-gratis', content_language: locale });
 
@@ -206,7 +257,8 @@
       const birthDate = value('birth_date');
       const birthTime = value('birth_time');
       const birthCity = value('birth_city');
-      if (!name || !birthDate || !birthTime || !birthCity) { formError.textContent = copy.missing; return; }
+      const birthState = value('birth_state');
+      if (!name || !birthDate || !birthTime || !birthCity || !birthState) { formError.textContent = copy.missing; return; }
       submitButton.disabled = true;
       const previousLabel = submitButton.textContent;
       submitButton.textContent = copy.loading;
@@ -214,7 +266,7 @@
         const response = await fetch(`${API}/api/horoscopo/gratis`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json', 'Accept-Language': locale },
-          body: JSON.stringify({ name, birth_date: birthDate, birth_time: birthTime, birth_city: birthCity, locale }),
+          body: JSON.stringify({ name, birth_date: birthDate, birth_time: birthTime, birth_city: birthCity, birth_state: birthState, locale }),
         });
         const data = await response.json().catch(() => ({}));
         if (!response.ok) {
@@ -249,7 +301,8 @@
         <h3>${escapeHtml(copy.offerTitle)}</h3>
         <p class="lede">${escapeHtml(copy.offerLede)}</p>
         <ul>${copy.offerItems.map((item) => `<li>${escapeHtml(item)}</li>`).join('')}</ul>
-        <div class="price" id="offer-price">${escapeHtml(priceLabel)}</div>
+        <div class="price" id="offer-price">${escapeHtml(priceLabel)}<small>/mês</small></div>
+        <p class="honesty">${escapeHtml(copy.offerBilling.replace('{price}', priceLabel))}</p>
         <a class="button" id="offer-cta" href="${escapeHtml(checkoutUrl)}">${escapeHtml(copy.offerCta)}</a>
       </section>`;
     }
