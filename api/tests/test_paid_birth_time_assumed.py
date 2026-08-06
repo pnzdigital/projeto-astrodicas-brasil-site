@@ -21,6 +21,7 @@ from datetime import date
 import pytest
 
 from app import astrology, engine
+from app import main as main_module
 
 
 class _Profile:
@@ -184,3 +185,116 @@ def test_generate_reading_es_ar_localized_assumed_warning(monkeypatch):
     assert "Ascendente" in result_br.ascendant_warning["pt-BR"]
     assert "Ascendente" in result_es.ascendant_warning["es-AR"]
     assert result_br.ascendant_warning["pt-BR"] != result_es.ascendant_warning["es-AR"]
+
+
+# ── Ponta a ponta: onde o flag se perdia antes desta correção ───────────────
+#
+# ReadingResult já carregava birth_time_assumed/ascendant_warning (testes
+# acima), mas a rota /generate (api/app/main.py) descartava os dois campos ao
+# montar o objeto Reading persistido — só copiava body_html/source/sections.
+# Resultado: o flag morria no fim da requisição e nunca voltava pro cliente
+# pagante nem sobrevivia pra próxima leitura de /api/me/readings, nem pro PDF.
+
+
+def _register_and_pay(client, email="cliente@example.com", locale="pt-BR"):
+    from conftest import register as _register
+
+    response = _register(client, email, "senha-segura", name="Cliente Teste", locale=locale)
+    assert response.status_code == 200, response.text
+    payload = {
+        "event_id": f"evt-{email}",
+        "email": email,
+        "product_id": "site:mapa_astral",
+    }
+    granted = client.post("/api/webhooks/cakto", json=payload)
+    assert granted.status_code == 200, granted.text
+
+
+def test_paid_reading_persists_and_returns_birth_time_assumed_flag(client, monkeypatch):
+    """Fluxo completo sem hora: o flag tem que sobreviver ao commit do Reading
+    e voltar na resposta da rota /generate — é aqui que ele se perdia antes."""
+    monkeypatch.delenv("MINIMAX_API_KEY", raising=False)
+    _register_and_pay(client)
+    client.put(
+        "/api/me/profile",
+        json={"birth_date": "1990-05-20", "birth_time": None, "birth_city": "Recife", "birth_country": "BR"},
+    )
+
+    generated = client.post("/api/me/readings/site:content:mapa_astral_completo/generate")
+    assert generated.status_code == 200, generated.text
+    reading = generated.json()["reading"]
+
+    assert reading["birth_time_assumed"] is True, "flag some da resposta da API"
+    assert "Ascendente" in reading["ascendant_warning"], "aviso localizado tem que voltar na resposta"
+
+    # Persistência real: uma segunda leitura da lista (rota diferente, sem
+    # regenerar) precisa continuar carregando o flag vindo do banco.
+    listed = client.get("/api/me/readings")
+    assert listed.status_code == 200
+    same = next(r for r in listed.json()["readings"] if r["content_id"] == "site:content:mapa_astral_completo")
+    assert same["birth_time_assumed"] is True, "flag não persistiu no Reading salvo"
+    assert "Ascendente" in same["ascendant_warning"]
+
+
+def test_paid_reading_with_known_birth_time_has_no_warning(client, monkeypatch):
+    """Caminho feliz: hora informada, nenhum aviso deve aparecer."""
+    monkeypatch.delenv("MINIMAX_API_KEY", raising=False)
+    _register_and_pay(client, email="hora-informada@example.com")
+    client.put(
+        "/api/me/profile",
+        json={"birth_date": "1990-05-20", "birth_time": "12:30:00", "birth_city": "Recife", "birth_country": "BR"},
+    )
+
+    generated = client.post("/api/me/readings/site:content:mapa_astral_completo/generate")
+    assert generated.status_code == 200, generated.text
+    reading = generated.json()["reading"]
+
+    assert reading["birth_time_assumed"] is False
+    assert reading["ascendant_warning"] == ""
+
+
+def test_paid_reading_pdf_carries_ascendant_warning(client, monkeypatch):
+    """O PDF baixado é o que o cliente guarda — precisa carregar o mesmo aviso
+    da tela, não só a versão web."""
+    monkeypatch.delenv("MINIMAX_API_KEY", raising=False)
+    _register_and_pay(client, email="pdf@example.com")
+    client.put(
+        "/api/me/profile",
+        json={"birth_date": "1990-05-20", "birth_time": None, "birth_city": "Recife", "birth_country": "BR"},
+    )
+    generated = client.post("/api/me/readings/site:content:mapa_astral_completo/generate")
+    assert generated.status_code == 200, generated.text
+
+    captured = {}
+    real_build_pdf = main_module.build_pdf
+
+    def spy_build_pdf(title, sections, customer_name="", warning=""):
+        captured["warning"] = warning
+        return real_build_pdf(title, sections, customer_name=customer_name, warning=warning)
+
+    monkeypatch.setattr(main_module, "build_pdf", spy_build_pdf)
+
+    pdf_response = client.get("/api/me/readings/site:content:mapa_astral_completo/pdf")
+    assert pdf_response.status_code == 200, pdf_response.text
+    assert pdf_response.headers["content-type"] == "application/pdf"
+    assert "ESTIMATIVA" in captured["warning"].upper(), (
+        "PDF baixado precisa carregar o aviso de Ascendente estimado no texto passado ao gerador"
+    )
+
+
+def test_paid_reading_es_ar_returns_localized_warning(client, monkeypatch):
+    """Cliente argentino recebe o aviso em espanhol, não em português."""
+    monkeypatch.delenv("MINIMAX_API_KEY", raising=False)
+    _register_and_pay(client, email="argentina@example.com", locale="es-AR")
+    client.put(
+        "/api/me/profile",
+        json={"birth_date": "1990-05-20", "birth_time": None, "birth_city": "Buenos Aires", "birth_country": "AR"},
+    )
+
+    generated = client.post("/api/me/readings/site:content:mapa_astral_completo/generate")
+    assert generated.status_code == 200, generated.text
+    reading = generated.json()["reading"]
+
+    assert reading["birth_time_assumed"] is True
+    assert "Ascendente" in reading["ascendant_warning"]
+    assert "ESTIMACIÓN" in reading["ascendant_warning"].upper()

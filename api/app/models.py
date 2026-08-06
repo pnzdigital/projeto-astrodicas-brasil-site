@@ -153,6 +153,13 @@ class Reading(Base):
     # sendo preenchido sempre, para compat com leituras antigas e com qualquer
     # consumidor que ainda espere o blob de texto único.
     content_sections: Mapped[list] = mapped_column(JSON, default=list)
+    # Espelha ReadingResult.birth_time_assumed (engine.py): quando a hora de
+    # nascimento não veio e o backend assumiu 00:00 para calcular o Ascendente,
+    # a leitura persistida precisa carregar isso para a UI e o PDF re-exibirem
+    # o aviso — sem essa coluna o flag morria em memória no fim da requisição
+    # de /generate e o cliente pagante via um Ascendente sem ressalva.
+    birth_time_assumed: Mapped[bool] = mapped_column(Boolean, default=False)
+    ascendant_warning: Mapped[dict] = mapped_column(JSON, default=dict)
     reading_kind: Mapped[str] = mapped_column(String(32), default="love")
     generated_at: Mapped[str] = mapped_column(String(40), default="")
     input_snapshot: Mapped[dict] = mapped_column(JSON, default=dict)

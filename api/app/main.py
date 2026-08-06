@@ -514,7 +514,7 @@ def access(request: Request, site_session: str | None = Cookie(default=None), db
 def readings(request: Request, site_session: str | None = Cookie(default=None), db: Session = Depends(get_db)) -> dict:
     user = current_user(site_session, db, accept_language=request.headers.get("accept-language"))
     rows = db.scalars(select(Reading).where(Reading.user_id == user.id).order_by(Reading.created_at.desc())).all()
-    return {"readings": [reading_to_dict(row) for row in rows]}
+    return {"readings": [reading_to_dict(row, user.locale) for row in rows]}
 
 
 @app.post("/api/me/readings/{content_id}/generate")
@@ -528,7 +528,7 @@ def generate(content_id: str, request: Request, site_session: str | None = Cooki
     snapshot = profile_to_dict(profile)
     existing = db.scalar(select(Reading).where(Reading.user_id == user.id, Reading.content_id == content_id, Reading.status.in_(["ready", "fallback"])).order_by(Reading.created_at.desc()))
     if existing and reading_is_current(existing, content_id, snapshot):
-        return {"reading": reading_to_dict(existing)}
+        return {"reading": reading_to_dict(existing, user.locale)}
     product_id = content_product(content_id)
     # Vencimento conta: o Plano Lua por assinatura expira quando o trial acaba
     # ou quando o cartão para de pagar. Compra avulsa não tem expires_at e segue
@@ -544,6 +544,8 @@ def generate(content_id: str, request: Request, site_session: str | None = Cooki
     reading.body_html = generated.body_html
     reading.source = generated.source
     reading.content_sections = generated.sections or []
+    reading.birth_time_assumed = generated.birth_time_assumed
+    reading.ascendant_warning = generated.ascendant_warning or {}
     if generated.source == "fallback":
         reading.error_message = generated.warning
         reading.status = "fallback"
@@ -551,7 +553,7 @@ def generate(content_id: str, request: Request, site_session: str | None = Cooki
         reading.status = "ready"
     db.commit()
     db.refresh(reading)
-    return {"reading": reading_to_dict(reading)}
+    return {"reading": reading_to_dict(reading, user.locale)}
 
 
 @app.get("/api/me/readings/{content_id}/pdf")
@@ -571,7 +573,13 @@ def reading_pdf(content_id: str, request: Request, site_session: str | None = Co
         locale = _pick_locale(user.locale if user else None, request.headers.get("accept-language"))
         msg = "PDF disponível apenas para leituras seccionadas." if locale == "pt-BR" else "PDF disponible solo para lecturas seccionadas."
         raise HTTPException(status_code=422, detail=msg)
-    warning = reading.error_message if reading.status == "fallback" else ""
+    locale = _pick_locale(user.locale if user else None, request.headers.get("accept-language"))
+    ascendant_warning = getattr(reading, "ascendant_warning", None) or {}
+    ascendant_text = ascendant_warning.get(locale) or ascendant_warning.get("pt-BR") or ""
+    fallback_text = reading.error_message if reading.status == "fallback" else ""
+    # PDF baixado precisa carregar o mesmo aviso da tela — cliente guarda o
+    # arquivo, então a ressalva de Ascendente estimado não pode ficar só na UI.
+    warning = "\n\n".join(text for text in (fallback_text, ascendant_text) if text)
     pdf_bytes = build_pdf(reading.title, sections, customer_name=user.name, warning=warning)
     filename = f"{content_id.split(':')[-1]}.pdf"
     return Response(
@@ -698,7 +706,8 @@ def profile_to_dict(profile: Profile | None) -> dict | None:
     return {key: getattr(profile, key).isoformat() if isinstance(getattr(profile, key), (date, time)) else getattr(profile, key) for key in ("user_id", "birth_date", "birth_time", "birth_city", "birth_country", "birth_timezone", "birth_latitude", "birth_longitude", "partner_name", "partner_birth_date", "partner_birth_time", "partner_birth_city", "partner_country")}
 
 
-def reading_to_dict(reading: Reading) -> dict:
+def reading_to_dict(reading: Reading, locale: str = "pt-BR") -> dict:
+    ascendant_warning = getattr(reading, "ascendant_warning", None) or {}
     return {
         "id": reading.id,
         "content_id": reading.content_id,
@@ -709,6 +718,10 @@ def reading_to_dict(reading: Reading) -> dict:
         "source": getattr(reading, "source", "llm"),
         "sections": getattr(reading, "content_sections", None) or [],
         "warning": reading.error_message if reading.status == "fallback" else "",
+        # Espelha ReadingResult.birth_time_assumed/ascendant_warning: sem isso
+        # o cliente pagante vê o Ascendente calculado como se fosse exato.
+        "birth_time_assumed": bool(getattr(reading, "birth_time_assumed", False)),
+        "ascendant_warning": ascendant_warning.get(locale) or ascendant_warning.get("pt-BR") or "",
         "created_at": reading.created_at.isoformat(),
         "updated_at": reading.updated_at.isoformat(),
     }

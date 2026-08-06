@@ -33,6 +33,12 @@ NEW_COLUMNS: dict[str, tuple[tuple[str, str, str], ...]] = {
         # qualquer nome de tipo por afinidade). Leituras pré-existentes ficam
         # com NULL aqui; reading_to_dict() trata isso como lista vazia.
         ("content_sections", "JSON", ""),
+        # Aviso de hora assumida: sem essas colunas o flag calculado em
+        # engine.generate_reading morria ao fim da requisição de /generate e
+        # a leitura persistida (e o PDF gerado depois) não sabiam que o
+        # Ascendente era estimativa.
+        ("birth_time_assumed", "BOOLEAN", "FALSE"),
+        ("ascendant_warning", "JSON", ""),
     ),
 }
 
