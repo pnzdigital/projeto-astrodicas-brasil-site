@@ -184,6 +184,14 @@ PRACTICAL: dict[str, dict[str, str]] = {
     },
 }
 
+# País e fuso padrão de cada vitrine, usados quando a landing não manda os
+# campos. É a suposição menos errada: quem chega no /es/ nasceu, na esmagadora
+# maioria, na Argentina.
+LOCALE_DEFAULTS: dict[str, tuple[str, str]] = {
+    "pt-BR": ("BR", "America/Sao_Paulo"),
+    "es-AR": ("AR", "America/Argentina/Buenos_Aires"),
+}
+
 TITLE: dict[str, str] = {
     "pt-BR": "Seu horóscopo de hoje, {name}",
     "es-AR": "Tu horóscopo de hoy, {name}",
@@ -204,8 +212,12 @@ class HoroscopeBody(BaseModel):
     birth_date: date
     birth_time: time | None = None
     birth_city: str = Field(min_length=2, max_length=160)
-    birth_country: str = Field(default="BR", min_length=2, max_length=2)
-    birth_timezone: str = Field(default="America/Sao_Paulo", max_length=64)
+    # Sem default fixo de propósito. "Córdoba" existe na Argentina e na Espanha,
+    # "Santa Fe" na Argentina e nos EUA: assumir BR para uma visitante argentina
+    # geocodificaria a cidade no país errado e o mapa inteiro sairia errado. Na
+    # ausência do campo, o país e o fuso saem do idioma da vitrine.
+    birth_country: str | None = Field(default=None, min_length=2, max_length=2)
+    birth_timezone: str | None = Field(default=None, max_length=64)
     locale: str | None = Field(default=None, max_length=10)
 
 
@@ -222,7 +234,10 @@ def _julian_day(moment: datetime) -> float:
 
 def natal_chart(body: HoroscopeBody, locale: str) -> dict:
     """Sol, Lua e Ascendente natais — o mínimo para cruzar com o dia de hoje."""
-    coordinates = astrology.resolve_coordinates(body.birth_city, body.birth_country)
+    default_country, default_timezone = LOCALE_DEFAULTS[locale]
+    country = (body.birth_country or default_country).upper()
+    timezone_name = body.birth_timezone or default_timezone
+    coordinates = astrology.resolve_coordinates(body.birth_city, country)
     if not coordinates:
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
@@ -232,7 +247,7 @@ def natal_chart(body: HoroscopeBody, locale: str) -> dict:
 
     assumed_time = body.birth_time is None
     try:
-        tz = ZoneInfo(body.birth_timezone)
+        tz = ZoneInfo(timezone_name)
     except Exception:
         tz = timezone.utc
     local_dt = datetime.combine(body.birth_date, body.birth_time or time(0, 0)).replace(tzinfo=tz)

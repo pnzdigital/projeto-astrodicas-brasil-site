@@ -155,3 +155,19 @@ def test_a_rota_e_limitada_por_ip(client, geocoded, monkeypatch):
     ]
 
     assert 429 in codigos, codigos
+
+
+def test_vitrine_argentina_geocodifica_na_argentina(client, monkeypatch):
+    """Córdoba existe na Argentina e na Espanha; Santa Fe, na Argentina e nos EUA."""
+    paises = []
+    monkeypatch.setattr(
+        astrology,
+        "resolve_coordinates",
+        lambda city, country: paises.append(country) or (-31.42, -64.18),
+    )
+    payload = {key: value for key, value in BASE.items() if key != "birth_country"}
+
+    client.post("/api/horoscopo/gratis", json={**payload, "birth_city": "Córdoba", "locale": "es-AR"})
+    client.post("/api/horoscopo/gratis", json={**payload, "birth_city": "Córdoba", "locale": "pt-BR"})
+
+    assert paises == ["AR", "BR"], paises
