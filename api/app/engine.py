@@ -21,14 +21,44 @@ def _extract_content_id(prompt: str) -> str:
     return match.group(1) if match else ""
 
 
-# Per content-type max_tokens budgets. Premium readings (10-14 paragraphs)
-# at ~80-120 words each need ~1600-2000 words = ~2400-3000 tokens to avoid
-# mid-paragraph truncation. The short daily horoscope stays compact.
+# Per content-type max_tokens budgets.
+#
+# Medição real de produção (2026-08-06, 3 mapas via MiniMax) mostrou os budgets
+# antigos insuficientes: mapa_astral saiu em 1 parágrafo de 946 palavras (formato
+# velho, sem seção), mapa_carreira saiu com 638 palavras TRUNCADAS no meio da
+# frase ("transformando-a em motivação para"), mapa_prosperidade caiu em
+# fallback. Os dois primeiros são sintoma de max_tokens baixo demais para o
+# volume pedido.
+#
+# Cálculo do budget para os content_ids SECCIONADOS (mapa_astral_completo,
+# mapa_da_carreira — ver SECTIONS_BY_CONTENT_ID e o prompt em _prompt()):
+#   - conteúdo pedido por seção: 2 a 3 parágrafos de 70 a 110 palavras
+#     (ponto médio ~2.5 parágrafos x 90 palavras = 225 palavras/seção)
+#   - astral: 15 seções x 225 palavras ≈ 3375 palavras de corpo
+#   - carreira: 14 seções x 225 palavras ≈ 3150 palavras de corpo
+#   - razão tokens/palavra em pt-BR (acentuação, subword splitting): ~1.6
+#     tokens/palavra é a estimativa conservadora usada aqui (inglês puro fica
+#     perto de 1.3; pt-BR com acentos e sufixos roda mais alto)
+#   - overhead de marcação: cada seção soma "## título" + "### subtítulo" +
+#     quebras de linha ≈ 20 tokens extras/seção (15 seções ≈ 300 tokens,
+#     14 seções ≈ 280 tokens)
+#   - margem de segurança de 20% para o modelo não cortar a última frase
+#     antes de bater o limite (é exatamente essa margem que faltava e causou
+#     o truncamento observado)
+#   astral:   3375 * 1.6 = 5400  + 300  = 5700  * 1.2 ≈ 6840  → arredondado 7000
+#   carreira: 3150 * 1.6 = 5040  + 280  = 5320  * 1.2 ≈ 6384  → arredondado 6500
+#
+# Os demais content_ids continuam no formato de parágrafo corrido (10-14
+# parágrafos ~1600-2000 palavras); mapa_do_amor_sinastria e
+# mapa_da_prosperidade não entraram nesta medição de truncamento — ficam com
+# o valor herdado, mas mapa_da_prosperidade caiu em fallback por vazamento de
+# idioma (guard já existente), não por token, então não é resolvido só com
+# budget maior; ver relatório.
 TOKEN_BUDGETS = {
     "site:content:horoscopo_diario": 1500,
-    "site:content:mapa_astral_completo": 4200,
+    "site:content:mapa_astral_completo": 7000,
     "site:content:mapa_do_amor_sinastria": 3600,
-    "site:content:mapa_da_carreira": 3200,
+    "site:content:mapa_da_carreira": 6500,
     "site:content:mapa_da_prosperidade": 3200,
     "site:content:previsao_semanal": 2400,
     "site:content:guia_do_mes": 2800,
@@ -66,6 +96,25 @@ SECTIONS_BY_CONTENT_ID: dict[str, list[tuple[str, str]]] = {
         ("Casas Astrológicas", "Áreas da vida"),
         ("Aspectos", "Conversa entre planetas"),
         ("Mensagem Final", "Seu caminho"),
+    ],
+    # Portado de _SECOES_POR_TIPO["carreira"] no bot. Entrou nesta lista porque
+    # a medição real (2026-08-06) mostrou o mesmo defeito do mapa_astral_completo
+    # antigo: 638 palavras em 1 parágrafo único, truncado no meio da frase.
+    "site:content:mapa_da_carreira": [
+        ("Introdução à Carreira", "Propósito em ação"),
+        ("Vocação Central", "Onde você brilha"),
+        ("Talentos Naturais", "Forças de base"),
+        ("Mercúrio Profissional", "Mente e comunicação"),
+        ("Marte na Carreira", "Execução e ritmo"),
+        ("Júpiter Profissional", "Expansão e oportunidades"),
+        ("Saturno Profissional", "Estrutura e legado"),
+        ("Imagem e Autoridade", "Reputação no mercado"),
+        ("Dinheiro e Valor", "Remuneração justa"),
+        ("Ambiente de Trabalho", "Onde rende melhor"),
+        ("Parcerias e Networking", "Alianças inteligentes"),
+        ("Desafios Recorrentes", "Pontos de atenção"),
+        ("Plano de Evolução", "Próximos ciclos"),
+        ("Mensagem Final", "Carreira com alma"),
     ],
 }
 
@@ -208,10 +257,12 @@ def _prompt(content_id: str, title: str, profile, locale: str, customer_name: st
             "uma seção por vez, EXATAMENTE nesta ordem e com estes títulos:\n"
             + lista_secoes
             + "\n\nFormato obrigatório de cada seção:\n## <título exato da lista acima>\n"
-            "### <subtítulo exato da lista acima>\n<3 a 5 parágrafos de 80 a 130 palavras cada, "
+            "### <subtítulo exato da lista acima>\n<2 a 3 parágrafos de 70 a 110 palavras cada, "
             "separados por linha em branco, cobrindo o tema da seção com base apenas no "
             "calculated_chart>\n\nNão pule nenhuma seção da lista, não invente seções extras e "
-            "não troque a ordem. Use apenas posições presentes no calculated_chart."
+            "não troque a ordem. Use apenas posições presentes no calculated_chart. TERMINE "
+            "cada frase e cada seção de forma completa — nunca corte uma frase no meio; se estiver "
+            "perto do limite, feche a frase atual e encerre a seção em vez de continuar."
         )
         rules = {content_id: content_rule}
     else:
@@ -219,7 +270,6 @@ def _prompt(content_id: str, title: str, profile, locale: str, customer_name: st
     rules.update({
         "site:content:horoscopo_diario": "Escreva exatamente 3 parágrafos substanciais, com 90 a 130 palavras cada. Use prioritariamente os trânsitos atuais para o mapa natal. O primeiro cria identificação emocional, o segundo aborda relações e trabalho e o terceiro traz direção prática.",
         "site:content:mapa_do_amor_sinastria": "Escreva 9 a 12 parágrafos sobre padrões afetivos do cliente. Se os dados do parceiro estiverem incompletos, explique com delicadeza que a comparação completa depende deles e não invente posições do parceiro.",
-        "site:content:mapa_da_carreira": "Escreva 8 a 11 parágrafos sobre talentos, rotina, visibilidade, vocação e decisões profissionais, ancorando cada afirmação nas casas, planetas e aspectos calculados.",
         "site:content:mapa_da_prosperidade": "Escreva 8 a 11 parágrafos sobre recursos, segurança, merecimento e oportunidades, sem prometer ganhos financeiros. Relacione a leitura às posições calculadas.",
         "site:content:previsao_semanal": "Escreva 7 parágrafos, um para o panorama e seis para temas e decisões da semana, usando os trânsitos atuais calculados.",
         "site:content:guia_do_mes": "Escreva 8 a 10 parágrafos com temas do mês, momentos de atenção e práticas concretas, usando o céu atual e o mapa natal.",
@@ -365,6 +415,28 @@ def _foreign_word_sample(text: str, locale: str = "pt-BR", limit: int = 5) -> st
 def _has_language_leak(text: str, locale: str = "pt-BR") -> bool:
     """Guard combinado: script errado (CJK/cirílico/árabe) OU palavra vazando de outro idioma."""
     return _has_foreign_script(text) or _has_foreign_words(text, locale)
+
+
+# Guard de truncamento: uma leitura cortada no meio de uma frase por limite de
+# tokens é entregue a um cliente pagante hoje sem qualquer detecção — tão grave
+# quanto o vazamento de idioma acima, e igual a ele em estratégia: detectar e
+# regenerar usando o MESMO laço de tentativas (`generate_reading`), só caindo
+# no fallback editorial depois de esgotar as tentativas.
+#
+# Um texto terminado corretamente acaba em pontuação final (. ! ? … " ' » ”)
+# opcionalmente seguida de aspas/parênteses de fechamento. Qualquer outra
+# coisa — vírgula, preposição pendurada, palavra cortada — é sinal de corte
+# por max_tokens. Caso real observado em produção: "...transformando-a em
+# motivação para" (termina em preposição, sem ponto).
+_SENTENCE_END_RE = re.compile(r"[.!?…”\"'»)\]]\s*$")
+
+
+def _looks_truncated(text: str) -> bool:
+    """True quando o texto não termina de forma gramaticalmente completa."""
+    stripped = (text or "").strip()
+    if not stripped:
+        return True
+    return not _SENTENCE_END_RE.search(stripped)
 
 
 def _system_prompt(locale: str) -> str:
@@ -615,10 +687,24 @@ def generate_reading(content_id: str, title: str, profile, locale: str = "pt-BR"
                 continue
 
             if expected_sections:
-                if len(parsed) < 10:
+                min_sections = max(10, len(expected_sections) - 1)  # tolera 1 seção perdida no parse
+                if len(parsed) < min_sections:
                     logger.warning(
-                        "MiniMax retornou poucas seções parseáveis (%d) na tentativa %d/%d; refazendo.",
-                        len(parsed), attempt, attempts,
+                        "MiniMax retornou poucas seções parseáveis (%d de %d esperadas) na "
+                        "tentativa %d/%d; refazendo (possível truncamento).",
+                        len(parsed), len(expected_sections), attempt, attempts,
+                    )
+                    continue
+                # Truncamento silencioso: a resposta pode ter todas as seções mas a
+                # ÚLTIMA foi cortada no meio da frase pelo limite de max_tokens (é
+                # sempre a última seção que sofre, porque é a última coisa gerada).
+                last_content = (parsed[-1].get("content") or "") if parsed else ""
+                if _looks_truncated(last_content):
+                    logger.warning(
+                        "MiniMax truncou a última seção ('%s') na tentativa %d/%d; refazendo. "
+                        "Final observado: %r",
+                        parsed[-1].get("title", "?") if parsed else "?",
+                        attempt, attempts, last_content[-40:],
                     )
                     continue
                 parsed = _canonicalize_titles(parsed, expected_sections)
@@ -633,6 +719,13 @@ def generate_reading(content_id: str, title: str, profile, locale: str = "pt-BR"
                     )
                 continue
 
+            if _looks_truncated(raw):
+                logger.warning(
+                    "MiniMax truncou a resposta na tentativa %d/%d; refazendo. Final observado: %r",
+                    attempt, attempts, raw.strip()[-40:],
+                )
+                continue
+
             generated = _paragraphs_to_html(raw)
             if generated:
                 return ReadingResult(
@@ -643,7 +736,8 @@ def generate_reading(content_id: str, title: str, profile, locale: str = "pt-BR"
                 )
         else:
             logger.error(
-                "MiniMax derrapou de idioma em todas as %d tentativas; usando fallback editorial.", attempts
+                "MiniMax derrapou de idioma, truncou ou ficou incompleto em todas as %d "
+                "tentativas; usando fallback editorial.", attempts
             )
     if expected_sections:
         sections = _fallback_sections(content_id, profile, locale)
