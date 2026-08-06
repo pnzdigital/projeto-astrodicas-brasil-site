@@ -109,6 +109,63 @@ def get_payment(payment_id: str | int) -> dict:
     return _request("GET", f"/v1/payments/{payment_id}")
 
 
+def create_preapproval(
+    *,
+    amount: float,
+    currency: str,
+    reason: str,
+    payer_email: str,
+    card_token_id: str,
+    external_reference: str,
+    trial_days: int,
+    back_url: str,
+    notification_url: str = "",
+) -> dict:
+    """Assinatura mensal que começa com ``trial_days`` grátis.
+
+    O período grátis é do Mercado Pago, não nosso: ``free_trial`` faz o provedor
+    autorizar o cartão hoje e só cobrar a primeira mensalidade no fim do prazo.
+    Fazer a contagem do nosso lado significaria ter que disparar a primeira
+    cobrança sozinhos, e é justamente a parte que não pode falhar.
+
+    ``status: authorized`` é o que cria a assinatura já valendo com o cartão
+    tokenizado; sem isso o Mercado Pago devolve ``pending`` e espera o cliente
+    autorizar numa página deles, o que quebraria o funil dentro do site.
+    """
+    body: dict = {
+        "reason": reason,
+        "external_reference": external_reference,
+        "payer_email": payer_email,
+        "card_token_id": card_token_id,
+        "back_url": back_url,
+        "status": "authorized",
+        "auto_recurring": {
+            "frequency": 1,
+            "frequency_type": "months",
+            "transaction_amount": amount,
+            "currency_id": currency,
+            "free_trial": {"frequency": trial_days, "frequency_type": "days"},
+        },
+    }
+    if notification_url.startswith("https://") and "localhost" not in notification_url and "127.0.0.1" not in notification_url:
+        body["notification_url"] = notification_url
+    return _request("POST", "/preapproval", body, idempotency_key=external_reference)
+
+
+def get_preapproval(preapproval_id: str) -> dict:
+    return _request("GET", f"/preapproval/{preapproval_id}")
+
+
+def cancel_preapproval(preapproval_id: str) -> dict:
+    """Cancela a assinatura no provedor.
+
+    ``cancelled`` é terminal no Mercado Pago: não existe "despausar". O portal
+    trata o cancelamento como definitivo justamente por isso — voltar significa
+    assinar de novo.
+    """
+    return _request("PUT", f"/preapproval/{preapproval_id}", {"status": "cancelled"})
+
+
 def webhook_secret(env_var: str = "MP_WEBHOOK_SECRET") -> str:
     """A clave secreta da aplicação que assina esta rota.
 

@@ -99,6 +99,44 @@ class Entitlement(Base):
     user: Mapped[User] = relationship(back_populates="entitlements")
 
 
+class Subscription(Base):
+    """Assinatura recorrente do canal site.
+
+    Separada de ``Order`` de propósito: um pedido é um evento (aconteceu, tem
+    valor, acabou), uma assinatura é um estado que vive e muda por meses. Juntar
+    os dois faria cada renovação mensal virar uma linha de pedido sem dono claro
+    do estado atual.
+
+    ``external_id`` é o preapproval do Mercado Pago. Único por provedor: o
+    webhook chega identificando só ele, e é por ele que a gente encontra de quem
+    é a assinatura.
+    """
+
+    __tablename__ = "site_subscriptions"
+    __table_args__ = (UniqueConstraint("provider", "external_id", name="uq_site_subscription_provider_external"),)
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=lambda: str(uuid4()))
+    user_id: Mapped[str] = mapped_column(ForeignKey("site_users.id", ondelete="CASCADE"), index=True)
+    provider: Mapped[str] = mapped_column(String(40), default="mercadopago")
+    external_id: Mapped[str] = mapped_column(String(255), index=True)
+    product_id: Mapped[str] = mapped_column(String(120), default="site:plano_lua")
+    # trialing -> active -> cancelled | expired. O vocabulário é nosso; o do
+    # provedor entra traduzido, como já acontece com os pagamentos.
+    status: Mapped[str] = mapped_column(String(32), default="trialing")
+    amount_minor: Mapped[int] = mapped_column(Integer, default=0)
+    currency: Mapped[str] = mapped_column(String(8), default="ARS")
+    locale: Mapped[str] = mapped_column(String(10), default="es-AR")
+    market: Mapped[str] = mapped_column(String(2), default="AR")
+    trial_ends_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    # Até quando o acesso está pago. É o valor copiado para
+    # ``Entitlement.expires_at`` — o entitlement é quem o portal consulta.
+    current_period_end: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    cancelled_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now_utc)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now_utc, onupdate=now_utc)
+    raw_payload: Mapped[dict] = mapped_column(JSON, default=dict)
+
+
 class Reading(Base):
     __tablename__ = "site_readings"
 

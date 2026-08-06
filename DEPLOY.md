@@ -34,6 +34,7 @@ Obrigatórias marcar com ⚠️.
 | `CHECKOUT_PROVIDER_AR` | Não | `mercadopago` (padrão) ou `cakto` | Troca quem cobra na Argentina |
 | `CHECKOUT_PROVIDER_BR` | Não | `cakto` (padrão) ou `mercadopago` | Mercado Pago no BR exige conta MLB; a conta MLA não cobra em BRL |
 | `MP_STATEMENT_DESCRIPTOR` | Não | `ASTRODICAS` (padrão) ou custom | Nome da loja na fatura do cliente |
+| `TRIAL_DAYS` | Não | `7` (padrão) | Tamanho do teste grátis do Plano Lua; só vale para assinaturas novas |
 | `CAKTO_WEBHOOK_SECRET` | ⚠️ (se Cakto ligado) | Painel Cakto > Webhooks > Chave secreta | 403 webhook rejeitado; pedido não confirma |
 | `RESEND_API_KEY` | Não | Painel Resend > API keys | Confirmação e reset de senha por e-mail falham silenciosamente |
 | `MAIL_FROM` | Não | `AstroDicas <naoresponda@pnzdigital.com.br>` | Remetente padrão nos e-mails |

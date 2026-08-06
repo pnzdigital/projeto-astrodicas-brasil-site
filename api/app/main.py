@@ -14,7 +14,7 @@ from sqlalchemy.orm import Session
 
 from .db import Base, engine, get_db
 from .astrology import resolve_coordinates
-from . import admin, checkout, entitlements, horoscope_free, migrations, preview, pricing, security, sessions
+from . import admin, checkout, entitlements, horoscope_free, migrations, preview, pricing, security, sessions, subscriptions
 from .ratelimit import auth_rate_limit, password_reset_rate_limit, webhook_rate_limit
 from .engine import generate_reading
 from .models import Entitlement, Order, PasswordResetToken, Profile, Reading, User, WebhookEvent
@@ -46,6 +46,7 @@ app.include_router(checkout.router)
 app.include_router(admin.router)
 app.include_router(preview.router)
 app.include_router(horoscope_free.router)
+app.include_router(subscriptions.router)
 
 
 @app.middleware("http")
