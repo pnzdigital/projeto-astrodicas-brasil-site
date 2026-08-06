@@ -418,6 +418,8 @@
     .dialog-content h3 { margin: 20px 0 7px; color: var(--gold-lit); font: 500 23px/1 var(--display); }
     .dialog-content ul { margin: 0; padding-left: 19px; color: var(--cream-dim); font-size: 13px; }
     .dialog-content li + li { margin-top: 6px; }
+    .dialog-content .reading-subtitle { margin: -4px 0 10px; color: var(--cream-faint); font-style: italic; font-size: 13px; }
+    .dialog-content .reading-fallback-notice { margin: 0 0 18px; padding: 12px 14px; border: 1px solid var(--gold-lit); border-radius: 8px; color: var(--cream); font-size: 13px; }
     .account-detail { display: grid; gap: 10px; margin-top: 17px; }
     .account-detail div { display: flex; justify-content: space-between; gap: 15px; padding-bottom: 9px; border-bottom: 1px solid rgba(244,239,228,.1); color: var(--cream-dim); font-size: 12px; }
     .account-detail strong { color: var(--cream); font-weight: 500; }
@@ -716,6 +718,7 @@
       <div class="dialog-actions">
         <button class="button ghost small dialog-close" type="button">Voltar ao portal</button>
         <button class="button ghost small" type="button" data-print-reading>Imprimir / PDF</button>
+        <a class="button small" type="button" id="reading-pdf-download" href="#" download hidden>Baixar PDF completo</a>
         <button class="button small" type="button" data-toast="Leitura salva na sua biblioteca.">Salvar leitura</button>
       </div>
     </div>
@@ -1145,11 +1148,46 @@
         else showToast(error.message);
       }
     }
+    function renderReadingSections(reading, item) {
+      // reading.sections vem de content_sections (backend): lista de
+      // {title, subtitle, order, content}. Quando presente, renderiza a
+      // hierarquia de títulos em vez do blob de <p> corrido — mesmo conteúdo,
+      // navegável como o PDF de referência do bot Telegram.
+      const sections = Array.isArray(reading.sections) ? reading.sections : [];
+      if (!sections.length) return reading.body_html || item.reading;
+      let html = '';
+      if (reading.status === 'fallback' && reading.warning) {
+        html += `<div class="reading-fallback-notice" role="status">${escapeHtml(reading.warning)}</div>`;
+      }
+      for (const section of sections.slice().sort((a, b) => (a.order || 0) - (b.order || 0))) {
+        html += `<h3>${escapeHtml(section.title || '')}</h3>`;
+        if (section.subtitle) html += `<p class="reading-subtitle">${escapeHtml(section.subtitle)}</p>`;
+        const paragraphs = String(section.content || '').split(/\n\s*\n/).map((p) => p.trim()).filter(Boolean);
+        for (const paragraph of paragraphs) html += `<p>${escapeHtml(paragraph.replace(/\s*\n\s*/g, ' '))}</p>`;
+      }
+      return html;
+    }
+    function escapeHtml(text) {
+      const div = document.createElement('div');
+      div.textContent = text;
+      return div.innerHTML;
+    }
     function showReading(item, reading) {
       document.getElementById('reading-kicker').textContent = `${item.kicker} · leitura web`;
       document.getElementById('reading-title').textContent = reading.title || item.title;
-      document.getElementById('reading-content').innerHTML = reading.body_html || item.reading;
+      document.getElementById('reading-content').innerHTML = renderReadingSections(reading, item);
       document.querySelector('[data-print-reading]').dataset.printTitle = reading.title || item.title;
+      const pdfLink = document.getElementById('reading-pdf-download');
+      const hasSections = Array.isArray(reading.sections) && reading.sections.length > 0;
+      if (pdfLink) {
+        if (hasSections && appState.authenticated) {
+          pdfLink.href = `${API_BASE}/api/me/readings/${encodeURIComponent(reading.content_id)}/pdf`;
+          pdfLink.hidden = false;
+        } else {
+          pdfLink.hidden = true;
+          pdfLink.removeAttribute('href');
+        }
+      }
       openDialog('reading-dialog');
     }
     function openReading(item) {
