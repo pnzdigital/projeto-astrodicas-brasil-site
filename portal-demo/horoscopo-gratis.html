@@ -304,6 +304,7 @@
           onReady: () => {},
           onError: (error) => { console.error('[horoscopo-gratis] brick', error); trialError.textContent = copy.trialFailed; },
           onSubmit: async ({ formData }) => {
+            if (window.fbq) fbq('track', 'AddPaymentInfo', { content_ids: ['site:plano_lua'], content_type: 'product', content_language: locale });
             if (window.fbq) fbq('track', 'StartTrial', { content_name: 'plano-lua-trial', content_language: locale, predicted_ltv: 0 });
             const trialForm = document.getElementById('trial-form');
             const trialName = (trialForm.querySelector('[name="trial_name"]')?.value || '').trim();
