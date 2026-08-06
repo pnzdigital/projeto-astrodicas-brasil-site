@@ -20,6 +20,7 @@ from .mailer import send_purchase_confirmation
 from . import admin, checkout, entitlements, horoscope_free, migrations, preview, pricing, security, sessions, subscriptions
 from .ratelimit import auth_rate_limit, password_reset_rate_limit, webhook_rate_limit
 from .engine import generate_reading
+from .pdf_export import build_pdf
 from .models import Entitlement, Order, PasswordResetToken, Profile, Reading, User, WebhookEvent
 from .security import (
     create_token,
@@ -551,6 +552,33 @@ def generate(content_id: str, request: Request, site_session: str | None = Cooki
     db.commit()
     db.refresh(reading)
     return {"reading": reading_to_dict(reading)}
+
+
+@app.get("/api/me/readings/{content_id}/pdf")
+def reading_pdf(content_id: str, request: Request, site_session: str | None = Cookie(default=None), db: Session = Depends(get_db)) -> Response:
+    user = current_user(site_session, db, accept_language=request.headers.get("accept-language"))
+    reading = db.scalar(
+        select(Reading)
+        .where(Reading.user_id == user.id, Reading.content_id == content_id, Reading.status.in_(["ready", "fallback"]))
+        .order_by(Reading.created_at.desc())
+    )
+    if not reading:
+        locale = _pick_locale(user.locale if user else None, request.headers.get("accept-language"))
+        msg = "Gere a leitura antes de baixar o PDF." if locale == "pt-BR" else "Genera la lectura antes de descargar el PDF."
+        raise HTTPException(status_code=404, detail=msg)
+    sections = reading.content_sections or []
+    if not sections:
+        locale = _pick_locale(user.locale if user else None, request.headers.get("accept-language"))
+        msg = "PDF disponível apenas para leituras seccionadas." if locale == "pt-BR" else "PDF disponible solo para lecturas seccionadas."
+        raise HTTPException(status_code=422, detail=msg)
+    warning = reading.error_message if reading.status == "fallback" else ""
+    pdf_bytes = build_pdf(reading.title, sections, customer_name=user.name, warning=warning)
+    filename = f"{content_id.split(':')[-1]}.pdf"
+    return Response(
+        content=pdf_bytes,
+        media_type="application/pdf",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
 
 
 @app.post("/api/webhooks/{provider}", dependencies=[Depends(webhook_rate_limit)])
