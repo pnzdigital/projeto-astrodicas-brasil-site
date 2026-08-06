@@ -14,7 +14,7 @@ from sqlalchemy.orm import Session
 
 from .db import Base, engine, get_db
 from .astrology import resolve_coordinates
-from . import admin, checkout, horoscope_free, migrations, preview, pricing, security, sessions
+from . import admin, checkout, entitlements, horoscope_free, migrations, preview, pricing, security, sessions
 from .ratelimit import auth_rate_limit, password_reset_rate_limit, webhook_rate_limit
 from .engine import generate_reading
 from .models import Entitlement, Order, PasswordResetToken, Profile, Reading, User, WebhookEvent
@@ -488,7 +488,19 @@ def save_profile(body: ProfileBody, request: Request, site_session: str | None =
 @app.get("/api/me/access")
 def access(request: Request, site_session: str | None = Cookie(default=None), db: Session = Depends(get_db)) -> dict:
     user = current_user(site_session, db, accept_language=request.headers.get("accept-language"))
-    return {"entitlements": [{"product_id": e.product_id, "status": e.status} for e in user.entitlements]}
+    # ``active`` diz ao portal o que está valendo agora; ``expires_at`` deixa a
+    # UI avisar "seu acesso termina em X" antes de o cliente descobrir sozinho.
+    return {
+        "entitlements": [
+            {
+                "product_id": e.product_id,
+                "status": e.status,
+                "active": entitlements.is_active(e),
+                "expires_at": e.expires_at.isoformat() if e.expires_at else None,
+            }
+            for e in user.entitlements
+        ]
+    }
 
 
 @app.get("/api/me/readings")
@@ -511,7 +523,10 @@ def generate(content_id: str, request: Request, site_session: str | None = Cooki
     if existing and reading_is_current(existing, content_id, snapshot):
         return {"reading": reading_to_dict(existing)}
     product_id = content_product(content_id)
-    if product_id and not db.scalar(select(Entitlement).where(Entitlement.user_id == user.id, Entitlement.product_id == product_id, Entitlement.status == "available")):
+    # Vencimento conta: o Plano Lua por assinatura expira quando o trial acaba
+    # ou quando o cartão para de pagar. Compra avulsa não tem expires_at e segue
+    # vitalícia.
+    if product_id and not entitlements.active(db, user.id, product_id):
         locale = _pick_locale(user.locale if user else None, request.headers.get("accept-language"))
         msg = "Este conteúdo ainda não está liberado para sua conta." if locale == "pt-BR" else "Este contenido todavía no está disponible para tu cuenta."
         raise HTTPException(status_code=403, detail=msg)

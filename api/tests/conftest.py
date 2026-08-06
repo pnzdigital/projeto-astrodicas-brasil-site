@@ -33,6 +33,16 @@ def clean_database():
 
 
 @pytest.fixture()
+def db_session():
+    """Sessão direta no banco, para testes que checam regra e não rota HTTP."""
+    db = SessionLocal()
+    try:
+        yield db
+    finally:
+        db.close()
+
+
+@pytest.fixture()
 def client():
     with TestClient(app) as test_client:
         yield test_client
