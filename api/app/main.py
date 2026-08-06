@@ -14,7 +14,7 @@ from sqlalchemy.orm import Session
 
 from .db import Base, engine, get_db
 from .astrology import resolve_coordinates
-from . import admin, checkout, migrations, preview, pricing, security, sessions
+from . import admin, checkout, horoscope_free, migrations, preview, pricing, security, sessions
 from .ratelimit import auth_rate_limit, password_reset_rate_limit, webhook_rate_limit
 from .engine import generate_reading
 from .models import Entitlement, Order, PasswordResetToken, Profile, Reading, User, WebhookEvent
@@ -45,6 +45,7 @@ app.add_middleware(
 app.include_router(checkout.router)
 app.include_router(admin.router)
 app.include_router(preview.router)
+app.include_router(horoscope_free.router)
 
 
 @app.middleware("http")
@@ -170,7 +171,8 @@ def _auth_validation_detail(errors, locale: str, accept_language: str | None) ->
 async def auth_validation_handler(request: Request, exc: RequestValidationError) -> Response:
     """Localiza validação para rotas de auth e da prévia. Outras seguem default."""
     path = request.url.path
-    if not path.startswith("/api/auth/") and not path.startswith("/api/preview/"):
+    birth_form = path.startswith("/api/preview/") or path.startswith("/api/horoscopo/")
+    if not path.startswith("/api/auth/") and not birth_form:
         # Fallback para o handler padrão do FastAPI: 422 com array.
         from fastapi.exception_handlers import request_validation_exception_handler
         return await request_validation_exception_handler(request, exc)
@@ -181,7 +183,7 @@ async def auth_validation_handler(request: Request, exc: RequestValidationError)
         body = {}
     body_locale = body.get("locale") if isinstance(body, dict) else None
     accept_language = request.headers.get("accept-language")
-    if path.startswith("/api/preview/"):
+    if birth_form:
         # A prévia tem seu próprio dicionário de mensagens (campos de nascimento,
         # não de credenciais), então delega para ele em vez de AUTH_MESSAGES.
         locale = preview.pick_locale(body_locale, accept_language)
