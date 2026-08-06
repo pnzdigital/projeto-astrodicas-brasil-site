@@ -174,6 +174,20 @@ def _prompt(content_id: str, title: str, profile, locale: str, customer_name: st
         "site:content:manual_do_ascendente": "Escreva 8 a 10 parágrafos sobre o Ascendente calculado, seu regente simbólico, presença, corpo e primeira impressão. Se não houver Ascendente calculado, explique que a hora exata é necessária.",
     }
     content_rule = rules.get(content_id, "Escreva uma leitura premium profunda, com 7 a 10 parágrafos.")
+    language_lock = (
+        "\n\nREGRA DE IDIOMA (crítica, produto pago): escreva do início ao fim estritamente em "
+        f"{language}. Isto é uma redação, não uma tradução — pense e escreva direto nesse idioma, "
+        "nunca alterne para outro. Proibido usar qualquer palavra em inglês (ex.: 'synthesize', "
+        "'nonetheless', 'enthusiasm', 'highlighted', 'harmonic relationships') "
+        + (
+            "ou em espanhol (ex.: 'intercambio', 'manifestarse', 'también')"
+            if locale != "es-AR"
+            else "ou em português"
+        )
+        + " no meio da frase. Termos técnicos de astrologia (Ascendente, retrógrado, orbe, sextil, "
+        "trígono, quadratura, nomes de signo) seguem sempre a grafia do idioma da leitura. Revise "
+        "mentalmente cada frase antes de escrevê-la: se uma palavra não é claramente desse idioma, troque-a."
+    )
     return f"""Você é a astróloga editorial da AstroDicas. Produza a leitura \"{title}\" em {language}.
 Data de referência: {today}. Identificador: {content_id}.
 Dados autorizados do cliente: {json.dumps(context, ensure_ascii=False)}.
@@ -183,7 +197,7 @@ Use o nome do cliente com naturalidade no máximo duas vezes. Use somente os dad
 Ascendente, Lua, casas, aspectos, trânsitos ou posições planetárias que não tenham sido calculados. Quando faltar
 cálculo astronômico, declare a limitação com linguagem acolhedora. Não faça diagnóstico médico, promessa financeira nem previsão
 fatalista. Não cite inteligência artificial. Não use markdown, listas, HTML ou título; devolva apenas os
-parágrafos, separados por uma linha em branco.{assumed_warning}"""
+parágrafos, separados por uma linha em branco.{language_lock}{assumed_warning}"""
 
 
 # Um caractere fora do alfabeto latino no meio de uma leitura paga destrói a
@@ -215,14 +229,95 @@ def _foreign_sample(text: str, limit: int = 5) -> str:
     return "".join(seen)
 
 
+# Segundo guard, complementar ao de cima. _has_foreign_script só pega
+# alfabeto errado (cirílico, CJK, árabe) — mas o MiniMax também derrapa
+# TROCANDO uma palavra solta por inglês ou espanhol, mantendo alfabeto latino
+# ("synthesize", "nonetheless", "enthusiasm", "intercambio", "manifestarse").
+# Isso passa batido no guard de script porque são letras latinas normais.
+#
+# Estratégia: lista curada e pequena de palavras que só existem no idioma
+# "errado" e não têm uso legítimo em texto astrológico pt-BR/es-AR. Termos
+# técnicos latinos do domínio (orbe, sextil, trígono, quadratura, Ascendente,
+# retrógrado, nomes de signo) NÃO entram nessa lista — se entrassem, todo
+# texto bom seria reprovado e a taxa de entrega despencaria. O custo dos dois
+# lados do erro:
+#   - falso negativo (lista curta demais): alguma palavra estrangeira rara
+#     escapa e some no texto entregue — ruim, mas já reduzido pelas 3
+#     tentativas de regeneração e cobre os casos reais observados.
+#   - falso positivo (lista agressiva demais): um texto bom é descartado e
+#     regenerado à toa, ou pior, cai no fallback genérico sem necessidade —
+#     por isso a lista fica deliberadamente pequena e específica, sem radicais
+#     curtos nem palavras que colidem com termos astrológicos ou nomes.
+#
+# Palavras em inglês reprovam em qualquer locale (nunca são texto legítimo
+# aqui). Palavras "só-espanhol" só reprovam quando o locale pedido é pt-BR —
+# em es-AR, espanhol é o idioma correto.
+_ENGLISH_LEAK_WORDS = frozenset(
+    {
+        "synthesize", "synthesizes", "synthesizing",
+        "nonetheless", "enthusiasm", "enthusiastic",
+        "highlighted", "highlights", "highlight",
+        "harmonic", "relationship", "relationships",
+        "however", "therefore", "moreover", "overall",
+        "insight", "insights", "throughout", "meanwhile",
+        "although", "whereas", "regarding",
+    }
+)
+
+_SPANISH_ONLY_LEAK_WORDS = frozenset(
+    {
+        "intercambio", "manifestarse", "tambien", "también",
+        "aunque", "sino", "segun", "según", "asimismo",
+        "ademas", "además", "porque no",
+    }
+)
+
+# Defeitos pontuais já observados em produção que não são troca de idioma,
+# mas token corrompido/malformado (nem pt-BR nem nenhum outro idioma válido).
+# Documentado à parte porque a causa é outra (o modelo "gagueja" um sufixo),
+# mas o efeito no cliente pagante é o mesmo: texto macarrônico. Tratamos como
+# reprovação para forçar regeneração.
+_KNOWN_GARBLED_TOKENS = frozenset({"urgeências"})
+
+
+def _foreign_word_regex(locale: str) -> re.Pattern:
+    words = set(_ENGLISH_LEAK_WORDS) | _KNOWN_GARBLED_TOKENS
+    if locale != "es-AR":
+        words |= _SPANISH_ONLY_LEAK_WORDS
+    pattern = r"\b(?:" + "|".join(re.escape(word) for word in words) + r")\b"
+    return re.compile(pattern, re.IGNORECASE)
+
+
+def _has_foreign_words(text: str, locale: str = "pt-BR") -> bool:
+    """True quando alguma palavra do texto vaza de outro idioma (alfabeto latino)."""
+    return _foreign_word_regex(locale).search(text) is not None
+
+
+def _foreign_word_sample(text: str, locale: str = "pt-BR", limit: int = 5) -> str:
+    matches = _foreign_word_regex(locale).findall(text)
+    seen: list[str] = []
+    for match in matches:
+        if match not in seen:
+            seen.append(match)
+            if len(seen) >= limit:
+                break
+    return ", ".join(seen)
+
+
+def _has_language_leak(text: str, locale: str = "pt-BR") -> bool:
+    """Guard combinado: script errado (CJK/cirílico/árabe) OU palavra vazando de outro idioma."""
+    return _has_foreign_script(text) or _has_foreign_words(text, locale)
+
+
 def _system_prompt(locale: str) -> str:
     """Fixa o idioma explicitamente: reduz (não elimina) a derrapagem do modelo."""
     language = "espanhol rioplatense (es-AR)" if locale == "es-AR" else "português do Brasil (pt-BR)"
     return (
         "Siga o briefing editorial com precisão e entregue somente o texto final. "
         f"Escreva integralmente em {language}. Cada palavra do texto deve estar nesse idioma: "
-        "nunca insira palavras, caracteres ou ideogramas de outro idioma (chinês, árabe, russo, inglês) "
-        "nem no meio de uma frase."
+        "nunca insira palavras, caracteres ou ideogramas de outro idioma (chinês, árabe, russo, inglês "
+        "ou, fora de es-AR, espanhol) nem no meio de uma frase. Isto é um produto pago: uma única "
+        "palavra estrangeira solta no meio do parágrafo já reprova o texto inteiro."
     )
 
 
@@ -329,6 +424,14 @@ def generate_reading(content_id: str, title: str, profile, locale: str = "pt-BR"
                 logger.warning(
                     "MiniMax devolveu caractere fora do alfabeto latino (%s) na tentativa %d/%d; refazendo.",
                     _foreign_sample(raw),
+                    attempt,
+                    attempts,
+                )
+                continue
+            if _has_foreign_words(raw, locale):
+                logger.warning(
+                    "MiniMax vazou palavra de outro idioma (%s) na tentativa %d/%d; refazendo.",
+                    _foreign_word_sample(raw, locale),
                     attempt,
                     attempts,
                 )

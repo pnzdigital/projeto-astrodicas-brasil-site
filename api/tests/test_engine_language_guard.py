@@ -104,3 +104,75 @@ def test_texto_limpo_passa_de_primeira(monkeypatch):
 def test_system_prompt_fixa_o_idioma_do_mercado():
     assert "português do Brasil" in engine._system_prompt("pt-BR")
     assert "espanhol rioplatense" in engine._system_prompt("es-AR")
+
+
+# Trechos reais de um Mapa Astral pago (R$ 47) gerado em pt-BR, capturados em
+# produção em 2026-08-06. _has_foreign_script não pega nenhum: são todas
+# palavras em alfabeto latino normal, só que no idioma errado.
+TRECHOS_CONTAMINADOS_PT_BR = [
+    "uma mente capaz de synthesize informações complexas",
+    "mantendo nonetheless uma necessidade de independência emocional",
+    "aporta energia aventura e enthusiasm",
+    "no intercambio de ideias",
+    "podendo manifestarse",
+    "as urgeências de inovação",
+    "Os potenciais highlighted neste mapa",
+    "a busca por harmonic relationships própria da Lua em Libra",
+]
+
+
+def test_reprova_os_oito_trechos_reais_contaminados_pt_br():
+    for trecho in TRECHOS_CONTAMINADOS_PT_BR:
+        assert engine._has_foreign_words(trecho, "pt-BR"), f"deveria reprovar: {trecho!r}"
+        assert engine._has_language_leak(trecho, "pt-BR"), f"deveria reprovar: {trecho!r}"
+
+
+TEXTOS_ASTROLOGICOS_BONS = [
+    "O sextil entre Vênus e Marte favorece decisões afetivas equilibradas.",
+    "Um trígono de água conecta sua Lua ao Ascendente em Peixes.",
+    "A quadratura com Saturno pede paciência antes de qualquer mudança de rota.",
+    "Mercúrio retrógrado em Touro pede atenção a contratos e releituras.",
+    "O orbe apertado entre Sol e Júpiter amplia a confiança nessa fase.",
+    "Com Áries no Ascendente, Touro no Sol e Gêmeos na Lua, sua energia pede ação seguida de calma.",
+    "A oposição entre Sol e Lua em Câncer e Capricórnio tensiona casa e carreira.",
+    "Vênus em Leão, Virgem no meio-céu e Libra na sétima casa marcam seus vínculos.",
+]
+
+
+def test_nao_reprova_textos_astrologicos_legitimos_pt_br():
+    for texto in TEXTOS_ASTROLOGICOS_BONS:
+        assert not engine._has_foreign_words(texto, "pt-BR"), f"falso positivo em: {texto!r}"
+        assert not engine._has_language_leak(texto, "pt-BR"), f"falso positivo em: {texto!r}"
+
+
+def test_espanhol_legitimo_nao_reprova_em_es_ar():
+    texto = "El sextil entre Venus y Marte favorece decisiones, aunque también pide paciencia."
+    assert not engine._has_foreign_words(texto, "es-AR")
+
+
+def test_ingles_reprova_em_qualquer_locale():
+    texto = "Your Ascendant highlights a moment of nonetheless growth."
+    assert engine._has_foreign_words(texto, "pt-BR")
+    assert engine._has_foreign_words(texto, "es-AR")
+
+
+def test_regenera_ate_tres_vezes_quando_palavra_vaza_de_outro_idioma(monkeypatch):
+    monkeypatch.setenv("MINIMAX_API_KEY", "chave-de-teste")
+    monkeypatch.setenv("MINIMAX_MAX_ATTEMPTS", "3")
+    respostas = [
+        "Uma mente capaz de synthesize informações complexas.",
+        "No intercambio de ideias fluem novas percepções.",
+        LIMPO,
+    ]
+    chamadas = []
+
+    def _fake(prompt, locale="pt-BR"):
+        chamadas.append(locale)
+        return respostas[len(chamadas) - 1]
+
+    monkeypatch.setattr(engine, "_call_minimax", _fake)
+    result = engine.generate_reading("site:content:mapa_astral", "Mapa astral", _Profile(date(1990, 3, 15)))
+
+    assert len(chamadas) == 3
+    assert result.source == "minimax"
+    assert not engine._has_language_leak(result.body_html, "pt-BR")
