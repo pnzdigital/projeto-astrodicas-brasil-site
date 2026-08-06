@@ -148,6 +148,11 @@ class Reading(Base):
     title: Mapped[str] = mapped_column(String(200), default="")
     body_html: Mapped[str] = mapped_column(Text, default="")
     source: Mapped[str] = mapped_column(String(16), default="llm")
+    # Lista de {"title", "subtitle", "order", "content"} quando o content_id é
+    # seccionado (ver engine.SECTIONS_BY_CONTENT_ID). ``body_html`` continua
+    # sendo preenchido sempre, para compat com leituras antigas e com qualquer
+    # consumidor que ainda espere o blob de texto único.
+    content_sections: Mapped[list] = mapped_column(JSON, default=list)
     reading_kind: Mapped[str] = mapped_column(String(32), default="love")
     generated_at: Mapped[str] = mapped_column(String(40), default="")
     input_snapshot: Mapped[dict] = mapped_column(JSON, default=dict)

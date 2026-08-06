@@ -27,6 +27,13 @@ NEW_COLUMNS: dict[str, tuple[tuple[str, str, str], ...]] = {
     "site_users": (
         ("token_epoch", "INTEGER", "0"),
     ),
+    "site_readings": (
+        # JSON no Postgres; SQLite mapeia sqlalchemy.JSON para TEXT internamente,
+        # mas ADD COLUMN com tipo "JSON" funciona nos dois (SQLite aceita
+        # qualquer nome de tipo por afinidade). Leituras pré-existentes ficam
+        # com NULL aqui; reading_to_dict() trata isso como lista vazia.
+        ("content_sections", "JSON", ""),
+    ),
 }
 
 

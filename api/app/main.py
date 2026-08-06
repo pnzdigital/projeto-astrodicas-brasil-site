@@ -542,6 +542,7 @@ def generate(content_id: str, request: Request, site_session: str | None = Cooki
     generated = generate_reading(content_id, reading.title, profile, user.locale, user.name)
     reading.body_html = generated.body_html
     reading.source = generated.source
+    reading.content_sections = generated.sections or []
     if generated.source == "fallback":
         reading.error_message = generated.warning
         reading.status = "fallback"
@@ -678,6 +679,7 @@ def reading_to_dict(reading: Reading) -> dict:
         "title": reading.title,
         "body_html": reading.body_html,
         "source": getattr(reading, "source", "llm"),
+        "sections": getattr(reading, "content_sections", None) or [],
         "warning": reading.error_message if reading.status == "fallback" else "",
         "created_at": reading.created_at.isoformat(),
         "updated_at": reading.updated_at.isoformat(),

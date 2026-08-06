@@ -440,7 +440,10 @@ def test_generation_works_for_every_paid_content(client, monkeypatch):
         # to the editorial template. The new contract surfaces this honestly.
         assert reading["status"] == "fallback"
         assert reading["source"] == "fallback"
-        assert reading["body_html"].startswith("<p>")
+        # Sectioned content_ids (e.g. mapa_astral_completo) render fallback as
+        # <h2>/<h3>/<p> so the portal still shows section headers even when the
+        # LLM is unavailable; other content_ids keep the plain <p> blob.
+        assert reading["body_html"].startswith("<p>") or reading["body_html"].startswith("<h2>")
 
     listed = client.get("/api/me/readings").json()["readings"]
     assert len(listed) == len(contents)

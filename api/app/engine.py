@@ -43,6 +43,37 @@ def _max_tokens_for(content_id: str) -> int:
     return TOKEN_BUDGETS.get(content_id, DEFAULT_TOKEN_BUDGET)
 
 
+# Seções exatas por content_id, portadas de astrodicas-telegram/src/vendas_bot/
+# mapa_premium.py (`_SECOES_POR_TIPO["astral"]`) para manter o MESMO produto
+# nos dois canais (bot e site). Cada tupla é (título canônico, subtítulo). O
+# site hoje só vende mapa_astral_completo em formato seccionado; os demais
+# content_ids seguem no formato de parágrafo corrido antigo até serem
+# migrados (lista fica vazia para eles = sem seccionamento).
+SECTIONS_BY_CONTENT_ID: dict[str, list[tuple[str, str]]] = {
+    "site:content:mapa_astral_completo": [
+        ("Introdução", "Seu mapa de alma"),
+        ("Sol", "Identidade e propósito"),
+        ("Lua", "Emoções e segurança"),
+        ("Ascendente", "Como o mundo te vê"),
+        ("Mercúrio", "Mente e comunicação"),
+        ("Vênus", "Afeto, prazer e valores"),
+        ("Marte", "Ação e coragem"),
+        ("Júpiter", "Expansão e fé"),
+        ("Saturno", "Limite e construção"),
+        ("Urano", "Mudança e liberdade"),
+        ("Netuno", "Sensibilidade e visão"),
+        ("Plutão", "Transformação profunda"),
+        ("Casas Astrológicas", "Áreas da vida"),
+        ("Aspectos", "Conversa entre planetas"),
+        ("Mensagem Final", "Seu caminho"),
+    ],
+}
+
+
+def sections_for(content_id: str) -> list[tuple[str, str]]:
+    return SECTIONS_BY_CONTENT_ID.get(content_id, [])
+
+
 @dataclass
 class ReadingResult:
     """Public result of ``generate_reading``.
@@ -68,6 +99,14 @@ class ReadingResult:
     warning: str = ""
     birth_time_assumed: bool = False
     ascendant_warning: dict[str, str] | None = None
+    # Lista de {"title", "subtitle", "order", "content"} quando o content_id
+    # tem seções definidas em SECTIONS_BY_CONTENT_ID; vazio para os content_ids
+    # que ainda usam o formato de parágrafo corrido antigo.
+    sections: list[dict] = None  # type: ignore[assignment]
+
+    def __post_init__(self):
+        if self.sections is None:
+            self.sections = []
 
 
 # Backwards-compat shim: existing callers that used ``result.startswith("<p>")``
@@ -161,9 +200,24 @@ def _prompt(content_id: str, title: str, profile, locale: str, customer_name: st
                 "do cliente. Ao falar do Ascendente, declare explicitamente que é estimado e "
                 "que pode mudar se a hora real for outra. Não afirme como fato."
             )
-    rules = {
+    sections = sections_for(content_id)
+    if sections:
+        lista_secoes = "\n".join(f"{i:02d}. ## {t} — {s}" for i, (t, s) in enumerate(sections, 1))
+        content_rule = (
+            "Escreva uma leitura natal premium ESTRUTURADA EM SEÇÕES. Responda em markdown, "
+            "uma seção por vez, EXATAMENTE nesta ordem e com estes títulos:\n"
+            + lista_secoes
+            + "\n\nFormato obrigatório de cada seção:\n## <título exato da lista acima>\n"
+            "### <subtítulo exato da lista acima>\n<3 a 5 parágrafos de 80 a 130 palavras cada, "
+            "separados por linha em branco, cobrindo o tema da seção com base apenas no "
+            "calculated_chart>\n\nNão pule nenhuma seção da lista, não invente seções extras e "
+            "não troque a ordem. Use apenas posições presentes no calculated_chart."
+        )
+        rules = {content_id: content_rule}
+    else:
+        rules = {}
+    rules.update({
         "site:content:horoscopo_diario": "Escreva exatamente 3 parágrafos substanciais, com 90 a 130 palavras cada. Use prioritariamente os trânsitos atuais para o mapa natal. O primeiro cria identificação emocional, o segundo aborda relações e trabalho e o terceiro traz direção prática.",
-        "site:content:mapa_astral_completo": "Escreva uma leitura natal premium com 10 a 14 parágrafos. Cubra tríade principal, planetas pessoais, casas, aspectos dominantes, potenciais e tensões. Use apenas posições presentes no calculated_chart.",
         "site:content:mapa_do_amor_sinastria": "Escreva 9 a 12 parágrafos sobre padrões afetivos do cliente. Se os dados do parceiro estiverem incompletos, explique com delicadeza que a comparação completa depende deles e não invente posições do parceiro.",
         "site:content:mapa_da_carreira": "Escreva 8 a 11 parágrafos sobre talentos, rotina, visibilidade, vocação e decisões profissionais, ancorando cada afirmação nas casas, planetas e aspectos calculados.",
         "site:content:mapa_da_prosperidade": "Escreva 8 a 11 parágrafos sobre recursos, segurança, merecimento e oportunidades, sem prometer ganhos financeiros. Relacione a leitura às posições calculadas.",
@@ -172,8 +226,8 @@ def _prompt(content_id: str, title: str, profile, locale: str, customer_name: st
         "site:content:calendario_lunar": "Escreva um guia editorial do ciclo lunar atual em 7 a 9 parágrafos. Não invente datas que não estejam nos dados; quando faltarem, trate como guia de uso das fases.",
         "site:content:guia_dos_retrogrados": "Escreva 7 a 9 parágrafos explicando os planetas retrógrados presentes no céu calculado e como atravessar revisões sem fatalismo.",
         "site:content:manual_do_ascendente": "Escreva 8 a 10 parágrafos sobre o Ascendente calculado, seu regente simbólico, presença, corpo e primeira impressão. Se não houver Ascendente calculado, explique que a hora exata é necessária.",
-    }
-    content_rule = rules.get(content_id, "Escreva uma leitura premium profunda, com 7 a 10 parágrafos.")
+    })
+    content_rule = rules.get(content_id, content_rule if sections else "Escreva uma leitura premium profunda, com 7 a 10 parágrafos.")
     language_lock = (
         "\n\nREGRA DE IDIOMA (crítica, produto pago): escreva do início ao fim estritamente em "
         f"{language}. Isto é uma redação, não uma tradução — pense e escreva direto nesse idioma, "
@@ -188,6 +242,11 @@ def _prompt(content_id: str, title: str, profile, locale: str, customer_name: st
         "trígono, quadratura, nomes de signo) seguem sempre a grafia do idioma da leitura. Revise "
         "mentalmente cada frase antes de escrevê-la: se uma palavra não é claramente desse idioma, troque-a."
     )
+    markdown_rule = (
+        "Responda no formato markdown seccionado pedido acima (## título / ### subtítulo / parágrafos)."
+        if sections
+        else "Não use markdown, listas, HTML ou título; devolva apenas os parágrafos, separados por uma linha em branco."
+    )
     return f"""Você é a astróloga editorial da AstroDicas. Produza a leitura \"{title}\" em {language}.
 Data de referência: {today}. Identificador: {content_id}.
 Dados autorizados do cliente: {json.dumps(context, ensure_ascii=False)}.
@@ -196,8 +255,7 @@ Dados autorizados do cliente: {json.dumps(context, ensure_ascii=False)}.
 Use o nome do cliente com naturalidade no máximo duas vezes. Use somente os dados fornecidos. Não invente
 Ascendente, Lua, casas, aspectos, trânsitos ou posições planetárias que não tenham sido calculados. Quando faltar
 cálculo astronômico, declare a limitação com linguagem acolhedora. Não faça diagnóstico médico, promessa financeira nem previsão
-fatalista. Não cite inteligência artificial. Não use markdown, listas, HTML ou título; devolva apenas os
-parágrafos, separados por uma linha em branco.{language_lock}{assumed_warning}"""
+fatalista. Não cite inteligência artificial. {markdown_rule}{language_lock}{assumed_warning}"""
 
 
 # Um caractere fora do alfabeto latino no meio de uma leitura paga destrói a
@@ -365,6 +423,97 @@ def _paragraphs_to_html(text: str) -> str:
     return "".join(f"<p>{html.escape(paragraph)}</p>" for paragraph in paragraphs)
 
 
+# Parse de markdown seccionado e canonização de títulos, portados de
+# astrodicas-telegram/src/vendas_bot/mapa_premium.py (`_parse_markdown_secoes`
+# e `_canonizar_titulos`). O modelo às vezes erra o título ("Sol em Leão na
+# Casa 7" em vez de "Sol"); como a lista de seções é fixa e pedida em ordem,
+# canonizamos por POSIÇÃO — nunca deixamos um título errado do modelo virar
+# o título exibido ao cliente pagante.
+def _parse_markdown_sections(md: str) -> list[dict]:
+    text = re.sub(r"<think>[\s\S]*?</think>\s*", "", (md or "")).replace("\r\n", "\n").strip()
+    if not text:
+        return []
+    lines = text.split("\n")
+    h2_count = sum(1 for l in lines if l.strip().startswith("## "))
+    h3_count = sum(1 for l in lines if l.strip().startswith("### "))
+    use_h3_as_section = h3_count > max(h2_count * 3, 2)
+
+    sections: list[dict] = []
+    current: dict | None = None
+
+    def finalize(sec):
+        if not sec:
+            return
+        body = "\n".join(l for l in sec["content"] if l.strip()).strip()
+        if sec["title"].strip() and body:
+            sections.append({
+                "title": sec["title"].strip(),
+                "subtitle": sec["subtitle"].strip(),
+                "order": len(sections) + 1,
+                "content": body,
+            })
+
+    for raw_line in lines:
+        line = raw_line.strip()
+        if line.startswith("## "):
+            finalize(current)
+            current = {"title": line[3:].strip(), "subtitle": "", "content": []}
+            continue
+        if current is None:
+            continue
+        if line.startswith("### "):
+            if use_h3_as_section:
+                finalize(current)
+                current = {"title": line[4:].strip(), "subtitle": "", "content": []}
+            elif not current["subtitle"]:
+                current["subtitle"] = line[4:].strip()
+            else:
+                current["content"].append(raw_line)
+            continue
+        current["content"].append(raw_line)
+    finalize(current)
+    return sections
+
+
+def _canonicalize_titles(sections: list[dict], expected: list[tuple[str, str]]) -> list[dict]:
+    """Reescreve título/subtítulo pelos canônicos, por posição, quando a contagem bate.
+
+    Se o modelo entregou uma quantidade diferente de seções, o pareamento por
+    posição não é confiável — mantemos o que veio em vez de arriscar título
+    errado (mesma decisão do bot: fallback sensato > adivinhação).
+    """
+    if len(sections) != len(expected):
+        logger.warning(
+            "generate_reading: %d seções vs %d esperadas — títulos não canonizados",
+            len(sections), len(expected),
+        )
+        return sections
+    for i, (sec, (title, subtitle)) in enumerate(zip(sections, expected), 1):
+        sec["title"] = title
+        sec["subtitle"] = sec.get("subtitle") or subtitle
+        sec["order"] = i
+    return sections
+
+
+def _sections_to_html(sections: list[dict]) -> str:
+    parts = []
+    for sec in sections:
+        parts.append(f"<h2>{html.escape(sec['title'])}</h2>")
+        if sec.get("subtitle"):
+            parts.append(f"<h3>{html.escape(sec['subtitle'])}</h3>")
+        paragraphs = [p.strip() for p in re.split(r"\n\s*\n", sec["content"]) if p.strip()]
+        for paragraph in paragraphs:
+            parts.append(f"<p>{html.escape(re.sub(r'\\s*\\n\\s*', ' ', paragraph))}</p>")
+    return "".join(parts)
+
+
+def _sections_plain_text(sections: list[dict]) -> str:
+    """Reconstrói o texto corrido das seções — usado pelo guard de idioma, que
+    precisa validar o CONTEÚDO completo, não só os títulos canonizados (que
+    são texto nosso, sempre em pt-BR/es-AR corretos por definição)."""
+    return "\n\n".join(sec["content"] for sec in sections)
+
+
 def _fallback_reading(profile, locale: str) -> str:
     sign = sun_sign(profile.birth_date if profile else None, locale)
     city = profile.birth_city if profile and profile.birth_city else "seu lugar de nascimento"
@@ -379,6 +528,23 @@ def _fallback_reading(profile, locale: str) -> str:
         "<p>Nos vínculos e no trabalho, não confunda intensidade com urgência. Uma conversa pode tocar num ponto sensível sem precisar virar conflito. Escolha palavras claras e deixe espaço para escutar. Se alguém pedir mais do que você consegue oferecer, colocar limite também é uma forma de cuidar da relação e de respeitar a própria energia.</p>"
         "<p>Sua direção prática para hoje é simples: encerre uma pendência pequena antes de abrir outra, movimente o corpo e reserve alguns minutos sem tela. Ao fim do dia, anote qual situação fez você se sentir mais presente. Essa pista vale mais do que uma grande promessa, porque mostra onde sua energia realmente quer crescer.</p>"
     )
+
+
+def _fallback_sections(content_id: str, profile, locale: str) -> list[dict]:
+    """Versão seccionada do fallback editorial — a mesma qualidade de conteúdo
+    do `_fallback_reading`, mas com cada parágrafo alocado numa seção real, para
+    que a UI do portal continue mostrando títulos mesmo quando o LLM falhou.
+    O texto continua identificável como fallback via ``ReadingResult.source``."""
+    template = _fallback_reading(profile, locale)
+    paragraphs = re.findall(r"<p>(.*?)</p>", template, re.DOTALL)
+    expected = sections_for(content_id)
+    if not expected:
+        return []
+    sections = []
+    for i, (title, subtitle) in enumerate(expected, 1):
+        body = html.unescape(paragraphs[(i - 1) % len(paragraphs)]) if paragraphs else ""
+        sections.append({"title": title, "subtitle": subtitle, "order": i, "content": body})
+    return sections
 
 
 PAID_ASCENDANT_WARNING: dict[str, dict[str, str]] = {
@@ -408,6 +574,7 @@ def generate_reading(content_id: str, title: str, profile, locale: str = "pt-BR"
         if birth_time_assumed
         else None
     )
+    expected_sections = sections_for(content_id)
     if os.getenv("MINIMAX_API_KEY", "").strip():
         prompt = _prompt(content_id, title, profile, locale, customer_name)
         # O drift de idioma é estocástico: a mesma chamada repetida costuma sair
@@ -420,22 +587,52 @@ def generate_reading(content_id: str, title: str, profile, locale: str = "pt-BR"
             except RuntimeError as exc:
                 logger.warning("MiniMax falhou; usando fallback editorial: %s", exc)
                 break
-            if _has_foreign_script(raw):
+
+            if expected_sections:
+                parsed = _parse_markdown_sections(raw)
+                guard_text = _sections_plain_text(parsed)
+            else:
+                parsed = []
+                guard_text = raw
+
+            # Guard de idioma continua rodando sobre o texto COMPLETO reconstruído
+            # (não pula validação por causa do seccionamento).
+            if _has_foreign_script(guard_text):
                 logger.warning(
                     "MiniMax devolveu caractere fora do alfabeto latino (%s) na tentativa %d/%d; refazendo.",
-                    _foreign_sample(raw),
+                    _foreign_sample(guard_text),
                     attempt,
                     attempts,
                 )
                 continue
-            if _has_foreign_words(raw, locale):
+            if _has_foreign_words(guard_text, locale):
                 logger.warning(
                     "MiniMax vazou palavra de outro idioma (%s) na tentativa %d/%d; refazendo.",
-                    _foreign_word_sample(raw, locale),
+                    _foreign_word_sample(guard_text, locale),
                     attempt,
                     attempts,
                 )
                 continue
+
+            if expected_sections:
+                if len(parsed) < 10:
+                    logger.warning(
+                        "MiniMax retornou poucas seções parseáveis (%d) na tentativa %d/%d; refazendo.",
+                        len(parsed), attempt, attempts,
+                    )
+                    continue
+                parsed = _canonicalize_titles(parsed, expected_sections)
+                generated = _sections_to_html(parsed)
+                if generated:
+                    return ReadingResult(
+                        body_html=generated,
+                        source="minimax",
+                        birth_time_assumed=birth_time_assumed,
+                        ascendant_warning=ascendant_warning,
+                        sections=parsed,
+                    )
+                continue
+
             generated = _paragraphs_to_html(raw)
             if generated:
                 return ReadingResult(
@@ -448,6 +645,16 @@ def generate_reading(content_id: str, title: str, profile, locale: str = "pt-BR"
             logger.error(
                 "MiniMax derrapou de idioma em todas as %d tentativas; usando fallback editorial.", attempts
             )
+    if expected_sections:
+        sections = _fallback_sections(content_id, profile, locale)
+        return ReadingResult(
+            body_html=_sections_to_html(sections),
+            source="fallback",
+            warning="Leitura gerada por modelo editorial padrão. A leitura personalizada está temporariamente indisponível.",
+            birth_time_assumed=birth_time_assumed,
+            ascendant_warning=ascendant_warning,
+            sections=sections,
+        )
     fallback = _fallback_reading(profile, locale)
     return ReadingResult(
         body_html=fallback,
