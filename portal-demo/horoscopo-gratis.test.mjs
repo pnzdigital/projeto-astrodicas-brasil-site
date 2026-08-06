@@ -2,7 +2,7 @@
 //
 // Cobre: presença do formulário completo de nascimento nos dois idiomas, ausência
 // de vazamento de idioma (PT em ES e vice-versa), diferença obrigatória de oferta
-// entre pt-BR (Plano Lua via checkout) e es-AR (trial de 7 dias com cartão via
+// entre pt-BR (Plano Lua via checkout) e es-AR (trial de 3 dias com cartão via
 // Mercado Pago), disparo dos eventos do Meta Pixel e ausência de prova social falsa.
 //
 // Roda com: ``node portal-demo/horoscopo-gratis.test.mjs``.
@@ -83,7 +83,7 @@ test('renderReading escolhe a oferta certa por idioma: es -> trial, pt -> Plano 
   assert.match(html, /const offerHtml = es \? renderTrialOffer\(\) : renderPlanoLuaOffer\(\);/);
 });
 
-// ── Copy honesta do trial: cancelamento explícito, sem cobrança nos 7 dias ──
+// ── Copy honesta do trial: cancelamento explícito, sem cobrança nos 3 dias ──
 
 test('copy es-AR do trial deixa explícito que dá pra cancelar sem pagar nada', () => {
   assert.match(html, /cancelás cuando quieras antes de que terminen y no pagás nada/i);

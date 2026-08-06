@@ -1,4 +1,4 @@
-"""O Plano Lua por assinatura, começando com 7 dias grátis.
+"""O Plano Lua por assinatura, começando com 3 dias grátis.
 
 O que estes testes protegem, em ordem de dano se quebrar:
 
@@ -58,7 +58,7 @@ def test_trial_cria_conta_assinatura_e_acesso_com_prazo(client, preapproval_cria
     assert response.status_code == 200, response.text
     body = response.json()
     assert body["status"] == "trialing"
-    assert body["trial_days"] == 7
+    assert body["trial_days"] == 3
 
     db = SessionLocal()
     try:
@@ -73,16 +73,23 @@ def test_trial_cria_conta_assinatura_e_acesso_com_prazo(client, preapproval_cria
         prazo = entitlement.expires_at
         if prazo.tzinfo is None:
             prazo = prazo.replace(tzinfo=timezone.utc)
-        assert timedelta(days=6) < prazo - AGORA < timedelta(days=8)
+        # Amarrado ao TRIAL_DAYS em vez de a um número solto: mudar o tamanho do
+        # teste grátis é decisão comercial, e não pode quebrar o teste que só
+        # verifica que o prazo existe e bate com o configurado.
+        assert (
+            timedelta(days=subscriptions.TRIAL_DAYS - 1)
+            < prazo - AGORA
+            < timedelta(days=subscriptions.TRIAL_DAYS + 1)
+        )
     finally:
         db.close()
 
 
 def test_o_periodo_gratis_e_pedido_ao_provedor(client, preapproval_criado):
-    """Contar os 7 dias do nosso lado exigiria disparar a 1ª cobrança sozinhos."""
+    """Contar os 3 dias do nosso lado exigiria disparar a 1ª cobrança sozinhos."""
     client.post("/api/trial/start", json=TRIAL)
 
-    assert preapproval_criado["trial_days"] == 7
+    assert preapproval_criado["trial_days"] == 3
     assert preapproval_criado["currency"] == "ARS"
     assert preapproval_criado["notification_url"].endswith("/api/webhooks/mercadopago/ar/subscription")
 

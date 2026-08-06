@@ -120,17 +120,17 @@
       genericError: 'No pudimos calcular tu horóscopo ahora. Probá de nuevo en unos instantes.',
       loading: 'Calculando…',
       resultTitleFallback: 'Tu horóscopo de hoy',
-      offerTitle: '7 días de horóscopo diario gratis',
-      offerLede: 'Después de hoy, seguimos calculando tu cielo todos los días. Empezá los 7 días gratis — cancelás cuando quieras antes de que terminen y no pagás nada.',
+      offerTitle: '3 días de horóscopo diario gratis',
+      offerLede: 'Después de hoy, seguimos calculando tu cielo todos los días. Empezá los 3 días gratis — cancelás cuando quieras antes de que terminen y no pagás nada.',
       offerItems: [
         'Horóscopo personalizado todos los días, calculado sobre tu carta',
         'Acceso a tu área en el sitio con todo guardado',
-        'Cancelás en un clic, cuando quieras, dentro de los 7 días — no se cobra nada',
+        'Cancelás en un clic, cuando quieras, dentro de los 3 días — no se cobra nada',
       ],
-      offerCardTitle: 'Empezar mis 7 días gratis',
-      offerCardLede: 'Pedimos tu tarjeta para activar el acceso, pero no se cobra nada hoy. Recién después de los 7 días gratis, si no cancelaste, se cobra el Plan Luna.',
-      honesty: 'Podés cancelar cuando quieras antes de que terminen los 7 días y no pagás nada. Si no cancelás, al final del período gratuito se activa el Plan Luna al precio que ves arriba.',
-      startTrialCta: 'Empezar 7 días gratis →',
+      offerCardTitle: 'Empezar mis 3 días gratis',
+      offerCardLede: 'Pedimos tu tarjeta para activar el acceso, pero no se cobra nada hoy. Recién después de los 3 días gratis, si no cancelaste, se cobra el Plan Luna.',
+      honesty: 'Podés cancelar cuando quieras antes de que terminen los 3 días y no pagás nada. Si no cancelás, al final del período gratuito se activa el Plan Luna al precio que ves arriba.',
+      startTrialCta: 'Empezar 3 días gratis →',
       buyerName: 'Nombre',
       buyerEmail: 'E-mail',
       trialFailed: 'No pudimos activar tu trial ahora. Probá de nuevo en unos instantes.',
@@ -260,13 +260,13 @@
       });
     }
 
-    // es-AR: trial de 7 dias com cartão via Mercado Pago. Cancelável antes do fim, sem cobrança.
+    // es-AR: trial de 3 dias com cartão via Mercado Pago. Cancelável antes do fim, sem cobrança.
     function renderTrialOffer() {
       return `<section class="offer" id="offer">
         <h3>${escapeHtml(copy.offerTitle)}</h3>
         <p class="lede">${escapeHtml(copy.offerLede)}</p>
         <ul>${copy.offerItems.map((item) => `<li>${escapeHtml(item)}</li>`).join('')}</ul>
-        <div class="price" id="offer-price">${escapeHtml(priceLabel)} <small>después de los 7 días gratis</small></div>
+        <div class="price" id="offer-price">${escapeHtml(priceLabel)} <small>después de los 3 días gratis</small></div>
         <form id="trial-form">
           <div class="field"><label for="t-name">${escapeHtml(copy.buyerName)}</label><input id="t-name" name="trial_name" type="text" autocomplete="name" required></div>
           <div class="field"><label for="t-email">${escapeHtml(copy.buyerEmail)}</label><input id="t-email" name="trial_email" type="email" autocomplete="email" required></div>

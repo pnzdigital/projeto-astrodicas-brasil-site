@@ -1,7 +1,7 @@
 """Acesso com prazo tem que acabar de verdade.
 
 A coluna ``expires_at`` existia sem ninguém ler: nenhum produto vencia. Com o
-Plano Lua virando assinatura com 7 dias grátis, um entitlement vencido que
+Plano Lua virando assinatura com 3 dias grátis, um entitlement vencido que
 continua liberando conteúdo é o pior bug possível do funil — a pessoa cancela,
 para de pagar e continua recebendo horóscopo diário.
 

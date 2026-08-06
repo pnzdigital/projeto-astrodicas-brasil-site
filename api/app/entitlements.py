@@ -4,7 +4,7 @@ Até aqui todo entitlement era vitalício: comprou o mapa astral, tem para sempr
 ``Entitlement.expires_at`` existia na tabela mas ninguém lia — nenhum produto
 vencia, então a coluna nunca importou.
 
-O Plano Lua por assinatura muda isso. Ele começa em 7 dias grátis e continua
+O Plano Lua por assinatura muda isso. Ele começa em 3 dias grátis e continua
 mensal enquanto o cartão pagar; se a pessoa cancelar ou o pagamento falhar, o
 acesso precisa acabar de fato. Sem este módulo o trial expirado continuaria
 liberando horóscopo diário para sempre, e a assinatura não teria como ser

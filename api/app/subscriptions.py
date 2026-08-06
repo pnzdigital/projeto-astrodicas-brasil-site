@@ -1,8 +1,8 @@
-"""Plano Lua por assinatura, abrindo com 7 dias grátis.
+"""Plano Lua por assinatura, abrindo com 3 dias grátis.
 
 O funil: a pessoa cai do anúncio, lê o horóscopo do dia grátis
-(``horoscope_free``) e recebe a oferta de 7 dias de horóscopo diário sem pagar,
-cadastrando o cartão. No fim dos 7 dias vira Plano Lua mensal, e ela cancela
+(``horoscope_free``) e recebe a oferta de 3 dias de horóscopo diário sem pagar,
+cadastrando o cartão. No fim dos 3 dias vira Plano Lua mensal, e ela cancela
 pelo painel quando quiser.
 
 Três decisões que sustentam isso:
@@ -13,7 +13,7 @@ Três decisões que sustentam isso:
    pt-BR seria prometer um fluxo que o backend não tem. A rota recusa com 409.
 
 2. **O período grátis é do provedor.** ``free_trial`` do Mercado Pago autoriza o
-   cartão hoje e cobra só no 8º dia. Contar os dias do nosso lado exigiria que a
+   cartão hoje e cobra só no 4º dia. Contar os dias do nosso lado exigiria que a
    gente disparasse a primeira cobrança sozinho — a parte que não pode falhar.
 
 3. **Quem manda no acesso é o entitlement, não a assinatura.** O portal já
@@ -48,7 +48,7 @@ logger = logging.getLogger(__name__)
 router = APIRouter()
 
 PRODUCT_ID = "site:plano_lua"
-TRIAL_DAYS = int(os.getenv("TRIAL_DAYS", "7"))
+TRIAL_DAYS = int(os.getenv("TRIAL_DAYS", "3"))
 
 # Mercado Pago -> vocabulário do site. ``authorized`` cobre tanto o trial quanto
 # a assinatura já cobrando; quem separa os dois é ``trial_ends_at``.
