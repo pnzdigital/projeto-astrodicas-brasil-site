@@ -56,6 +56,22 @@ def _bypass_ips() -> set[str]:
 
 
 def _client_ip(request: Request) -> str:
+    """IP da visitante, não o do proxy.
+
+    Em produção nginx senta na frente do uvicorn dentro do mesmo container
+    (ver Dockerfile) e encaminha X-Forwarded-For; sem ler esse header aqui,
+    ``request.client.host`` fica sendo o IP de quem conecta no uvicorn — que,
+    atrás de mais um proxy de ingress (Coolify/Traefik), é o IP do próprio
+    ingress, igual pra toda visitante. Isso juntava gente sem relação nenhuma
+    no mesmo bucket do limitador. Primeiro IP da lista é o originador (cada
+    proxy só acrescenta o seu à direita); a porta 8000 não é alcançável de
+    fora deste container, então confiar no header aqui é seguro.
+    """
+    forwarded = request.headers.get("x-forwarded-for")
+    if forwarded:
+        first = forwarded.split(",")[0].strip()
+        if first:
+            return first
     return request.client.host if request.client else "unknown"
 
 

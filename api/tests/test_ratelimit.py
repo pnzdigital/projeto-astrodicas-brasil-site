@@ -76,6 +76,7 @@ def test_limit_is_per_ip_not_global(monkeypatch, client):
     def fake_request(ip: str):
         request = MagicMock()
         request.client.host = ip
+        request.headers = {}
         request.url.path = "/api/auth/login"
         request.path_params = {}
         return request
@@ -112,9 +113,45 @@ def test_bypass_ip_is_never_limited(monkeypatch):
     )
     request = MagicMock()
     request.client.host = "10.0.0.9"
+    request.headers = {}
     request.url.path = "/api/auth/login"
     for _ in range(10):
         limiter(request)  # nunca levanta, mesmo passando do limite
+
+
+def test_limit_keys_on_forwarded_client_ip_not_proxy(monkeypatch, client):
+    """Atrás de nginx (Dockerfile: uvicorn e nginx no mesmo container, nginx na
+    frente), request.client.host é sempre o peer imediato do uvicorn — em
+    produção, o IP de ingress do Coolify/Traefik, igual pra toda visitante.
+    O limitador precisa isolar por X-Forwarded-For (a visitante real), não
+    por esse IP compartilhado — senão visitantes sem nenhuma relação
+    esgotam o mesmo bucket."""
+    monkeypatch.setenv("RATE_LIMIT_PREVIEW_MAX", "2")
+    monkeypatch.setenv("RATE_LIMIT_PREVIEW_WINDOW_SECONDS", "60")
+    monkeypatch.setenv("GEOCODING_ENABLED", "1")
+    payload = {
+        "name": "Test",
+        "birth_date": "1990-01-01",
+        "birth_city": "Rosario",
+        "locale": "es-AR",
+    }
+
+    for _ in range(2):
+        response = client.post(
+            "/api/horoscopo/gratis", json=payload, headers={"x-forwarded-for": "203.0.113.10"}
+        )
+        assert response.status_code == 200
+    blocked = client.post(
+        "/api/horoscopo/gratis", json=payload, headers={"x-forwarded-for": "203.0.113.10"}
+    )
+    assert blocked.status_code == 429
+
+    # IP diferente no X-Forwarded-For, mesmo peer/proxy (TestClient) por trás:
+    # não deve herdar o consumo do primeiro visitante.
+    other = client.post(
+        "/api/horoscopo/gratis", json=payload, headers={"x-forwarded-for": "203.0.113.20"}
+    )
+    assert other.status_code == 200
 
 
 def test_checkout_order_and_webhook_have_independent_buckets(monkeypatch, client):
