@@ -79,11 +79,42 @@ test('oferta es-AR usa formulário de trial e chama /api/trial/start', () => {
   assert.ok(body.includes('trial-form'), 'formulário de trial ausente no caminho es-AR');
 });
 
-test('fluxo de trial es-AR chama POST /api/trial/start sem cartão e redireciona pro init_point', () => {
+test('fluxo de trial es-AR chama POST /api/trial/start sem cartão no front e redireciona pro init_point', () => {
   assert.ok(!/sdk\.mercadopago\.com\/js\/v2/.test(html), 'SDK do Mercado Pago não deve mais ser carregado no front');
   assert.ok(!/new window\.MercadoPago\(/.test(html), 'Brick do Mercado Pago não deve mais ser montado no front');
   assert.match(html, /\/api\/trial\/start/);
   assert.match(html, /data\.init_point/);
+});
+
+test('oferta es-AR só revela os campos de nome/e-mail depois do clique num CTA — <details> nativo, sem reload', () => {
+  const match = html.match(/function renderTrialOffer\s*\(\)\s*\{([\s\S]*?)\n    \}/);
+  assert.ok(match, 'função renderTrialOffer não encontrada');
+  const body = match[1];
+  const detailsIdx = body.indexOf('<details class="trial-reveal"');
+  const summaryIdx = body.indexOf('<summary class="button">');
+  const formIdx = body.indexOf('<form id="trial-form">');
+  assert.ok(detailsIdx >= 0, 'reveal <details> ausente na oferta es-AR');
+  assert.ok(detailsIdx < summaryIdx && summaryIdx < formIdx, 'ordem errada: precisa ser details > summary(CTA) > form(dados)');
+  // o resumo do <details> (visível fechado) usa startTrialCta; o CTA de dentro do form (só visível após abrir) usa mpCta.
+  assert.match(body, /<summary class="button">\$\{escapeHtml\(copy\.startTrialCta\)\}<\/summary>/);
+  assert.match(body, /id="trial-submit">\$\{escapeHtml\(copy\.mpCta\)\}/);
+});
+
+test('copy es-AR deixa claro que o cartão é obrigatório e é digitado no Mercado Pago, não no site', () => {
+  assert.match(html, /Pedimos tu tarjeta para arrancar la suscripción/);
+  assert.match(html, /la cargás en el checkout de Mercado Pago, no acá/);
+});
+
+test('honesty es-AR cobre os 5 pontos: cartão pedido, cobrança só dia 4, cancelamento grátis na área do site', () => {
+  const match = html.match(/honesty:\s*'([^']+)'/);
+  assert.ok(match, 'chave honesty do es-AR não encontrada');
+  const honesty = match[1];
+  assert.match(honesty, /tarjeta/i);
+  assert.match(honesty, /Mercado Pago/);
+  assert.match(honesty, /no se cobra nada/i);
+  assert.match(honesty, /[Dd]ía 4/);
+  assert.match(honesty, /se cobra el Plan Luna/);
+  assert.match(honesty, /área en el sitio/);
 });
 
 test('renderReading escolhe a oferta certa por idioma: es -> trial, pt -> Plano Lua', () => {

@@ -66,6 +66,11 @@
     .offer .price{color:var(--gold-lit);font:600 26px/1 var(--display);margin-bottom:16px}
     .offer .price small{font:500 11px var(--body);color:var(--faint)}
     .honesty{margin:16px 0 0;padding:13px 15px;border:1px dashed rgba(217,172,92,.4);border-radius:5px;color:var(--muted);font-size:12px;line-height:1.55}
+    .trial-reveal{margin-top:18px}
+    .trial-reveal summary.button{list-style:none}
+    .trial-reveal summary.button::-webkit-details-marker{display:none}
+    .trial-reveal[open] summary.button{margin-bottom:16px}
+    .trial-reveal form{display:grid;gap:0}
     .loading{display:flex;align-items:center;gap:8px;color:var(--faint);font-size:13px}
     footer{padding:30px 0;color:var(--faint);font-size:11px;text-align:center}
     @media(max-width:520px){.card,.offer{padding:20px}}
@@ -125,20 +130,19 @@
       loading: 'Calculando…',
       resultTitleFallback: 'Tu horóscopo de hoy',
       offerTitle: 'Lo que acabás de leer es apenas hoy',
-      offerLede: 'Mañana tu cielo cambia y el Plan Luna sigue calculándolo por vos, todos los días. Empezá con 3 días gratis — la tarjeta se pide para activar el acceso, pero no se cobra nada hasta el día 4.',
+      offerLede: 'Mañana tu cielo cambia y el Plan Luna sigue calculándolo por vos, todos los días. Empezá con 3 días gratis.',
       offerItems: [
         'Horóscopo personalizado todos los días, calculado sobre tu carta — no una lectura genérica de revista',
         'Guía del mes con los movimientos astrales que vienen',
         'Acceso a tu área en el sitio con todo guardado',
       ],
-      offerCardTitle: 'Empezar mis 3 días gratis',
-      offerCardLede: 'Pedimos tu tarjeta para activar el acceso, pero no se cobra nada hoy. Recién el día 4, si no cancelaste, se cobra el Plan Luna.',
-      honesty: 'Día 1 a 3: gratis, cancelás cuando quieras y no pagás nada. Día 4: si no cancelaste, se cobra el Plan Luna al precio de arriba, todos los meses, hasta que canceles.',
+      honesty: 'Pedimos tu tarjeta para arrancar la suscripción — la cargás en el checkout de Mercado Pago, no acá. Día 1 a 3: no se cobra nada, cancelás cuando quieras y no pagás nada. Día 4: si no cancelaste, se cobra el Plan Luna a {price} por mes, hasta que canceles. Cancelás cuando quieras desde tu área en el sitio.',
       startTrialCta: 'Empezar 3 días gratis →',
+      mpCta: 'Continuar en Mercado Pago →',
       buyerName: 'Nombre',
       buyerEmail: 'E-mail',
       trialFailed: 'No pudimos activar tu trial ahora. Probá de nuevo en unos instantes.',
-      trialOpening: 'Activando tu acceso…',
+      trialOpening: 'Redirigiendo a Mercado Pago…',
       priceFallback: 'Consultar',
     } : {
       eyebrow: 'Grátis · na hora',
@@ -322,20 +326,28 @@
       });
     }
 
-    // es-AR: trial de 3 dias com cartão via Mercado Pago. Cancelável antes do fim, sem cobrança.
+    // es-AR: oferta primeiro, cartão só entra depois que ela decidiu — o
+    // <details>/<summary> revela nome/e-mail só no clique, sem reload e sem
+    // depender de JS pra funcionar (nativo do HTML). O cartão em si é
+    // digitado no checkout do Mercado Pago, não aqui: fluxo é trial de 3
+    // dias com cartão exigido no signup, cobrança só no dia 4 se não
+    // cancelar.
     function renderTrialOffer() {
       return `<section class="offer" id="offer">
         <h3>${escapeHtml(copy.offerTitle)}</h3>
         <p class="lede">${escapeHtml(copy.offerLede)}</p>
         <ul>${copy.offerItems.map((item) => `<li>${escapeHtml(item)}</li>`).join('')}</ul>
         <div class="price" id="offer-price">${escapeHtml(priceLabel)} <small>después de los 3 días gratis</small></div>
-        <form id="trial-form">
-          <div class="field"><label for="t-name">${escapeHtml(copy.buyerName)}</label><input id="t-name" name="trial_name" type="text" autocomplete="name" required></div>
-          <div class="field"><label for="t-email">${escapeHtml(copy.buyerEmail)}</label><input id="t-email" name="trial_email" type="email" autocomplete="email" required></div>
-          <button class="button" type="submit" id="trial-submit">${escapeHtml(copy.startTrialCta)}</button>
-          <p class="honesty">${escapeHtml(copy.honesty)}</p>
-          <p class="error" role="alert" id="trial-error"></p>
-        </form>
+        <p class="honesty">${escapeHtml(copy.honesty.replace('{price}', priceLabel))}</p>
+        <details class="trial-reveal" id="trial-reveal">
+          <summary class="button">${escapeHtml(copy.startTrialCta)}</summary>
+          <form id="trial-form">
+            <div class="field"><label for="t-name">${escapeHtml(copy.buyerName)}</label><input id="t-name" name="trial_name" type="text" autocomplete="name" required></div>
+            <div class="field"><label for="t-email">${escapeHtml(copy.buyerEmail)}</label><input id="t-email" name="trial_email" type="email" autocomplete="email" required></div>
+            <button class="button" type="submit" id="trial-submit">${escapeHtml(copy.mpCta)}</button>
+            <p class="error" role="alert" id="trial-error"></p>
+          </form>
+        </details>
       </section>`;
     }
 
