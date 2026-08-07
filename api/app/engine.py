@@ -152,6 +152,21 @@ SECTIONS_BY_CONTENT_ID: dict[str, list[tuple[str, str]]] = {
         ("Plano de Evolução", "Próximos ciclos"),
         ("Mensagem Final", "Carreira com alma"),
     ],
+    # Guia do Mês: "os movimentos astrais que vêm" — trânsitos reais do mês
+    # calculado contra o mapa natal (context["calculated_chart"]["transits_to_natal"]
+    # e ["current_sky"]), não um mês-modelo genérico de revista. Sem seções o
+    # guia caía num único parágrafo de ~900 palavras (mesmo defeito medido em
+    # mapa_astral_completo); seccionado, cada bloco tem piso de conteúdo próprio.
+    "site:content:guia_do_mes": [
+        ("Panorama do Mês", "O clima geral"),
+        ("Sol do Mês", "Onde a luz aponta"),
+        ("Vínculos e Afeto", "Vênus e Marte no seu mapa"),
+        ("Comunicação e Decisões", "Mercúrio em ação"),
+        ("Trânsitos que Pedem Atenção", "O que cobra ajuste"),
+        ("Semanas do Mês", "Quando cada movimento pesa mais"),
+        ("Área Sensível", "Onde o cuidado rende mais"),
+        ("Mensagem Final", "Como atravessar o mês"),
+    ],
 }
 
 
@@ -336,7 +351,6 @@ def _prompt(content_id: str, title: str, profile, locale: str, customer_name: st
         "site:content:mapa_do_amor_sinastria": "Escreva 9 a 12 parágrafos sobre padrões afetivos do cliente. Se os dados do parceiro estiverem incompletos, explique com delicadeza que a comparação completa depende deles e não invente posições do parceiro.",
         "site:content:mapa_da_prosperidade": "Escreva 8 a 11 parágrafos sobre recursos, segurança, merecimento e oportunidades, sem prometer ganhos financeiros. Relacione a leitura às posições calculadas.",
         "site:content:previsao_semanal": "Escreva 7 parágrafos, um para o panorama e seis para temas e decisões da semana, usando os trânsitos atuais calculados.",
-        "site:content:guia_do_mes": "Escreva 8 a 10 parágrafos com temas do mês, momentos de atenção e práticas concretas, usando o céu atual e o mapa natal.",
         "site:content:calendario_lunar": "Escreva um guia editorial do ciclo lunar atual em 7 a 9 parágrafos. Não invente datas que não estejam nos dados; quando faltarem, trate como guia de uso das fases.",
         "site:content:guia_dos_retrogrados": "Escreva 7 a 9 parágrafos explicando os planetas retrógrados presentes no céu calculado e como atravessar revisões sem fatalismo.",
         "site:content:manual_do_ascendente": "Escreva 8 a 10 parágrafos sobre o Ascendente calculado, seu regente simbólico, presença, corpo e primeira impressão. Se não houver Ascendente calculado, explique que a hora exata é necessária.",

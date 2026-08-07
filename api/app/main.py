@@ -6,6 +6,7 @@ import os
 import secrets
 from datetime import date, datetime, time, timedelta, timezone
 from pathlib import Path
+from zoneinfo import ZoneInfo
 
 from fastapi import BackgroundTasks, Cookie, Depends, FastAPI, HTTPException, Request, Response, status
 from fastapi.exceptions import RequestValidationError
@@ -583,19 +584,18 @@ def generate(content_id: str, request: Request, response: Response, background_t
         msg = "Complete seus dados de nascimento antes de gerar a leitura." if locale == "pt-BR" else "Completá tus datos de nacimiento antes de generar la lectura."
         raise HTTPException(status_code=422, detail=msg)
     snapshot = profile_to_dict(profile)
+    locale = _pick_locale(user.locale if user else None, request.headers.get("accept-language"))
+    product_id = content_product(content_id)
+    # Entitlement checado ANTES do cache: sem isso, quem cancelou/venceu ainda
+    # veria a leitura de hoje se ela já tivesse sido gerada antes de expirar.
+    if product_id and not entitlements.active(db, user.id, product_id):
+        msg = "Este conteúdo ainda não está liberado para sua conta." if locale == "pt-BR" else "Este contenido todavía no está disponible para tu cuenta."
+        raise HTTPException(status_code=403, detail=msg)
     existing = db.scalar(select(Reading).where(Reading.user_id == user.id, Reading.content_id == content_id, Reading.status.in_(["ready", "fallback"])).order_by(Reading.created_at.desc()))
-    if existing and reading_is_current(existing, content_id, snapshot):
+    if existing and reading_is_current(existing, content_id, snapshot, locale):
         # Já pronta: nada para gerar, devolve 200 de verdade (não 202).
         response.status_code = status.HTTP_200_OK
         return {"reading": reading_to_dict(existing, user.locale)}
-    product_id = content_product(content_id)
-    # Vencimento conta: o Plano Lua por assinatura expira quando o trial acaba
-    # ou quando o cartão para de pagar. Compra avulsa não tem expires_at e segue
-    # vitalícia.
-    if product_id and not entitlements.active(db, user.id, product_id):
-        locale = _pick_locale(user.locale if user else None, request.headers.get("accept-language"))
-        msg = "Este conteúdo ainda não está liberado para sua conta." if locale == "pt-BR" else "Este contenido todavía no está disponible para tu cuenta."
-        raise HTTPException(status_code=403, detail=msg)
     reading = Reading(user_id=user.id, content_id=content_id, product_id=product_id, status="in_progress", title=content_title(content_id), input_snapshot=snapshot)
     db.add(reading)
     db.commit()
@@ -737,7 +737,7 @@ def content_title(content_id: str) -> str:
     }.get(content_id, "Leitura AstroDicas")
 
 
-def reading_is_current(reading: Reading, content_id: str, snapshot: dict) -> bool:
+def reading_is_current(reading: Reading, content_id: str, snapshot: dict, locale: str = "pt-BR") -> bool:
     if reading.input_snapshot != snapshot:
         return False
     created = reading.created_at
@@ -745,10 +745,25 @@ def reading_is_current(reading: Reading, content_id: str, snapshot: dict) -> boo
         created = created.replace(tzinfo=timezone.utc)
     now = datetime.now(timezone.utc)
     if content_id == "site:content:horoscopo_diario":
-        return created.date() == now.date()
+        # Dia da ASSINANTE, não do servidor — mesma razão do horóscopo grátis
+        # (horoscope_free.local_today): às 22h no Brasil/Argentina o servidor
+        # (UTC) já virou o dia seguinte, e contar por UTC serviria o horóscopo
+        # de amanhã de noite e recusaria cache válido de hoje de manhã.
+        tz_locale = locale if locale in horoscope_free.LOCALE_DEFAULTS else "pt-BR"
+        created_local = created.astimezone(ZoneInfo(horoscope_free.LOCALE_DEFAULTS[tz_locale][1])).date()
+        return created_local == horoscope_free.local_today(tz_locale)
     if content_id == "site:content:previsao_semanal":
         return created.isocalendar()[:2] == now.isocalendar()[:2]
-    if content_id in {"site:content:guia_do_mes", "site:content:calendario_lunar"}:
+    if content_id == "site:content:guia_do_mes":
+        # Mês da ASSINANTE, não do servidor — mesma razão do horóscopo diário
+        # acima: perto da virada do mês, UTC já mudou de mês enquanto ainda é
+        # o mês anterior na Argentina/Brasil (ou o inverso), e isso decidiria
+        # errado se regenera o guia ou serve o cache.
+        tz_locale = locale if locale in horoscope_free.LOCALE_DEFAULTS else "pt-BR"
+        created_local = created.astimezone(ZoneInfo(horoscope_free.LOCALE_DEFAULTS[tz_locale][1])).date()
+        today_local = horoscope_free.local_today(tz_locale)
+        return (created_local.year, created_local.month) == (today_local.year, today_local.month)
+    if content_id == "site:content:calendario_lunar":
         return (created.year, created.month) == (now.year, now.month)
     return True
 
