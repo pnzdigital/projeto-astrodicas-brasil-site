@@ -100,6 +100,20 @@ def test_preview_with_birth_time_does_not_warn(client, geocoded):
     assert "ascendant_warning" not in data or not data["ascendant_warning"]
 
 
+def test_preview_hora_vazia_e_tratada_como_ausente(client, geocoded):
+    payload = {**BIRTH, "birth_time": ""}
+    data = client.post("/api/preview/natal", json=payload).json()
+
+    assert data["birth_time_assumed"] is True
+
+
+def test_preview_hora_invalida_ainda_e_recusada(client, geocoded):
+    payload = {**BIRTH, "birth_time": "25:99"}
+    response = client.post("/api/preview/natal", json=payload)
+
+    assert response.status_code == 422
+
+
 def test_preview_assumed_time_uses_midnight_for_calculation(client, geocoded, monkeypatch):
     """Garante que a hora assumida é 00:00 do fuso local, não 12:00 (que era o
     default silencioso). Spy em ``swe.julday`` para capturar o decimal_hour."""

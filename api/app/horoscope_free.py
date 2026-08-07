@@ -32,7 +32,7 @@ from zoneinfo import ZoneInfo
 
 import swisseph as swe
 from fastapi import APIRouter, Depends, HTTPException, Request, status
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 from . import astrology
 from .preview import (
@@ -299,6 +299,11 @@ class HoroscopeBody(BaseModel):
     birth_state: str | None = Field(default=None, max_length=64)
     birth_timezone: str | None = Field(default=None, max_length=64)
     locale: str | None = Field(default=None, max_length=10)
+
+    @field_validator("birth_time", mode="before")
+    @classmethod
+    def _blank_time_to_none(cls, value):
+        return None if value == "" else value
 
 
 def _first_name(name: str) -> str:

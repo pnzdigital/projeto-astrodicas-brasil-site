@@ -119,6 +119,19 @@ def test_sem_hora_de_nascimento_avisa_que_o_ascendente_e_estimado(client, geocod
     assert "Ascendente" in body["ascendant_warning"]
 
 
+def test_hora_vazia_e_tratada_como_ausente(client, geocoded):
+    body = client.post("/api/horoscopo/gratis", json={**BASE, "birth_time": "", "locale": "es-AR"}).json()
+
+    assert body["birth_time_assumed"] is True
+    assert body["ascendant_warning"]
+
+
+def test_hora_invalida_ainda_e_recusada(client, geocoded):
+    response = client.post("/api/horoscopo/gratis", json={**BASE, "birth_time": "25:99", "locale": "pt-BR"})
+
+    assert response.status_code == 422
+
+
 def test_data_futura_e_recusada_na_lingua_do_visitante(client, geocoded):
     amanha = (date.today() + timedelta(days=1)).isoformat()
     response = client.post("/api/horoscopo/gratis", json={**BASE, "birth_date": amanha, "locale": "es-AR"})

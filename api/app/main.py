@@ -10,7 +10,7 @@ from pathlib import Path
 from fastapi import BackgroundTasks, Cookie, Depends, FastAPI, HTTPException, Request, Response, status
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
-from pydantic import BaseModel, EmailStr, Field
+from pydantic import BaseModel, EmailStr, Field, field_validator
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
@@ -228,6 +228,11 @@ class ProfileBody(BaseModel):
     partner_birth_time: time | None = None
     partner_birth_city: str = Field(default="", max_length=160)
     partner_country: str = Field(default="BR", min_length=2, max_length=2)
+
+    @field_validator("birth_time", "partner_birth_time", mode="before")
+    @classmethod
+    def _blank_time_to_none(cls, value):
+        return None if value == "" else value
 
 
 class WebhookBody(BaseModel):

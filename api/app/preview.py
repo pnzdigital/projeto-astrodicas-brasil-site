@@ -26,7 +26,7 @@ from zoneinfo import ZoneInfo
 
 import swisseph as swe
 from fastapi import APIRouter, Depends, HTTPException, Request, status
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 from . import astrology
 from .ratelimit import preview_rate_limit
@@ -292,6 +292,11 @@ class PreviewBody(BaseModel):
     birth_country: str = Field(default="BR", min_length=2, max_length=2)
     birth_timezone: str = Field(default="America/Sao_Paulo", max_length=64)
     locale: str | None = Field(default=None, max_length=10)
+
+    @field_validator("birth_time", mode="before")
+    @classmethod
+    def _blank_time_to_none(cls, value):
+        return None if value == "" else value
 
 
 def _luminary(position: dict, kind: str, locale: str) -> dict:
