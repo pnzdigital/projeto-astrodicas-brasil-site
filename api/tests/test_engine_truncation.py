@@ -7,15 +7,14 @@ Medição real de produção (2026-08-06, 3 mapas via MiniMax):
     frase: "...transformando-a em motivação para".
   - mapa_prosperidade: 172 palavras (caiu em fallback editorial).
 
-Este arquivo trava três propriedades para os content_ids seccionados
-(mapa_astral_completo e mapa_da_carreira): (1) número mínimo de seções
-presentes, (2) contagem mínima de palavras, (3) a resposta termina de forma
-gramaticalmente completa (nunca no meio de uma frase/palavra) — e que uma
-resposta que viola qualquer uma dessas é REPROVADA e regenerada pelo mesmo
-laço de tentativas do guard de idioma, só caindo no fallback depois de
-esgotar as tentativas.
+Este arquivo trava as mesmas propriedades de antes (seções presentes, palavras
+mínimas, final gramaticalmente completo) mas agora sobre a geração
+SEÇÃO-A-SEÇÃO (``_generate_section`` / ``_generate_reading_sections``): cada
+chamada ao MiniMax pede UMA seção só, e a reprovação (idioma ou truncamento)
+regenera SÓ aquela seção — não o documento inteiro.
 """
 
+import re
 from datetime import date
 
 from app import engine
@@ -40,31 +39,29 @@ def _profile():
     return _Profile(date(1990, 3, 15))
 
 
-def _make_markdown(content_id: str, *, complete: bool = True, skip_last_n: int = 0) -> str:
-    """Monta um markdown seccionado válido a partir de SECTIONS_BY_CONTENT_ID.
+def _section_markdown(title: str, subtitle: str, *, complete: bool = True) -> str:
+    """Markdown de UMA seção só, no formato que ``_generate_section`` espera
+    (mesmo com ``_parse_markdown_sections`` rodando sobre um bloco único)."""
+    body = (
+        f"Primeiro parágrafo sobre {title} considerando o mapa calculado da pessoa. "
+        "Um trígono de água conecta a Lua ao Ascendente em Peixes, trazendo sensibilidade.\n\n"
+        f"Segundo parágrafo aprofunda {title} com base nas posições reais fornecidas."
+    )
+    if complete:
+        body += " Esse movimento fecha o tema com uma orientação prática e concreta."
+    else:
+        # Corta a frase no meio, sem pontuação final — mesmo defeito
+        # observado em produção no mapa_carreira.
+        body += " Esse movimento vem transformando-a em motivação para"
+    return f"## {title}\n### {subtitle}\n{body}"
 
-    ``skip_last_n`` omite as N últimas seções (simula resposta com poucas
-    seções). ``complete=False`` corta a última frase da última seção sem
-    pontuação final (simula truncamento por max_tokens).
-    """
-    expected = engine.sections_for(content_id)
-    keep = expected[: len(expected) - skip_last_n] if skip_last_n else expected
-    parts = []
-    for i, (title, subtitle) in enumerate(keep):
-        is_last = i == len(keep) - 1
-        body = (
-            f"Primeiro parágrafo sobre {title} considerando o mapa calculado da pessoa. "
-            "Um trígono de água conecta a Lua ao Ascendente em Peixes, trazendo sensibilidade.\n\n"
-            f"Segundo parágrafo aprofunda {title} com base nas posições reais fornecidas."
-        )
-        if is_last and not complete:
-            # Corta a frase no meio, sem pontuação final — mesmo defeito
-            # observado em produção no mapa_carreira.
-            body += " Esse movimento vem transformando-a em motivação para"
-        else:
-            body += " Esse movimento fecha o tema com uma orientação prática e concreta."
-        parts.append(f"## {title}\n### {subtitle}\n{body}")
-    return "\n\n".join(parts)
+
+_TITLE_RE = re.compile(r"Título desta seção: (.+)")
+
+
+def _section_title_from_prompt(prompt: str) -> str:
+    match = _TITLE_RE.search(prompt)
+    return match.group(1).strip() if match else ""
 
 
 def test_secoes_por_content_id_astral_e_carreira_definidas():
@@ -82,71 +79,67 @@ def test_looks_truncated_detecta_frase_cortada():
     assert engine._looks_truncated("")
 
 
-def test_refaz_quando_a_ultima_secao_vem_truncada(monkeypatch):
+def test_refaz_apenas_a_secao_truncada_sem_tocar_nas_outras(monkeypatch):
+    """A propriedade central do seccionamento: uma seção reprovada (truncada)
+    é refeita sozinha — as outras 13 seções não são regeneradas."""
     monkeypatch.setenv("MINIMAX_API_KEY", "chave-de-teste")
-    monkeypatch.setenv("MINIMAX_MAX_ATTEMPTS", "3")
+    monkeypatch.setenv("MINIMAX_SECTION_MAX_ATTEMPTS", "3")
     content_id = "site:content:mapa_da_carreira"
-    respostas = [
-        _make_markdown(content_id, complete=False),  # truncado — reprova
-        _make_markdown(content_id, complete=False),  # truncado de novo — reprova
-        _make_markdown(content_id, complete=True),   # completo — aceita
-    ]
-    chamadas = []
+    expected = engine.sections_for(content_id)
+    target_title, _target_subtitle = expected[-1]
+    calls_by_title: dict[str, int] = {}
 
-    def _fake(prompt, locale="pt-BR"):
-        chamadas.append(locale)
-        return respostas[len(chamadas) - 1]
+    def _fake(prompt, locale="pt-BR", max_tokens=None, timeout=None):
+        title = _section_title_from_prompt(prompt)
+        calls_by_title[title] = calls_by_title.get(title, 0) + 1
+        subtitle = next(s for t, s in expected if t == title)
+        if title == target_title and calls_by_title[title] < 3:
+            return _section_markdown(title, subtitle, complete=False)
+        return _section_markdown(title, subtitle, complete=True)
 
     monkeypatch.setattr(engine, "_call_minimax", _fake)
     result = engine.generate_reading(content_id, "Mapa da Carreira", _profile())
 
-    assert len(chamadas) == 3, "deveria ter refeito a chamada até a última seção sair completa"
     assert result.source == "minimax"
+    assert len(result.sections) == len(expected)
+    assert calls_by_title[target_title] == 3, "seção truncada deveria ter sido refeita até sair completa"
+    for title, _subtitle in expected:
+        if title != target_title:
+            assert calls_by_title[title] == 1, f"seção '{title}' não deveria ter sido regenerada"
     assert not engine._looks_truncated(result.sections[-1]["content"])
 
 
-def test_cai_no_fallback_quando_todas_as_tentativas_vem_truncadas(monkeypatch):
+def test_secao_cai_no_fallback_pontual_sem_derrubar_as_outras(monkeypatch):
+    """Quando UMA seção esgota as tentativas, só ela vira fallback — as
+    demais seções continuam com o texto gerado pelo MiniMax."""
     monkeypatch.setenv("MINIMAX_API_KEY", "chave-de-teste")
-    monkeypatch.setenv("MINIMAX_MAX_ATTEMPTS", "2")
-    content_id = "site:content:mapa_astral_completo"
-    chamadas = []
+    monkeypatch.setenv("MINIMAX_SECTION_MAX_ATTEMPTS", "2")
+    content_id = "site:content:mapa_da_carreira"
+    expected = engine.sections_for(content_id)
+    target_title, _target_subtitle = expected[0]
+    calls_by_title: dict[str, int] = {}
 
-    def _fake(prompt, locale="pt-BR"):
-        chamadas.append(locale)
-        return _make_markdown(content_id, complete=False)
+    def _fake(prompt, locale="pt-BR", max_tokens=None, timeout=None):
+        title = _section_title_from_prompt(prompt)
+        calls_by_title[title] = calls_by_title.get(title, 0) + 1
+        subtitle = next(s for t, s in expected if t == title)
+        if title == target_title:
+            return _section_markdown(title, subtitle, complete=False)
+        return _section_markdown(title, subtitle, complete=True)
 
     monkeypatch.setattr(engine, "_call_minimax", _fake)
-    result = engine.generate_reading(content_id, "Mapa Astral Completo", _profile())
+    result = engine.generate_reading(content_id, "Mapa da Carreira", _profile())
 
-    assert len(chamadas) == 2
-    assert result.source == "fallback"
-    # O fallback seccionado continua identificável e com todas as seções
-    # esperadas, mesmo tendo desistido do LLM.
-    assert len(result.sections) == len(engine.sections_for(content_id))
-    assert not engine._looks_truncated(result.sections[-1]["content"])
-
-
-def test_refaz_quando_vem_poucas_secoes(monkeypatch):
-    monkeypatch.setenv("MINIMAX_API_KEY", "chave-de-teste")
-    monkeypatch.setenv("MINIMAX_MAX_ATTEMPTS", "3")
-    content_id = "site:content:mapa_astral_completo"
-    respostas = [
-        _make_markdown(content_id, skip_last_n=6),  # só 9 de 15 — reprova
-        _make_markdown(content_id, skip_last_n=6),  # de novo — reprova
-        _make_markdown(content_id),                 # 15 completas — aceita
-    ]
-    chamadas = []
-
-    def _fake(prompt, locale="pt-BR"):
-        chamadas.append(locale)
-        return respostas[len(chamadas) - 1]
-
-    monkeypatch.setattr(engine, "_call_minimax", _fake)
-    result = engine.generate_reading(content_id, "Mapa Astral Completo", _profile())
-
-    assert len(chamadas) == 3
-    assert result.source == "minimax"
-    assert len(result.sections) == len(engine.sections_for(content_id))
+    assert calls_by_title[target_title] == 2, "deveria ter esgotado as 2 tentativas na seção que sempre trunca"
+    assert result.source == "fallback", "leitura com 1 seção em fallback precisa continuar identificável como fallback"
+    assert len(result.sections) == len(expected)
+    fallback_section = next(s for s in result.sections if s["order"] == 1)
+    other_section = next(s for s in result.sections if s["order"] != 1)
+    # A seção em fallback usa o template editorial (não o texto "Primeiro
+    # parágrafo sobre ..." que o mock devolve para o MiniMax); as demais
+    # seções mantêm o texto gerado normalmente.
+    assert "Primeiro parágrafo sobre" not in fallback_section["content"]
+    assert "Primeiro parágrafo sobre" in other_section["content"]
 
 
 def test_leitura_seccionada_bem_sucedida_trava_tres_propriedades(monkeypatch):
@@ -159,15 +152,17 @@ def test_leitura_seccionada_bem_sucedida_trava_tres_propriedades(monkeypatch):
     ):
         expected = engine.sections_for(content_id)
 
-        def _fake(prompt, locale="pt-BR", _cid=content_id):
-            return _make_markdown(_cid, complete=True)
+        def _fake(prompt, locale="pt-BR", max_tokens=None, timeout=None, _expected=expected):
+            title = _section_title_from_prompt(prompt)
+            subtitle = next(s for t, s in _expected if t == title)
+            return _section_markdown(title, subtitle, complete=True)
 
         monkeypatch.setattr(engine, "_call_minimax", _fake)
         result = engine.generate_reading(content_id, "Leitura", _profile())
 
         assert result.source == "minimax"
         # (1) número mínimo de seções presentes
-        assert len(result.sections) >= len(expected) - 1
+        assert len(result.sections) == len(expected)
 
         # (2) contagem mínima de palavras (soma de todas as seções)
         total_words = sum(len((s.get("content") or "").split()) for s in result.sections)
@@ -176,3 +171,22 @@ def test_leitura_seccionada_bem_sucedida_trava_tres_propriedades(monkeypatch):
         # (3) termina de forma completa — nunca no meio de frase/palavra
         assert not engine._looks_truncated(result.sections[-1]["content"])
         assert result.body_html.rstrip().endswith("</p>")
+
+
+def test_todas_as_secoes_falham_cai_no_fallback_completo(monkeypatch):
+    """Se o MiniMax falhar em toda seção (ex.: chave revogada em produção), o
+    resultado ainda é uma leitura completa e honestamente marcada como
+    fallback — nunca um documento pela metade."""
+    monkeypatch.setenv("MINIMAX_API_KEY", "chave-de-teste")
+    monkeypatch.setenv("MINIMAX_SECTION_MAX_ATTEMPTS", "2")
+    content_id = "site:content:mapa_astral_completo"
+
+    def _fake(prompt, locale="pt-BR", max_tokens=None, timeout=None):
+        raise RuntimeError("MiniMax indisponível: URLError")
+
+    monkeypatch.setattr(engine, "_call_minimax", _fake)
+    result = engine.generate_reading(content_id, "Mapa Astral Completo", _profile())
+
+    assert result.source == "fallback"
+    assert len(result.sections) == len(engine.sections_for(content_id))
+    assert not engine._looks_truncated(result.sections[-1]["content"])

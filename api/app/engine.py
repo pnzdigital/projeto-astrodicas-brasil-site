@@ -73,6 +73,42 @@ def _max_tokens_for(content_id: str) -> int:
     return TOKEN_BUDGETS.get(content_id, DEFAULT_TOKEN_BUDGET)
 
 
+# --- Section-by-section generation budgets ------------------------------------
+#
+# One giant call for all 15 (or 14) sections at once (max_tokens=7000, single
+# HTTP request up to MINIMAX_TIMEOUT_SECONDS x MINIMAX_MAX_ATTEMPTS ≈ 6min
+# worst case) is what made /generate synchronous and slow. Section-by-section
+# generation, run concurrently with a small worker pool, replaces that: each
+# call asks for exactly ONE section, with its own retry loop, so a language
+# guard rejection or truncation only costs that section's tokens/time — not
+# the whole 7000-token document.
+#
+# Per-section token budget: same per-section estimate used to size the old
+# whole-document budgets (2 a 3 parágrafos de 70 a 110 palavras ≈ 225
+# palavras/seção x 1.6 tokens/palavra ≈ 360 tokens + ~20 tokens de marcação
+# ≈ 380, com 40% de margem (maior que a margem de 20% do budget antigo,
+# porque aqui a distribuição por seção tem mais variância individual) ≈ 530
+# → arredondado para 550.
+_SECTION_TOKEN_BUDGET = int(os.getenv("MINIMAX_SECTION_MAX_TOKENS", "550"))
+
+# Per-section retry: a seção reprovada é refeita sozinha, então o custo de
+# uma tentativa extra é ~550 tokens (não 7000) — por isso 2 tentativas bastam
+# (contra as 3 do documento inteiro): o guard de idioma/truncamento é
+# estocástico e raramente falha duas vezes seguidas na MESMA seção pequena.
+_SECTION_MAX_ATTEMPTS_DEFAULT = "2"
+
+# Per-section timeout: a resposta é muito menor (550 tokens vs 7000), então
+# o tempo real de geração cai proporcionalmente. 45s cobre folgadamente o
+# pior caso observado de latência de rede + geração para um bloco pequeno,
+# sem herdar os 120s dimensionados para o documento inteiro.
+_SECTION_TIMEOUT_SECONDS_DEFAULT = "45"
+
+# Pool limitado: gerar as 15 seções em paralelo sem limite sobrecarregaria a
+# API do MiniMax (rate limit) e o processo local; 4 workers equilibra tempo
+# total (15 seções / 4 ≈ 4 rodadas) contra concorrência seguro.
+_SECTION_POOL_SIZE_DEFAULT = "4"
+
+
 # Seções exatas por content_id, portadas de astrodicas-telegram/src/vendas_bot/
 # mapa_premium.py (`_SECOES_POR_TIPO["astral"]`) para manter o MESMO produto
 # nos dois canais (bot e site). Cada tupla é (título canônico, subtítulo). O
@@ -221,6 +257,53 @@ def _profile_context(profile, customer_name: str = "") -> dict:
     }
 
 
+def _assumed_warning_text(locale: str, birth_time_assumed: bool) -> str:
+    """Aviso injetado no prompt quando a hora de nascimento foi assumida.
+
+    Extraído de ``_prompt`` para ser reaproveitado por ``_section_prompt``
+    (geração seção-a-seção) sem duplicar o texto.
+    """
+    if not birth_time_assumed:
+        return ""
+    if locale == "es-AR":
+        return (
+            "\n\nATENCIÓN: la hora de nacimiento NO fue informada. El backend asumió 00:00 "
+            "solo para poder calcular y mostrar el Ascendente. El Ascendente es el dato más "
+            "sensible a la hora en toda la carta (cambia de signo cada ~2h), así que el "
+            "Ascendente calculado es una ESTIMACIÓN y probablemente NO es el Ascendente real "
+            "del cliente. Cuando hables del Ascendente, declara explícitamente que es estimado "
+            "y que podría cambiar si la hora real fuera otra. No lo afirmes como hecho."
+        )
+    return (
+        "\n\nATENÇÃO: a hora de nascimento NÃO foi informada. O backend assumiu 00:00 "
+        "apenas para conseguir calcular e mostrar o Ascendente. O Ascendente é o dado "
+        "mais sensível à hora no mapa inteiro (troca de signo a cada ~2h), então o "
+        "Ascendente calculado é uma ESTIMATIVA e provavelmente NÃO é o Ascendente real "
+        "do cliente. Ao falar do Ascendente, declare explicitamente que é estimado e "
+        "que pode mudar se a hora real for outra. Não afirme como fato."
+    )
+
+
+def _language_lock_text(locale: str) -> str:
+    """Regra de idioma injetada no fim do prompt. Extraído de ``_prompt`` para
+    ser reaproveitado por ``_section_prompt`` sem duplicar o texto."""
+    language = "espanhol rioplatense natural" if locale == "es-AR" else "português brasileiro natural"
+    return (
+        "\n\nREGRA DE IDIOMA (crítica, produto pago): escreva do início ao fim estritamente em "
+        f"{language}. Isto é uma redação, não uma tradução — pense e escreva direto nesse idioma, "
+        "nunca alterne para outro. Proibido usar qualquer palavra em inglês (ex.: 'synthesize', "
+        "'nonetheless', 'enthusiasm', 'highlighted', 'harmonic relationships') "
+        + (
+            "ou em espanhol (ex.: 'intercambio', 'manifestarse', 'también')"
+            if locale != "es-AR"
+            else "ou em português"
+        )
+        + " no meio da frase. Termos técnicos de astrologia (Ascendente, retrógrado, orbe, sextil, "
+        "trígono, quadratura, nomes de signo) seguem sempre a grafia do idioma da leitura. Revise "
+        "mentalmente cada frase antes de escrevê-la: se uma palavra não é claramente desse idioma, troque-a."
+    )
+
+
 def _prompt(content_id: str, title: str, profile, locale: str, customer_name: str = "") -> str:
     context = _profile_context(profile, customer_name)
     language = "espanhol rioplatense natural" if locale == "es-AR" else "português brasileiro natural"
@@ -229,26 +312,7 @@ def _prompt(content_id: str, title: str, profile, locale: str, customer_name: st
     # o Ascendente como dado estimado: o ponto do mapa mais sensível à hora
     # (troca de signo a cada ~2h). Sem esse aviso no prompt, o texto pago
     # afirmaria o Ascendente com certeza que não tem — bug comercial.
-    assumed_warning = ""
-    if context.get("birth_time_assumed"):
-        if locale == "es-AR":
-            assumed_warning = (
-                "\n\nATENCIÓN: la hora de nacimiento NO fue informada. El backend asumió 00:00 "
-                "solo para poder calcular y mostrar el Ascendente. El Ascendente es el dato más "
-                "sensible a la hora en toda la carta (cambia de signo cada ~2h), así que el "
-                "Ascendente calculado es una ESTIMACIÓN y probablemente NO es el Ascendente real "
-                "del cliente. Cuando hables del Ascendente, declara explícitamente que es estimado "
-                "y que podría cambiar si la hora real fuera otra. No lo afirmes como hecho."
-            )
-        else:
-            assumed_warning = (
-                "\n\nATENÇÃO: a hora de nascimento NÃO foi informada. O backend assumiu 00:00 "
-                "apenas para conseguir calcular e mostrar o Ascendente. O Ascendente é o dado "
-                "mais sensível à hora no mapa inteiro (troca de signo a cada ~2h), então o "
-                "Ascendente calculado é uma ESTIMATIVA e provavelmente NÃO é o Ascendente real "
-                "do cliente. Ao falar do Ascendente, declare explicitamente que é estimado e "
-                "que pode mudar se a hora real for outra. Não afirme como fato."
-            )
+    assumed_warning = _assumed_warning_text(locale, bool(context.get("birth_time_assumed")))
     sections = sections_for(content_id)
     if sections:
         lista_secoes = "\n".join(f"{i:02d}. ## {t} — {s}" for i, (t, s) in enumerate(sections, 1))
@@ -278,20 +342,7 @@ def _prompt(content_id: str, title: str, profile, locale: str, customer_name: st
         "site:content:manual_do_ascendente": "Escreva 8 a 10 parágrafos sobre o Ascendente calculado, seu regente simbólico, presença, corpo e primeira impressão. Se não houver Ascendente calculado, explique que a hora exata é necessária.",
     })
     content_rule = rules.get(content_id, content_rule if sections else "Escreva uma leitura premium profunda, com 7 a 10 parágrafos.")
-    language_lock = (
-        "\n\nREGRA DE IDIOMA (crítica, produto pago): escreva do início ao fim estritamente em "
-        f"{language}. Isto é uma redação, não uma tradução — pense e escreva direto nesse idioma, "
-        "nunca alterne para outro. Proibido usar qualquer palavra em inglês (ex.: 'synthesize', "
-        "'nonetheless', 'enthusiasm', 'highlighted', 'harmonic relationships') "
-        + (
-            "ou em espanhol (ex.: 'intercambio', 'manifestarse', 'también')"
-            if locale != "es-AR"
-            else "ou em português"
-        )
-        + " no meio da frase. Termos técnicos de astrologia (Ascendente, retrógrado, orbe, sextil, "
-        "trígono, quadratura, nomes de signo) seguem sempre a grafia do idioma da leitura. Revise "
-        "mentalmente cada frase antes de escrevê-la: se uma palavra não é claramente desse idioma, troque-a."
-    )
+    language_lock = _language_lock_text(locale)
     markdown_rule = (
         "Responda no formato markdown seccionado pedido acima (## título / ### subtítulo / parágrafos)."
         if sections
@@ -451,12 +502,15 @@ def _system_prompt(locale: str) -> str:
     )
 
 
-def _call_minimax(prompt: str, locale: str = "pt-BR") -> str:
+def _call_minimax(prompt: str, locale: str = "pt-BR", max_tokens: int | None = None, timeout: float | None = None) -> str:
     api_key = os.getenv("MINIMAX_API_KEY", "").strip()
     if not api_key:
         raise RuntimeError("MINIMAX_API_KEY não configurada")
     base_url = os.getenv("MINIMAX_BASE_URL", os.getenv("LLM_BASE_URL", "https://api.minimax.io/v1")).rstrip("/")
     model = os.getenv("MINIMAX_MODEL", os.getenv("LLM_MODEL_TEXT", "MiniMax-M2.1"))
+    # ``max_tokens`` explícito é usado pela geração seção-a-seção (budget bem
+    # menor, ~550 tokens, em vez do documento inteiro); quando ausente, cai no
+    # comportamento antigo (budget por content_id extraído do próprio prompt).
     payload = json.dumps(
         {
             "model": model,
@@ -465,7 +519,7 @@ def _call_minimax(prompt: str, locale: str = "pt-BR") -> str:
                 {"role": "user", "content": prompt},
             ],
             "temperature": 0.85,
-            "max_tokens": _max_tokens_for(_extract_content_id(prompt)),
+            "max_tokens": max_tokens if max_tokens is not None else _max_tokens_for(_extract_content_id(prompt)),
         }
     ).encode()
     request = Request(
@@ -474,8 +528,9 @@ def _call_minimax(prompt: str, locale: str = "pt-BR") -> str:
         headers={"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"},
         method="POST",
     )
+    effective_timeout = timeout if timeout is not None else float(os.getenv("MINIMAX_TIMEOUT_SECONDS", "120"))
     try:
-        with urlopen(request, timeout=float(os.getenv("MINIMAX_TIMEOUT_SECONDS", "120"))) as response:
+        with urlopen(request, timeout=effective_timeout) as response:
             result = json.loads(response.read().decode("utf-8"))
     except (HTTPError, URLError, TimeoutError, ValueError) as exc:
         raise RuntimeError(f"MiniMax indisponível: {type(exc).__name__}") from exc
@@ -635,6 +690,151 @@ PAID_ASCENDANT_WARNING: dict[str, dict[str, str]] = {
 }
 
 
+def _section_prompt(
+    content_id: str,
+    general_title: str,
+    section_title: str,
+    subtitle: str,
+    order: int,
+    total: int,
+    sibling_titles: list[str],
+    context: dict,
+    locale: str,
+) -> str:
+    """Prompt de UMA seção só. Carrega o mesmo ``calculated_chart`` e a lista
+    dos títulos irmãos (para não repetir conteúdo entre seções geradas em
+    paralelo, já que nenhuma seção vê o texto das outras)."""
+    language = "espanhol rioplatense natural" if locale == "es-AR" else "português brasileiro natural"
+    today = date.today().isoformat()
+    assumed_warning = _assumed_warning_text(locale, bool(context.get("birth_time_assumed")))
+    language_lock = _language_lock_text(locale)
+    outras = ", ".join(t for t in sibling_titles if t != section_title)
+    return f"""Você é a astróloga editorial da AstroDicas. Está escrevendo APENAS UMA seção (a seção {order} de {total}) \
+da leitura natal premium \"{general_title}\" em {language}.
+Data de referência: {today}. Identificador: {content_id}.
+Dados autorizados do cliente: {json.dumps(context, ensure_ascii=False)}.
+
+Título desta seção: {section_title}
+Subtítulo desta seção: {subtitle}
+As outras seções desta MESMA leitura, que outra chamada já está gerando separadamente (não repita o conteúdo \
+delas, escreva só o que pertence à sua seção): {outras}.
+
+Formato obrigatório da resposta — markdown, só esta seção, nada além dela:
+## {section_title}
+### {subtitle}
+<2 a 3 parágrafos de 70 a 110 palavras cada, separados por linha em branco, cobrindo apenas o tema desta seção \
+com base unicamente no calculated_chart>
+
+Use o nome do cliente com naturalidade no máximo uma vez nesta seção. Use somente os dados fornecidos. Não invente
+Ascendente, Lua, casas, aspectos, trânsitos ou posições planetárias que não tenham sido calculados. Quando faltar
+cálculo astronômico, declare a limitação com linguagem acolhedora. Não faça diagnóstico médico, promessa financeira nem previsão
+fatalista. Não cite inteligência artificial. TERMINE a última frase de forma completa — nunca corte no meio; se estiver \
+perto do limite, feche a frase atual e pare.{language_lock}{assumed_warning}"""
+
+
+def _fallback_section(content_id: str, profile, locale: str, order: int) -> dict:
+    """Fallback de UMA seção só — reaproveita o mesmo texto editorial de
+    ``_fallback_sections``, escolhendo só a posição que falhou, para não gerar
+    um segundo template incompatível com o resto da leitura."""
+    sections = _fallback_sections(content_id, profile, locale)
+    if not sections:
+        return {"title": "", "subtitle": "", "order": order, "content": ""}
+    return sections[(order - 1) % len(sections)]
+
+
+def _generate_section(
+    content_id: str,
+    general_title: str,
+    section_title: str,
+    subtitle: str,
+    order: int,
+    total: int,
+    sibling_titles: list[str],
+    context: dict,
+    locale: str,
+    profile,
+) -> tuple[dict, bool]:
+    """Gera UMA seção com seu próprio laço de tentativas. Retorna
+    ``(secao, caiu_no_fallback)`` — a segunda seção-a-seção do que
+    ``generate_reading`` fazia para o documento inteiro, só que aqui o custo
+    de uma reprovação (idioma ou truncamento) é ~550 tokens, não 7000."""
+    attempts = max(1, int(os.getenv("MINIMAX_SECTION_MAX_ATTEMPTS", _SECTION_MAX_ATTEMPTS_DEFAULT)))
+    timeout = float(os.getenv("MINIMAX_SECTION_TIMEOUT_SECONDS", _SECTION_TIMEOUT_SECONDS_DEFAULT))
+    prompt = _section_prompt(content_id, general_title, section_title, subtitle, order, total, sibling_titles, context, locale)
+    for attempt in range(1, attempts + 1):
+        try:
+            raw = _call_minimax(prompt, locale, max_tokens=_SECTION_TOKEN_BUDGET, timeout=timeout)
+        except RuntimeError as exc:
+            logger.warning(
+                "MiniMax falhou na seção '%s' (tentativa %d/%d): %s", section_title, attempt, attempts, exc,
+            )
+            continue
+
+        parsed = _parse_markdown_sections(raw)
+        body_text = parsed[0]["content"] if parsed else raw.strip()
+
+        if _has_foreign_script(body_text):
+            logger.warning(
+                "MiniMax devolveu caractere fora do alfabeto latino (%s) na seção '%s', tentativa %d/%d; refazendo só esta seção.",
+                _foreign_sample(body_text), section_title, attempt, attempts,
+            )
+            continue
+        if _has_foreign_words(body_text, locale):
+            logger.warning(
+                "MiniMax vazou palavra de outro idioma (%s) na seção '%s', tentativa %d/%d; refazendo só esta seção.",
+                _foreign_word_sample(body_text, locale), section_title, attempt, attempts,
+            )
+            continue
+        if _looks_truncated(body_text):
+            logger.warning(
+                "MiniMax truncou a seção '%s' (tentativa %d/%d); refazendo só esta seção. Final observado: %r",
+                section_title, attempt, attempts, body_text[-40:],
+            )
+            continue
+        if not body_text:
+            continue
+
+        return {"title": section_title, "subtitle": subtitle, "order": order, "content": body_text}, False
+
+    logger.error(
+        "Seção '%s' esgotou %d tentativas (idioma/truncamento/falha de rede); usando fallback pontual só nela.",
+        section_title, attempts,
+    )
+    return _fallback_section(content_id, profile, locale, order), True
+
+
+def _generate_reading_sections(
+    content_id: str, title: str, profile, locale: str, customer_name: str, expected_sections: list[tuple[str, str]],
+) -> list[dict] | None:
+    """Gera todas as seções esperadas em paralelo (pool limitado) e devolve a
+    lista já ordenada, ou ``None`` se NENHUMA seção saiu — nesse caso o
+    chamador cai no fallback completo, igual ao comportamento antigo quando o
+    MiniMax falhava por completo."""
+    from concurrent.futures import ThreadPoolExecutor, as_completed
+
+    context = _profile_context(profile, customer_name)
+    sibling_titles = [t for t, _ in expected_sections]
+    pool_size = max(1, int(os.getenv("MINIMAX_SECTION_POOL_SIZE", _SECTION_POOL_SIZE_DEFAULT)))
+    total = len(expected_sections)
+    results: list[dict | None] = [None] * total
+    fell_back_any = False
+    with ThreadPoolExecutor(max_workers=min(pool_size, total)) as executor:
+        futures = {
+            executor.submit(
+                _generate_section, content_id, title, sec_title, subtitle, i, total, sibling_titles, context, locale, profile,
+            ): i - 1
+            for i, (sec_title, subtitle) in enumerate(expected_sections, 1)
+        }
+        for future in as_completed(futures):
+            idx = futures[future]
+            section, fell_back = future.result()
+            results[idx] = section
+            fell_back_any = fell_back_any or fell_back
+    if all(r is None for r in results):
+        return None
+    return results, fell_back_any  # type: ignore[return-value]
+
+
 def generate_reading(content_id: str, title: str, profile, locale: str = "pt-BR", customer_name: str = "") -> ReadingResult:
     # Mesmo flag da prévia grátis (commit 913fcd8): quando a hora não veio,
     # marcamos aqui para a UI renderizar o aviso ao lado do Ascendente
@@ -647,7 +847,28 @@ def generate_reading(content_id: str, title: str, profile, locale: str = "pt-BR"
         else None
     )
     expected_sections = sections_for(content_id)
-    if os.getenv("MINIMAX_API_KEY", "").strip():
+    if os.getenv("MINIMAX_API_KEY", "").strip() and expected_sections:
+        # Seção-a-seção, concorrente, com retry por seção (ver
+        # ``_generate_reading_sections`` / ``_generate_section``) — substitui a
+        # antiga chamada única de 7000 tokens para os 15 (ou 14) blocos.
+        outcome = _generate_reading_sections(content_id, title, profile, locale, customer_name, expected_sections)
+        if outcome is not None:
+            sections, fell_back_any = outcome
+            generated = _sections_to_html(sections)
+            return ReadingResult(
+                body_html=generated,
+                source="fallback" if fell_back_any else "minimax",
+                warning=(
+                    "Leitura gerada por modelo editorial padrão. A leitura personalizada está temporariamente indisponível."
+                    if fell_back_any
+                    else ""
+                ),
+                birth_time_assumed=birth_time_assumed,
+                ascendant_warning=ascendant_warning,
+                sections=sections,
+            )
+        logger.error("Todas as seções falharam completamente; usando fallback editorial de documento inteiro.")
+    elif os.getenv("MINIMAX_API_KEY", "").strip():
         prompt = _prompt(content_id, title, profile, locale, customer_name)
         # O drift de idioma é estocástico: a mesma chamada repetida costuma sair
         # limpa. Preferimos gastar uma segunda chamada a entregar uma leitura
@@ -660,15 +881,8 @@ def generate_reading(content_id: str, title: str, profile, locale: str = "pt-BR"
                 logger.warning("MiniMax falhou; usando fallback editorial: %s", exc)
                 break
 
-            if expected_sections:
-                parsed = _parse_markdown_sections(raw)
-                guard_text = _sections_plain_text(parsed)
-            else:
-                parsed = []
-                guard_text = raw
+            guard_text = raw
 
-            # Guard de idioma continua rodando sobre o texto COMPLETO reconstruído
-            # (não pula validação por causa do seccionamento).
             if _has_foreign_script(guard_text):
                 logger.warning(
                     "MiniMax devolveu caractere fora do alfabeto latino (%s) na tentativa %d/%d; refazendo.",
@@ -684,39 +898,6 @@ def generate_reading(content_id: str, title: str, profile, locale: str = "pt-BR"
                     attempt,
                     attempts,
                 )
-                continue
-
-            if expected_sections:
-                min_sections = max(10, len(expected_sections) - 1)  # tolera 1 seção perdida no parse
-                if len(parsed) < min_sections:
-                    logger.warning(
-                        "MiniMax retornou poucas seções parseáveis (%d de %d esperadas) na "
-                        "tentativa %d/%d; refazendo (possível truncamento).",
-                        len(parsed), len(expected_sections), attempt, attempts,
-                    )
-                    continue
-                # Truncamento silencioso: a resposta pode ter todas as seções mas a
-                # ÚLTIMA foi cortada no meio da frase pelo limite de max_tokens (é
-                # sempre a última seção que sofre, porque é a última coisa gerada).
-                last_content = (parsed[-1].get("content") or "") if parsed else ""
-                if _looks_truncated(last_content):
-                    logger.warning(
-                        "MiniMax truncou a última seção ('%s') na tentativa %d/%d; refazendo. "
-                        "Final observado: %r",
-                        parsed[-1].get("title", "?") if parsed else "?",
-                        attempt, attempts, last_content[-40:],
-                    )
-                    continue
-                parsed = _canonicalize_titles(parsed, expected_sections)
-                generated = _sections_to_html(parsed)
-                if generated:
-                    return ReadingResult(
-                        body_html=generated,
-                        source="minimax",
-                        birth_time_assumed=birth_time_assumed,
-                        ascendant_warning=ascendant_warning,
-                        sections=parsed,
-                    )
                 continue
 
             if _looks_truncated(raw):

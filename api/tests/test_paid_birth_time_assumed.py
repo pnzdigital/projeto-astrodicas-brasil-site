@@ -102,8 +102,10 @@ def test_profile_context_propagates_birth_time_assumed_to_prompt():
 
     real_call = engine._call_minimax
 
-    def spy(prompt, locale="pt-BR"):
-        captured["prompt"] = prompt
+    def spy(prompt, locale="pt-BR", max_tokens=None, timeout=None):
+        # Geração seção-a-seção: guarda só o primeiro prompt capturado (todas
+        # as seções levam o mesmo aviso de hora assumida).
+        captured.setdefault("prompt", prompt)
         # Devolve texto curto sem chamar a rede: o teste só inspeciona o prompt.
         return "<p>Texto curto de teste.</p>"
 
@@ -196,6 +198,21 @@ def test_generate_reading_es_ar_localized_assumed_warning(monkeypatch):
 # pagante nem sobrevivia pra próxima leitura de /api/me/readings, nem pro PDF.
 
 
+def _generate_and_wait(client, content_id="site:content:mapa_astral_completo"):
+    """/generate agora é assíncrona (202 + BackgroundTask): a resposta do POST
+    só traz o placeholder "in_progress". TestClient roda o BackgroundTask de
+    forma síncrona antes de devolver o controle, então uma leitura de
+    /api/me/readings logo em seguida já reflete o resultado final — é assim
+    que o portal real faz polling, só que aqui não precisa repetir porque o
+    job já terminou."""
+    generated = client.post(f"/api/me/readings/{content_id}/generate")
+    assert generated.status_code == 202, generated.text
+    assert generated.json()["reading"]["status"] == "in_progress"
+    listed = client.get("/api/me/readings")
+    assert listed.status_code == 200
+    return next(r for r in listed.json()["readings"] if r["content_id"] == content_id)
+
+
 def _register_and_pay(client, email="cliente@example.com", locale="pt-BR"):
     from conftest import register as _register
 
@@ -220,9 +237,7 @@ def test_paid_reading_persists_and_returns_birth_time_assumed_flag(client, monke
         json={"birth_date": "1990-05-20", "birth_time": None, "birth_city": "Recife", "birth_country": "BR"},
     )
 
-    generated = client.post("/api/me/readings/site:content:mapa_astral_completo/generate")
-    assert generated.status_code == 200, generated.text
-    reading = generated.json()["reading"]
+    reading = _generate_and_wait(client)
 
     assert reading["birth_time_assumed"] is True, "flag some da resposta da API"
     assert "Ascendente" in reading["ascendant_warning"], "aviso localizado tem que voltar na resposta"
@@ -245,9 +260,7 @@ def test_paid_reading_with_known_birth_time_has_no_warning(client, monkeypatch):
         json={"birth_date": "1990-05-20", "birth_time": "12:30:00", "birth_city": "Recife", "birth_country": "BR"},
     )
 
-    generated = client.post("/api/me/readings/site:content:mapa_astral_completo/generate")
-    assert generated.status_code == 200, generated.text
-    reading = generated.json()["reading"]
+    reading = _generate_and_wait(client)
 
     assert reading["birth_time_assumed"] is False
     assert reading["ascendant_warning"] == ""
@@ -262,8 +275,7 @@ def test_paid_reading_pdf_carries_ascendant_warning(client, monkeypatch):
         "/api/me/profile",
         json={"birth_date": "1990-05-20", "birth_time": None, "birth_city": "Recife", "birth_country": "BR"},
     )
-    generated = client.post("/api/me/readings/site:content:mapa_astral_completo/generate")
-    assert generated.status_code == 200, generated.text
+    _generate_and_wait(client)
 
     captured = {}
     real_build_pdf = main_module.build_pdf
@@ -291,9 +303,7 @@ def test_paid_reading_es_ar_returns_localized_warning(client, monkeypatch):
         json={"birth_date": "1990-05-20", "birth_time": None, "birth_city": "Buenos Aires", "birth_country": "AR"},
     )
 
-    generated = client.post("/api/me/readings/site:content:mapa_astral_completo/generate")
-    assert generated.status_code == 200, generated.text
-    reading = generated.json()["reading"]
+    reading = _generate_and_wait(client)
 
     assert reading["birth_time_assumed"] is True
     assert "Ascendente" in reading["ascendant_warning"]
