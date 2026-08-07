@@ -21,15 +21,15 @@ Obrigatórias marcar com ⚠️.
 | `SITE_SECRET_KEY` | ⚠️ | Gera: `openssl rand -hex 32` | 500 na autenticação/sessão |
 | `DATABASE_URL` | ⚠️ | `postgresql+psycopg://user:pass@host:5432/db` | API não inicia |
 | `SITE_ORIGIN` | Não | `https://astrodicas.pnzdigital.com.br,https://dash.astrodicas.pnzdigital.com.br` | CORS fails; dev default OK |
-| `SITE_PUBLIC_URL` | Não | `https://astrodicas.pnzdigital.com.br` | Redirecionamentos quebrados |
-| `PORTAL_URL` | Não | `https://dash.astrodicas.pnzdigital.com.br/` | Links pós-checkout errados |
+| `SITE_PUBLIC_URL` | ⚠️ (Checkout Pro) | `https://astrodicas.pnzdigital.com.br` (HTTPS público) | Back URL do MP e URLs do webhook erradas |
+| `PORTAL_URL` | ⚠️ (Checkout Pro) | `https://dash.astrodicas.pnzdigital.com.br/` (HTTPS público, com `/` final) | Links pós-checkout errados; callback do MP aponta aqui |
 | `COOKIE_SECURE` | Não | `1` (prod) ou `0` (dev) | Cookies acessíveis em HTTP |
 | `ENV` | Não | `production` (prod) ou `development` (dev) | Flags de segurança dormem; demo ativa sem avisar |
 | `ALLOW_DEMO` | Não | `0` (prod) ou `1` (staging) | Demo vitrine ativa em non-prod |
 | `ALLOW_INSECURE_DEV` | Não | `0` (prod) ou `1` (dev) | Webhook validation saltada; rejeita MP/Cakto em prod |
-| `MP_ACCESS_TOKEN` | ⚠️ (se MP ligado) | Painel MP > Suas integrações > Credenciais | 404 em `/checkout/mercadopago` |
-| `MP_PUBLIC_KEY` | Não (se MP ligado) | Painel MP > Credenciais (pública, OK expor) | Formulário MP quebrado no frontend |
-| `MP_WEBHOOK_SECRET_AR` | ⚠️ (se MP ligado) | Painel MP (app argentina) > Webhooks > Clave secreta | 401 na rota AR; venda paga não é liberada |
+| `MP_ACCESS_TOKEN` | ⚠️ (se MP ligado) | Painel MP > Suas integrações > Credenciais | 503 em `/api/checkout/order`; Checkout Pro não abre |
+| `MP_PUBLIC_KEY` | Não (legado) | Painel MP > Credenciais (pública, OK expor) | Não usado em Checkout Pro; remova se migrate de Payment Brick |
+| `MP_WEBHOOK_SECRET_AR` | ⚠️ (se MP ligado) | Painel MP (app argentina) > Webhooks > Clave secreta | 401 nas rotas de webhook; venda paga não é liberada |
 | `MP_WEBHOOK_SECRET` | Não (legado) | Clave secreta da aplicação antiga | Só afeta pagamentos abertos antes do deploy |
 | `CHECKOUT_PROVIDER_AR` | Não | `mercadopago` (padrão) ou `cakto` | Troca quem cobra na Argentina |
 | `CHECKOUT_PROVIDER_BR` | Não | `cakto` (padrão) ou `mercadopago` | Mercado Pago no BR exige conta MLB; a conta MLA não cobra em BRL |
@@ -81,27 +81,43 @@ Obrigatórias marcar com ⚠️.
 
 ### Mercado Pago
 
-1. **Configurar:**
-   - Painel > Webhooks > Novo
-   - URL: `https://astrodicas.pnzdigital.com.br/api/webhooks/mercadopago/ar/notify`
-   - Uma rota por aplicação do MP. A clave secreta desta aplicação vai em `MP_WEBHOOK_SECRET_AR`.
-   - Eventos: `payment.created`, `payment.updated`
+**Checkout Pro (compra avulsa e trial):**
+
+1. **Configurar no Painel MP:**
+   - Suas integrações > App argentina > Webhooks > Adicionar webhook
+   - URL de retorno (back_url): `https://dash.astrodicas.pnzdigital.com.br/` (deve ser HTTPS público, com `/` final)
+   - Eventos webhook: `payment.created`, `payment.updated`, `merchant_order.closed`
+   - URL webhook: `https://astrodicas.pnzdigital.com.br/api/webhooks/mercadopago/ar/notify`
    - Guardar **Clave secreta** → `MP_WEBHOOK_SECRET_AR` env
+
+**Webhook de Assinatura (trial de 3 dias):**
+   - Eventos: `subscription_preapproval`, `subscription_authorized_payment`
+   - URL: `https://astrodicas.pnzdigital.com.br/api/webhooks/mercadopago/ar/subscription`
+   - Mesma clave secreta (`MP_WEBHOOK_SECRET_AR`)
 
 2. **Testar:**
    ```bash
    curl -X POST https://astrodicas.pnzdigital.com.br/api/webhooks/mercadopago/ar/notify \
      -H "x-signature: <signature>" \
-     -d '{"data": {"id": "123"}}'
+     -H "Content-Type: application/json" \
+     -d '{"type": "payment.created", "data": {"id": "123"}}'
    ```
    Esperado: `401 {"detail": "Assinatura inválida."}` — assinatura falsa recusada prova que a validação está ligada.
    Um `503` significa que a clave secreta não chegou no container.
 
-3. **Troubleshoot:**
+3. **Fluxo Checkout Pro:**
+   - Cliente clica "Comprar" → site abre Checkout Pro do MP (init_point)
+   - Cliente paga no checkout do MP
+   - MP redireciona pra `back_url` (PORTAL_URL)
+   - Webhook `payment.created` / `payment.updated` / `merchant_order.closed` notifica o site
+   - Site libera acesso via webhook (não há `POST /api/checkout/payment` mais)
+
+4. **Troubleshoot:**
    - 401: `MP_WEBHOOK_SECRET_AR` errado (clave de outra aplicação)
    - 503: `MP_WEBHOOK_SECRET_AR` ausente no ambiente
-   - 404: URL errada ou DNS não resolve
+   - 404: URL webhook errada ou DNS não resolve
    - 500: Erro na app; checar logs
+   - Checkout não abre: `MP_ACCESS_TOKEN` errado ou `SITE_PUBLIC_URL` / `PORTAL_URL` não são HTTPS públicos
 
 ### Cakto
 
@@ -144,8 +160,12 @@ Obrigatórias marcar com ⚠️.
 
 ### Integração
 
-- [ ] MP: Criar pedido em produção, confirmar webhook recebido (`/api/webhooks/mercadopago/ar/notify` logs)
-- [ ] Cakto: Idem
+- [ ] MP Compra: POST `/api/checkout/order` (Argentina) → devolve `order_id` (não mais Payment Brick)
+- [ ] MP Compra: Cliente clica "Comprar" → abre `init_point` do Checkout Pro
+- [ ] MP Compra: Webhook `/api/webhooks/mercadopago/ar/notify` recebe `payment.created`/`payment.updated`/`merchant_order.closed` e libera acesso
+- [ ] MP Trial: POST `/api/trial/start` (Argentina, 3 dias grátis) → devolve `init_point` e `portal_url`
+- [ ] MP Trial: Webhook `/api/webhooks/mercadopago/ar/subscription` recebe `subscription_preapproval` e autoriza cartão
+- [ ] Cakto: POST `/api/checkout/order` (Brasil) → devolve `order_id`; cliente sai pra link externo
 - [ ] E-mail: Confirmar que post-compra chega (Resend logs)
 - [ ] Leitura astrológica: Gerar uma, checar que MiniMax ou fallback editorial aparece
 
@@ -156,9 +176,13 @@ Obrigatórias marcar com ⚠️.
 | Sintoma | Causa | Ação |
 |---|---|---|
 | 500 na API startup | Schema/migrations quebradas | Rollback DB; checar logs para SQL error |
+| 503 em `/api/checkout/order` (AR) | `MP_ACCESS_TOKEN` errado/vazio | Conferir token no painel MP > Suas integrações > Credenciais |
+| Checkout Pro não abre | `SITE_PUBLIC_URL` ou `PORTAL_URL` não são HTTPS público | Verificar que URLs começam com `https://` e não contêm `localhost` |
 | Webhook MP 401 | Clave de outra aplicação | Conferir `MP_WEBHOOK_SECRET_AR` contra o painel do app argentino |
 | Webhook MP 503 | Clave ausente no container | Setar `MP_WEBHOOK_SECRET_AR` no Coolify e redeploy |
+| Webhook MP 404 | URL webhook errada ou DNS não resolve | Verificar URL no painel do MP vs. `/api/webhooks/mercadopago/ar/notify` |
 | Webhook Cakto 403 | Secret errado/não setado | Confirmar `CAKTO_WEBHOOK_SECRET` no Coolify |
+| Compra paga não libera acesso | Webhook não chegando ou not processando merchant_order | Confirmar eventos `payment.updated`, `merchant_order.closed` marcados no painel; checar logs da app |
 | Cookies de sessão não persistem | `COOKIE_SECURE=1` mas HTTP | Ativar HTTPS no proxy reverso ou setar `COOKIE_SECURE=0` (dev only) |
 | `/oferta-lua-*` serve 200 em dash | `ROLE` env incorreto ou nginx config errada | Verificar nginx.runtime.conf mapeamento Host |
 | E-mail não chega | `RESEND_API_KEY` vazio ou inválido | Checar API key no Resend; logs da app |

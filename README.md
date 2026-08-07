@@ -30,6 +30,11 @@ banco e regras do Telegram não devem ser importados para este banco.
 - MiniMax: geração editorial configurada somente por variáveis do Coolify;
 - Cakto e Mercado Pago: adaptadores de checkout/webhook, trocáveis por produto.
 
+Variáveis de checkout: `MP_ACCESS_TOKEN`, `MP_WEBHOOK_SECRET_AR` (Argentina) e
+`CAKTO_WEBHOOK_SECRET` (Brasil). O site não captura mais cartão: checkout
+é externo (redirect para o checkout do Mercado Pago na Argentina, link do Cakto
+no Brasil) e cliente volta pela back_url.
+
 Variáveis de geração: `MINIMAX_API_KEY`, `LLM_BASE_URL`, `LLM_MODEL_TEXT` e
 `MINIMAX_TIMEOUT_SECONDS`. Se o provedor estiver temporariamente indisponível,
 o portal entrega o fallback editorial local sem derrubar a área do cliente.
