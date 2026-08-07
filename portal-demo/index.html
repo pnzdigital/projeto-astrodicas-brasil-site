@@ -445,6 +445,10 @@
     .account-detail { display: grid; gap: 10px; margin-top: 17px; }
     .account-detail div { display: flex; justify-content: space-between; gap: 15px; padding-bottom: 9px; border-bottom: 1px solid rgba(244,239,228,.1); color: var(--cream-dim); font-size: 12px; }
     .account-detail strong { color: var(--cream); font-weight: 500; }
+    .subscription-block[hidden] { display: none; }
+    .subscription-block { display: grid; gap: 10px; margin-top: 15px; padding: 13px 15px; border: 1px dashed rgba(217,172,92,.4); border-radius: 8px; }
+    .subscription-status { margin: 0; color: var(--cream-dim); font-size: 12px; line-height: 1.5; }
+    .subscription-status strong { color: var(--cream); font-weight: 500; }
     .auth-form { display: grid; gap: 12px; }
     .auth-form[hidden], .account-user[hidden], .profile-form[hidden] { display: none; }
     .field { display: grid; gap: 5px; }
@@ -771,7 +775,25 @@
           <div><span>Plano e acessos</span><strong data-account-plan>Conta AstroDicas</strong></div>
           <div><span>Dados de nascimento</span><strong data-account-profile>Ainda não preenchidos</strong></div>
         </div>
+        <div class="subscription-block" id="subscription-block" hidden>
+          <p class="subscription-status" id="subscription-status"></p>
+          <button class="button ghost small" type="button" id="cancel-subscription-trigger" data-dialog="cancel-dialog">Cancelar assinatura</button>
+        </div>
         <div class="dialog-actions"><button class="button ghost small" type="button" data-dialog="profile-dialog">Editar dados</button><button class="button small" type="button" data-logout>Sair</button></div>
+      </div>
+    </div>
+  </dialog>
+
+  <dialog id="cancel-dialog" aria-labelledby="cancel-title">
+    <div class="dialog-inner">
+      <button class="dialog-close" type="button" aria-label="Fechar">×</button>
+      <p class="eyebrow" id="cancel-eyebrow">Sua assinatura</p>
+      <h2 id="cancel-title">Cancelar sua assinatura?</h2>
+      <p id="cancel-body">Seu acesso continua até o fim do período já pago. Nada mais será cobrado depois disso.</p>
+      <p class="form-error" id="cancel-error" role="alert"></p>
+      <div class="dialog-actions">
+        <button class="button ghost small dialog-close" type="button" id="cancel-keep">Manter minha assinatura</button>
+        <button class="button small" type="button" id="cancel-confirm">Sim, cancelar</button>
       </div>
     </div>
   </dialog>
@@ -924,7 +946,7 @@
 
     const toast = document.querySelector('.toast');
     const API_BASE = (window.PORTAL_API_URL || document.querySelector('meta[name="portal-api"]')?.content || '').replace(/\/$/, '');
-    const appState = { apiAvailable: false, authenticated: false, authResolved: !IS_DASHBOARD || DEMO_PAID, user: null, profile: null, entitlements: new Map(), readings: new Map(), pendingContentId: null };
+    const appState = { apiAvailable: false, authenticated: false, authResolved: !IS_DASHBOARD || DEMO_PAID, user: null, profile: null, subscription: null, entitlements: new Map(), readings: new Map(), pendingContentId: null };
     let toastTimer;
     function showToast(message) {
       toast.textContent = message;
@@ -935,7 +957,48 @@
     function openDialog(id) {
       if (id === 'account-dialog') syncAccountDialog();
       if (id === 'profile-dialog') fillProfileForm();
+      if (id === 'cancel-dialog') fillCancelDialog();
       document.getElementById(id)?.showModal();
+    }
+    function fillCancelDialog() {
+      const sub = appState.subscription;
+      const accessUntil = formatSubscriptionDate(sub?.current_period_end || sub?.trial_ends_at);
+      document.getElementById('cancel-body').textContent = accessUntil
+        ? (IS_ARGENTINA
+          ? `Tu acceso sigue activo hasta ${accessUntil} — no se te va a cobrar de nuevo. Si querés volver, vas a tener que suscribirte de nuevo.`
+          : `Seu acesso continua até ${accessUntil} — nada mais será cobrado depois disso. Se quiser voltar, vai precisar assinar de novo.`)
+        : (IS_ARGENTINA
+          ? 'Tu acceso sigue activo hasta el fin del período ya pagado — no se te va a cobrar de nuevo. Si querés volver, vas a tener que suscribirte de nuevo.'
+          : 'Seu acesso continua até o fim do período já pago — nada mais será cobrado depois disso. Se quiser voltar, vai precisar assinar de novo.');
+      setCancelError('');
+      const confirmButton = document.getElementById('cancel-confirm');
+      confirmButton.disabled = false;
+      confirmButton.textContent = IS_ARGENTINA ? 'Sí, cancelar' : 'Sim, cancelar';
+    }
+    function setCancelError(message) { document.getElementById('cancel-error').innerHTML = message || ''; }
+    async function confirmCancelSubscription() {
+      const confirmButton = document.getElementById('cancel-confirm');
+      confirmButton.disabled = true;
+      confirmButton.textContent = IS_ARGENTINA ? 'Cancelando…' : 'Cancelando…';
+      setCancelError('');
+      try {
+        const data = await apiRequest('/api/me/subscription/cancel', { method: 'POST', body: '{}' });
+        appState.subscription = data.subscription;
+        document.getElementById('cancel-dialog').close();
+        renderSubscriptionBlock();
+        const accessUntil = formatSubscriptionDate(data.access_until);
+        showToast(IS_ARGENTINA
+          ? `Suscripción cancelada. Tu acceso sigue${accessUntil ? ` hasta ${accessUntil}` : ''}.`
+          : `Assinatura cancelada. Seu acesso continua${accessUntil ? ` até ${accessUntil}` : ''}.`);
+      } catch (error) {
+        // Botão morto nunca: se a API falhar, ela ainda tem pra onde ir —
+        // suporte por e-mail/legal, o mesmo link do rodapé.
+        confirmButton.disabled = false;
+        confirmButton.textContent = IS_ARGENTINA ? 'Sí, cancelar' : 'Sim, cancelar';
+        setCancelError(IS_ARGENTINA
+          ? 'No pudimos cancelar ahora. Probá de nuevo en unos instantes o <a href="/es/suporte">escribinos a soporte</a> y cancelamos por vos.'
+          : 'Não conseguimos cancelar agora. Tente de novo em instantes ou <a href="/suporte">fale com o suporte</a> que a gente cancela pra você.');
+      }
     }
     function apiError(message, statusCode = 0) { const error = new Error(message); error.status = statusCode; return error; }
     async function apiRequest(path, options = {}) {
@@ -1078,6 +1141,12 @@
         'Seu mapa': 'Tu mapa',
         'Hora de nascimento (opcional)': 'Hora de nacimiento (opcional)',
         'Sem a hora, calculamos com 00:00 e a leitura continua válida — só o Ascendente e as casas ficam menos precisos.': 'Sin la hora, calculamos con 00:00 y la lectura sigue siendo válida — solo el Ascendente y las casas quedan menos precisos.',
+        'Cancelar assinatura': 'Cancelar suscripción',
+        'Sua assinatura': 'Tu suscripción',
+        'Cancelar sua assinatura?': '¿Cancelar tu suscripción?',
+        'Seu acesso continua até o fim do período já pago. Nada mais será cobrado depois disso.': 'Tu acceso sigue activo hasta el fin del período ya pagado. No se te va a cobrar de nuevo después de eso.',
+        'Manter minha assinatura': 'Mantener mi suscripción',
+        'Sim, cancelar': 'Sí, cancelar',
       });
       const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
       const nodes = [];
@@ -1109,8 +1178,44 @@
       if (appState.authenticated) {
         document.querySelector('[data-account-email]').textContent = appState.user?.email || '—';
         document.querySelector('[data-account-profile]').textContent = profileComplete() ? `${appState.profile.birth_date} · ${appState.profile.birth_city}` : (IS_ARGENTINA ? 'Todavía no completados' : 'Ainda não preenchidos');
+        renderSubscriptionBlock();
       }
       enforceDashboardGate();
+    }
+    function formatSubscriptionDate(iso) {
+      if (!iso) return null;
+      return new Intl.DateTimeFormat(IS_ARGENTINA ? 'es-AR' : 'pt-BR', { day: '2-digit', month: 'long', year: 'numeric' }).format(new Date(iso));
+    }
+    // Só existe bloco pra quem tem assinatura de verdade no Mercado Pago (trial
+    // AR): quem comprou avulso pelo Cakto não tem Subscription no banco, então
+    // GET /api/me/subscription devolve null e o bloco some — nada a cancelar.
+    function renderSubscriptionBlock() {
+      const block = document.getElementById('subscription-block');
+      const status = document.getElementById('subscription-status');
+      const trigger = document.getElementById('cancel-subscription-trigger');
+      const sub = appState.subscription;
+      if (!sub) { block.hidden = true; return; }
+      block.hidden = false;
+      const accessUntil = formatSubscriptionDate(sub.current_period_end || sub.trial_ends_at);
+      if (sub.status === 'cancelled') {
+        status.innerHTML = IS_ARGENTINA
+          ? `Cancelada${accessUntil ? ` · acceso hasta <strong>${accessUntil}</strong>` : ''}. Si querés volver, tenés que suscribirte de nuevo.`
+          : `Cancelada${accessUntil ? ` · acesso até <strong>${accessUntil}</strong>` : ''}. Se quiser voltar, precisa assinar de novo.`;
+        trigger.hidden = true;
+        return;
+      }
+      trigger.hidden = false;
+      if (sub.in_trial) {
+        status.innerHTML = IS_ARGENTINA
+          ? `Prueba gratis · activa hasta <strong>${accessUntil || '—'}</strong>. Recién después se cobra el Plan Luna.`
+          : `Teste grátis · ativo até <strong>${accessUntil || '—'}</strong>. Só depois disso o Plano Lua é cobrado.`;
+      } else if (sub.status === 'pending') {
+        status.textContent = IS_ARGENTINA ? 'Esperando la confirmación de Mercado Pago.' : 'Aguardando a confirmação do Mercado Pago.';
+      } else {
+        status.innerHTML = IS_ARGENTINA
+          ? `Activa · próximo cobro <strong>${accessUntil || '—'}</strong>.`
+          : `Ativa · próxima cobrança <strong>${accessUntil || '—'}</strong>.`;
+      }
     }
     function enforceDashboardGate() {
       const root = document.documentElement;
@@ -1340,6 +1445,10 @@
       appState.profile = profile.profile;
       appState.entitlements = new Map((access.entitlements || []).map((entry) => [entry.product_id, entry]));
       appState.readings = new Map((readings.readings || []).map((entry) => [entry.content_id, entry]));
+      // Só existe assinatura pra quem entrou pelo trial argentino (Checkout
+      // Pro). Falha aqui não pode travar o resto do painel: quem comprou
+      // pelo Cakto simplesmente não tem GET /api/me/subscription pra achar.
+      apiRequest('/api/me/subscription').then((data) => { appState.subscription = data.subscription; syncAccountDialog(); }).catch(() => {});
       applyRemoteState(); syncAccountDialog();
     }
     async function bootstrap() {
@@ -1390,6 +1499,7 @@
       if (target.matches('[data-offer-checkout]')) startCheckout(target.dataset.offerCheckout, target.dataset.offerTitle);
       if (target.matches('[data-checkout-upgrade]')) { startCheckout(target.dataset.checkoutKey, target.dataset.offerTitle || 'seu upgrade'); target.closest('dialog')?.close(); }
       if (target.matches('[data-logout]')) { apiRequest('/api/auth/logout', { method: 'POST', body: '{}' }).catch(() => {}); appState.authenticated = false; appState.user = null; appState.profile = null; appState.entitlements.clear(); appState.readings.clear(); applyRemoteState(); renderUser(); syncAccountDialog(); enforceDashboardGate(); target.closest('dialog')?.close(); showToast(IS_ARGENTINA ? 'Cerraste sesión en tu cuenta.' : 'Você saiu da sua conta.'); }
+      if (target.matches('#cancel-confirm')) confirmCancelSubscription();
       if (target.matches('[data-scroll]')) { document.getElementById(target.dataset.scroll)?.scrollIntoView({ behavior: 'smooth', block: 'start' }); document.querySelectorAll('.mobile-nav button').forEach((item) => item.classList.toggle('active', item === target)); }
     });
     document.addEventListener('submit', (event) => { if (event.target.matches('[data-auth-form]')) { event.preventDefault(); submitAuth(event.target, event.target.dataset.authForm); } if (event.target.matches('#profile-form')) { event.preventDefault(); saveProfile(event.target); } });
