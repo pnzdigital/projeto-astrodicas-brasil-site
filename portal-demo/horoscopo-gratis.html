@@ -66,7 +66,6 @@
     .offer .price{color:var(--gold-lit);font:600 26px/1 var(--display);margin-bottom:16px}
     .offer .price small{font:500 11px var(--body);color:var(--faint)}
     .honesty{margin:16px 0 0;padding:13px 15px;border:1px dashed rgba(217,172,92,.4);border-radius:5px;color:var(--muted);font-size:12px;line-height:1.55}
-    #card-brick{margin-top:14px;min-height:60px}
     .loading{display:flex;align-items:center;gap:8px;color:var(--faint);font-size:13px}
     footer{padding:30px 0;color:var(--faint);font-size:11px;text-align:center}
     @media(max-width:520px){.card,.offer{padding:20px}}
@@ -323,63 +322,39 @@
         <form id="trial-form">
           <div class="field"><label for="t-name">${escapeHtml(copy.buyerName)}</label><input id="t-name" name="trial_name" type="text" autocomplete="name" required></div>
           <div class="field"><label for="t-email">${escapeHtml(copy.buyerEmail)}</label><input id="t-email" name="trial_email" type="email" autocomplete="email" required></div>
-          <div id="card-brick"></div>
+          <button class="button" type="submit" id="trial-submit">${escapeHtml(copy.startTrialCta)}</button>
           <p class="honesty">${escapeHtml(copy.honesty)}</p>
           <p class="error" role="alert" id="trial-error"></p>
         </form>
       </section>`;
     }
 
-    async function wireTrialCard() {
-      const publicKeyPromise = fetch(`${API}/api/catalog?locale=${encodeURIComponent(locale)}`)
-        .then((r) => r.ok ? r.json() : null)
-        .then((data) => data?.checkout?.public_key || '')
-        .catch(() => '');
-      const publicKey = await publicKeyPromise;
+    function wireTrialCard() {
+      const trialForm = document.getElementById('trial-form');
       const trialError = document.getElementById('trial-error');
-      if (!publicKey || publicKey.length < 30) {
-        trialError.textContent = copy.trialFailed;
-        return;
-      }
-      await new Promise((resolve, reject) => {
-        if (window.MercadoPago) return resolve();
-        const script = document.createElement('script');
-        script.src = 'https://sdk.mercadopago.com/js/v2';
-        script.onload = resolve;
-        script.onerror = reject;
-        document.head.appendChild(script);
-      });
-      const mp = new window.MercadoPago(publicKey, { locale: 'es-AR' });
-      await mp.bricks().create('payment', 'card-brick', {
-        initialization: { amount: 0, payer: {} },
-        customization: { paymentMethods: { creditCard: 'all', debitCard: 'all' } },
-        callbacks: {
-          onReady: () => {},
-          onError: (error) => { console.error('[horoscopo-gratis] brick', error); trialError.textContent = copy.trialFailed; },
-          onSubmit: async ({ formData }) => {
-            if (window.fbq) fbq('track', 'AddPaymentInfo', { content_ids: ['site:plano_lua'], content_type: 'product', content_language: locale });
-            if (window.fbq) fbq('track', 'StartTrial', { content_name: 'plano-lua-trial', content_language: locale, predicted_ltv: 0 });
-            const trialForm = document.getElementById('trial-form');
-            const trialName = (trialForm.querySelector('[name="trial_name"]')?.value || '').trim();
-            const trialEmail = (trialForm.querySelector('[name="trial_email"]')?.value || '').trim();
-            if (!trialName || !trialEmail) { trialError.textContent = copy.missing; throw new Error('missing'); }
-            trialError.textContent = copy.trialOpening;
-            try {
-              const response = await fetch(`${API}/api/trial/start`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ email: trialEmail, name: trialName, locale, ...formData }),
-              });
-              const data = await response.json().catch(() => ({}));
-              if (!response.ok) { trialError.textContent = data.detail || copy.trialFailed; throw new Error('trial'); }
-              if (data.portal_url) { location.href = data.portal_url; return; }
-              trialError.textContent = '';
-            } catch (e) {
-              if (!trialError.textContent) trialError.textContent = copy.trialFailed;
-              throw e;
-            }
-          },
-        },
+      const trialSubmit = document.getElementById('trial-submit');
+      trialForm.addEventListener('submit', async (event) => {
+        event.preventDefault();
+        trialError.textContent = '';
+        const trialName = (trialForm.querySelector('[name="trial_name"]')?.value || '').trim();
+        const trialEmail = (trialForm.querySelector('[name="trial_email"]')?.value || '').trim();
+        if (!trialName || !trialEmail) { trialError.textContent = copy.missing; return; }
+        trialSubmit.disabled = true;
+        trialError.textContent = copy.trialOpening;
+        try {
+          if (window.fbq) fbq('track', 'StartTrial', { content_name: 'plano-lua-trial', content_language: locale, predicted_ltv: 0 });
+          const response = await fetch(`${API}/api/trial/start`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ email: trialEmail, name: trialName, locale }),
+          });
+          const data = await response.json().catch(() => ({}));
+          if (!response.ok || !data.init_point) { trialError.textContent = data.detail || copy.trialFailed; trialSubmit.disabled = false; return; }
+          window.location.href = data.init_point;
+        } catch {
+          trialError.textContent = copy.trialFailed;
+          trialSubmit.disabled = false;
+        }
       });
     }
   </script>

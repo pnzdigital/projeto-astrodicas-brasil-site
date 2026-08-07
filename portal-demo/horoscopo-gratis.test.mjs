@@ -52,11 +52,11 @@ test('preço do Plano Lua vem de /api/catalog, não está hardcoded', () => {
 
 // ── Diferença obrigatória: trial com cartão só em es-AR ─────────────────────
 
-test('oferta pt-BR não tem bloco de cartão nem chama /api/trial/start', () => {
+test('oferta pt-BR não tem formulário de trial nem chama /api/trial/start', () => {
   const match = html.match(/function renderPlanoLuaOffer\s*\(\)\s*\{([\s\S]*?)\n    \}/);
   assert.ok(match, 'função renderPlanoLuaOffer não encontrada');
   const body = match[1];
-  assert.ok(!body.includes('card-brick'), 'bloco de cartão vazou pro caminho pt-BR');
+  assert.ok(!body.includes('trial-form'), 'formulário de trial vazou pro caminho pt-BR');
   assert.ok(!body.includes('/api/trial/start'), 'chamada de trial vazou pro caminho pt-BR');
   assert.ok(body.includes('offerCta'), 'CTA do Plano Lua ausente no caminho pt-BR');
 });
@@ -65,18 +65,18 @@ test('oferta pt-BR aponta para o checkout existente do Plano Lua', () => {
   assert.match(html, /checkout\?product=site:plano_lua/);
 });
 
-test('oferta es-AR usa o bloco de cartão do Mercado Pago e chama /api/trial/start', () => {
+test('oferta es-AR usa formulário de trial e chama /api/trial/start', () => {
   const match = html.match(/function renderTrialOffer\s*\(\)\s*\{([\s\S]*?)\n    \}/);
   assert.ok(match, 'função renderTrialOffer não encontrada');
   const body = match[1];
-  assert.ok(body.includes('card-brick'), 'bloco de cartão ausente no caminho es-AR');
+  assert.ok(body.includes('trial-form'), 'formulário de trial ausente no caminho es-AR');
 });
 
-test('fluxo de trial es-AR chama POST /api/trial/start com cartão via SDK Mercado Pago', () => {
-  assert.match(html, /sdk\.mercadopago\.com\/js\/v2/);
-  assert.match(html, /new window\.MercadoPago\(/);
+test('fluxo de trial es-AR chama POST /api/trial/start sem cartão e redireciona pro init_point', () => {
+  assert.ok(!/sdk\.mercadopago\.com\/js\/v2/.test(html), 'SDK do Mercado Pago não deve mais ser carregado no front');
+  assert.ok(!/new window\.MercadoPago\(/.test(html), 'Brick do Mercado Pago não deve mais ser montado no front');
   assert.match(html, /\/api\/trial\/start/);
-  assert.match(html, /\.\.\.formData/);
+  assert.match(html, /data\.init_point/);
 });
 
 test('renderReading escolhe a oferta certa por idioma: es -> trial, pt -> Plano Lua', () => {

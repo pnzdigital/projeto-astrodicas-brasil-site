@@ -31,7 +31,7 @@ assert.match(lpV1, /fbq\('track','ViewContent'/);
 assert.match(lpV2, /fbq\('track','ViewContent'/);
 assert.match(lpV1, /fbq\('track',\s*'InitiateCheckout'/);
 assert.match(lpV2, /fbq\('track',\s*'InitiateCheckout'/);
-assert.match(checkout, /fbq\('track', 'AddPaymentInfo'/);
+assert.match(checkout, /fbq\('track', 'InitiateCheckout'/);
 assert.match(thankYou, /fbq\('track', 'Purchase'/);
 assert.match(thankYou, /\/api\/checkout\/order\/\$\{encodeURIComponent\(orderId\)\}\/conversion/);
 assert.match(thankYou, /\{ eventID: conversion\.event_id \}/);

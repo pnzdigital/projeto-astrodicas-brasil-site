@@ -95,18 +95,13 @@ test('InitiateCheckout dispara ao clicar no CTA do Plano Lua (pt-BR)', async () 
   assert.ok(ic, 'InitiateCheckout não disparou ao clicar no CTA');
 });
 
-test('es-AR: onSubmit do card-brick dispara AddPaymentInfo e StartTrial (evidência estática)', () => {
-  // O Payment Brick do Mercado Pago é um iframe carregado por SDK externo
-  // (sdk.mercadopago.com), que window.fetch mockado não substitui — o
-  // onSubmit do brick só roda dentro do SDK real. Não dá pra simular esse
-  // clique num DOM linkedom sem o SDK real; a evidência aqui é estática
-  // sobre o bloco de código do onSubmit (horoscopo-gratis.html, wireTrialCard).
-  const trialBlock = html.slice(html.indexOf('async function wireTrialCard'), html.lastIndexOf('</script>'));
-  assert.match(trialBlock, /fbq\('track', 'AddPaymentInfo'/, 'AddPaymentInfo não dispara ao tokenizar o cartão');
-  assert.match(trialBlock, /fbq\('track', 'StartTrial'/, 'StartTrial não dispara no submit do card-brick');
-  const addPaymentIdx = trialBlock.indexOf("'AddPaymentInfo'");
-  const startTrialIdx = trialBlock.indexOf("'StartTrial'");
-  assert.ok(addPaymentIdx < startTrialIdx, 'AddPaymentInfo deve disparar antes de StartTrial, na mesma tokenização de cartão');
+test('es-AR: submit do form de trial dispara StartTrial antes do redirect pro Checkout Pro', () => {
+  // Sem cartão/Brick no front: o trial só envia nome/e-mail e redireciona pro
+  // init_point do Checkout Pro. StartTrial dispara no submit, antes do fetch.
+  const trialBlock = html.slice(html.indexOf('function wireTrialCard'), html.lastIndexOf('</script>'));
+  assert.match(trialBlock, /fbq\('track', 'StartTrial'/, 'StartTrial não dispara no submit do form de trial');
+  assert.match(trialBlock, /\/api\/trial\/start/, 'submit do trial não chama /api/trial/start');
+  assert.match(trialBlock, /data\.init_point/, 'submit do trial não redireciona pro init_point');
 });
 
 // ── storefront.html: ViewContent na vitrine ─────────────────────────────────
