@@ -1,10 +1,12 @@
 """Nenhuma leitura paga sai com caractere fora do alfabeto latino.
 
-O MiniMax-M2.1 troca uma palavra solta pelo equivalente em chinês, árabe ou
-russo algumas vezes por texto — comportamento observado em 2026-08-05 sobre
-quatro leituras reais ("a natureza já حساسة do Ascendente", "sugere que成长
-pessoal", "estar стимулируя mudanças"). O UTF-8 chega íntegro: é o modelo
-derrapando de idioma, não corrupção de encoding.
+O MiniMax-M2.1 (PROIBIDO) trocava uma palavra solta pelo equivalente em
+chinês, árabe ou russo algumas vezes por texto — comportamento observado em
+2026-08-05 sobre quatro leituras reais ("a natureza já حساسة do Ascendente",
+"sugere que成长 pessoal", "estar стимулируя mudanças"). MiniMax-M2.7 (atual)
+não exibiu leak no benchmark de 2026-08-07 (3 amostras), mas o guard permanece
+ativo: o desvio é estocástico. O UTF-8 chega íntegro: é o modelo derrapando
+de idioma, não corrupção de encoding.
 """
 
 from datetime import date

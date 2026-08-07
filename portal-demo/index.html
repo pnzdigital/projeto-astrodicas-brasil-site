@@ -612,10 +612,10 @@
 
         <section class="hero" aria-labelledby="hero-title">
           <div class="hero-copy">
-            <div class="hero-kicker">Seu céu de hoje · Lua crescente</div>
+            <div class="hero-kicker" id="hero-kicker">Seu céu de hoje · Lua crescente</div>
             <h2 id="hero-title">Um passo de cada vez também é movimento.</h2>
-            <p>O céu pede presença nas pequenas decisões. Escolha uma prioridade, proteja sua energia e deixe o resto encontrar o próprio ritmo.</p>
-            <button class="button" type="button" data-dialog="horoscopo-dialog">Ler meu horóscopo <span aria-hidden="true">→</span></button>
+            <p id="hero-status">O céu pede presença nas pequenas decisões. Escolha uma prioridade, proteja sua energia e deixe o resto encontrar o próprio ritmo.</p>
+            <button class="button" type="button" id="hero-cta" data-daily-action="open">Ler meu horóscopo <span aria-hidden="true">→</span></button>
           </div>
           <div class="hero-visual" aria-hidden="true">
             <div class="moon-wrap">
@@ -653,11 +653,11 @@
               <div class="sign"><span class="sign-symbol">✦</span><div><strong>Sua conta · complete seus dados</strong><span>Sol, Lua e Ascendente em foco</span></div></div>
               <time class="date-chip" datetime="">Hoje</time>
             </div>
-            <h3>A clareza chega quando você para de disputar com o tempo.</h3>
-            <p>Hoje, uma conversa honesta vale mais do que uma resposta perfeita. Repare no que seu corpo já sabe antes de pedir opinião para todo mundo.</p>
+            <h3 id="daily-headline">A clareza chega quando você para de disputar com o tempo.</h3>
+            <p id="daily-body">Hoje, uma conversa honesta vale mais do que uma resposta perfeita. Repare no que seu corpo já sabe antes de pedir opinião para todo mundo.</p>
             <div class="daily-footer">
-              <div class="tags"><span class="tag">palavra: presença</span><span class="tag">cor: rosé</span></div>
-              <button class="button ghost small" type="button" data-dialog="horoscopo-dialog">Abrir leitura completa →</button>
+              <div class="tags" id="daily-tags"><span class="tag">palavra: presença</span><span class="tag">cor: rosé</span></div>
+              <button class="button ghost small" type="button" id="daily-cta" data-daily-action="open">Abrir leitura completa →</button>
             </div>
           </article>
           <aside class="panel progress-card" aria-labelledby="profile-title">
@@ -732,16 +732,6 @@
   </nav>
   <div class="toast" role="status" aria-live="polite"></div>
 
-  <dialog id="horoscopo-dialog" aria-labelledby="horoscopo-title">
-    <div class="dialog-inner">
-      <button class="dialog-close" type="button" aria-label="Fechar">×</button>
-      <p class="eyebrow">Leitura completa · 29 de julho</p>
-      <h2 id="horoscopo-title">A sua intuição já está trabalhando.</h2>
-      <p>Há uma diferença entre esperar o momento certo e adiar o que já amadureceu. Hoje, o céu favorece escolhas simples, conversas sem rodeios e um compromisso possível com aquilo que te faz bem.</p>
-      <p>Se puder, reserve vinte minutos sem notificações. Uma ideia que parecia pequena pode se revelar a direção que faltava.</p>
-      <div class="dialog-actions"><button class="button ghost small dialog-close" type="button">Voltar ao portal</button><button class="button small" type="button" data-toast="Leitura salva na sua biblioteca.">Salvar leitura</button></div>
-    </div>
-  </dialog>
   <dialog id="upgrade-dialog" aria-labelledby="upgrade-title">
     <div class="dialog-inner">
       <button class="dialog-close" type="button" aria-label="Fechar">×</button>
@@ -1026,6 +1016,12 @@
     function profileComplete() { return Boolean(appState.profile?.birth_date && appState.profile?.birth_city); }
     function fallbackState(item) { return DEMO_PAID && item.productId ? ACCESS_STATES.available : (USER_ACCESS[item.id] || ACCESS_STATES.locked); }
     function stateLabel(value) { return ({ [ACCESS_STATES.available]: 'disponível', [ACCESS_STATES.locked]: 'bloqueado', [ACCESS_STATES.new]: 'novo', [ACCESS_STATES.pending]: 'aguardando acesso', [ACCESS_STATES.inProgress]: 'gerando leitura…' })[value] || value; }
+    function monthLabelFor(dateLike) {
+      const locale = IS_ARGENTINA ? 'es-AR' : 'pt-BR';
+      const date = dateLike ? new Date(dateLike) : new Date();
+      const label = new Intl.DateTimeFormat(locale, { month: 'long', year: 'numeric' }).format(date);
+      return label.charAt(0).toUpperCase() + label.slice(1);
+    }
     function applyRemoteState() {
       LIBRARY_ITEMS.forEach((item) => {
         const reading = appState.readings.get(item.id);
@@ -1035,8 +1031,145 @@
         else if (reading?.status === 'ready' || !item.productId || entitlement?.status === 'available') item.state = reading?.status === 'ready' ? ACCESS_STATES.available : (item.productId ? ACCESS_STATES.available : ACCESS_STATES.new);
         else if (entitlement && entitlement.status !== 'available') item.state = ACCESS_STATES.pending;
         else item.state = fallbackState(item);
+        if (item.id === 'site:content:guia_do_mes') {
+          // Meta fixo ("Julho · 12 min") mentia sobre o mês pra quem abrisse o
+          // portal em qualquer outro mês — usa a data da leitura já gerada, ou
+          // o mês corrente enquanto ela não existe.
+          item.meta = `${monthLabelFor(reading?.created_at)} · 12 min`;
+        }
       });
       renderLibrary();
+      renderDailyHoroscope();
+    }
+    function excerptFromHtml(html, maxLen = 220) {
+      const div = document.createElement('div');
+      div.innerHTML = html || '';
+      const text = (div.textContent || '').replace(/\s+/g, ' ').trim();
+      if (text.length <= maxLen) return text;
+      return `${text.slice(0, maxLen).trim()}…`;
+    }
+    // Horóscopo diário é o motivo dela abrir o site todo dia — por isso mora
+    // fixo no hero + no card "seu momento agora", não escondido dentro da
+    // biblioteca genérica. Estados honestos: sem dados de nascimento, sem
+    // Plano Lua ativo, gerando (202 assíncrono + polling) e falha de verdade
+    // (sem cair em caixa em branco).
+    function renderDailyHoroscope() {
+      const heroKicker = document.getElementById('hero-kicker');
+      const heroStatus = document.getElementById('hero-status');
+      const heroCta = document.getElementById('hero-cta');
+      const headline = document.getElementById('daily-headline');
+      const body = document.getElementById('daily-body');
+      const tags = document.getElementById('daily-tags');
+      const cta = document.getElementById('daily-cta');
+      if (!heroKicker || !headline) return;
+      if (!appState.authenticated) return; // modo demo/deslogado: mantém a cópia estática do HTML
+      const item = LIBRARY_ITEMS.find((entry) => entry.id === 'site:content:horoscopo_diario');
+      if (!item) return;
+      const entitlement = item.productId && appState.entitlements.get(item.productId);
+      const reading = appState.readings.get(item.id);
+      const setCta = (label, busy) => { [heroCta, cta].forEach((btn) => { if (!btn) return; btn.textContent = label; btn.toggleAttribute('aria-busy', Boolean(busy)); btn.disabled = Boolean(busy); }); };
+      if (!profileComplete()) {
+        heroKicker.textContent = IS_ARGENTINA ? 'Tu horóscopo de hoy' : 'Seu horóscopo de hoje';
+        heroStatus.textContent = IS_ARGENTINA
+          ? 'Todavía no tenemos tu fecha y ciudad de nacimiento — sin eso no podemos calcular tu cielo de hoy.'
+          : 'Ainda não temos sua data e cidade de nascimento — sem isso não conseguimos calcular seu céu de hoje.';
+        headline.textContent = IS_ARGENTINA ? 'Completá tus datos para desbloquear tu horóscopo.' : 'Complete seus dados para desbloquear seu horóscopo.';
+        body.textContent = IS_ARGENTINA
+          ? 'Es rápido: fecha, hora (opcional) y ciudad de nacimiento. En cuanto guardes, generamos la lectura de hoy.'
+          : 'É rápido: data, hora (opcional) e cidade de nascimento. Assim que salvar, geramos a leitura de hoje.';
+        tags.innerHTML = '';
+        setCta(IS_ARGENTINA ? 'Completar mis datos →' : 'Completar meus dados →', false);
+        heroCta.dataset.dailyAction = 'profile'; cta.dataset.dailyAction = 'profile';
+        return;
+      }
+      if (!entitlement || entitlement.status !== 'available') {
+        heroKicker.textContent = IS_ARGENTINA ? 'Contenido del Plan Luna' : 'Conteúdo do Plano Lua';
+        heroStatus.textContent = IS_ARGENTINA
+          ? 'El horóscopo diario es parte del Plan Luna: una lectura nueva todos los días, calculada sobre tu mapa.'
+          : 'O horóscopo diário é parte do Plano Lua: uma leitura nova todo dia, calculada sobre o seu mapa.';
+        headline.textContent = IS_ARGENTINA ? 'Tu horóscopo de hoy está a un paso.' : 'Seu horóscopo de hoje está a um passo.';
+        body.textContent = IS_ARGENTINA
+          ? 'Al activar el Plan Luna, esta lectura se genera automáticamente todos los días para vos.'
+          : 'Ao ativar o Plano Lua, essa leitura passa a ser gerada automaticamente todos os dias para você.';
+        tags.innerHTML = '';
+        setCta(IS_ARGENTINA ? 'Conocer Plan Luna →' : 'Conhecer Plano Lua →', false);
+        heroCta.dataset.dailyAction = 'plan'; cta.dataset.dailyAction = 'plan';
+        return;
+      }
+      if (!reading || reading.status === 'in_progress') {
+        heroKicker.textContent = IS_ARGENTINA ? 'Preparando tu cielo de hoy' : 'Preparando seu céu de hoje';
+        heroStatus.textContent = IS_ARGENTINA
+          ? 'Estamos leyendo tu mapa para escribir el horóscopo de hoy. Esto lleva solo unos instantes.'
+          : 'Estamos lendo seu mapa para escrever o horóscopo de hoje. Isso leva só alguns instantes.';
+        headline.textContent = IS_ARGENTINA ? 'Generando tu lectura de hoy…' : 'Gerando sua leitura de hoje…';
+        body.textContent = IS_ARGENTINA ? 'No hace falta recargar la página — avisamos apenas esté lista.' : 'Não precisa recarregar a página — avisamos assim que estiver pronta.';
+        tags.innerHTML = '';
+        setCta(IS_ARGENTINA ? 'Gerando…' : 'Gerando…', true);
+        heroCta.dataset.dailyAction = 'open'; cta.dataset.dailyAction = 'open';
+        return;
+      }
+      const hasContent = Boolean(reading.body_html) || (reading.sections && reading.sections.length);
+      if (reading.status === 'fallback' && !hasContent) {
+        heroKicker.textContent = IS_ARGENTINA ? 'No pudimos generar tu lectura' : 'Não conseguimos gerar sua leitura';
+        heroStatus.textContent = IS_ARGENTINA
+          ? 'Tuvimos un problema al preparar tu horóscopo de hoy. Podés intentar de nuevo.'
+          : 'Tivemos um problema ao preparar seu horóscopo de hoje. Você pode tentar de novo.';
+        headline.textContent = IS_ARGENTINA ? 'Tu lectura de hoy no se generó.' : 'Sua leitura de hoje não foi gerada.';
+        body.textContent = IS_ARGENTINA ? 'Esto no consume um novo dia de acesso — toque para intentar de nuevo.' : 'Isso não consome um novo dia de acesso — toque para tentar de novo.';
+        tags.innerHTML = '';
+        setCta(IS_ARGENTINA ? 'Tentar de novo →' : 'Tentar de novo →', false);
+        heroCta.dataset.dailyAction = 'retry'; cta.dataset.dailyAction = 'retry';
+        return;
+      }
+      heroKicker.textContent = IS_ARGENTINA ? 'Tu cielo de hoy' : 'Seu céu de hoje';
+      heroStatus.textContent = excerptFromHtml(reading.body_html, 180) || (IS_ARGENTINA ? 'Tu lectura de hoy ya está lista.' : 'Sua leitura de hoje já está pronta.');
+      headline.textContent = reading.title || item.title;
+      body.textContent = excerptFromHtml(reading.body_html, 220);
+      tags.innerHTML = reading.status === 'fallback'
+        ? `<span class="tag">${IS_ARGENTINA ? 'versión editorial de hoy' : 'versão editorial de hoje'}</span>`
+        : `<span class="tag">${IS_ARGENTINA ? 'lectura personalizada' : 'leitura personalizada'}</span>`;
+      setCta(IS_ARGENTINA ? 'Leer lectura completa →' : 'Ler leitura completa →', false);
+      heroCta.dataset.dailyAction = 'open'; cta.dataset.dailyAction = 'open';
+    }
+    async function handleDailyAction(action) {
+      const item = LIBRARY_ITEMS.find((entry) => entry.id === 'site:content:horoscopo_diario');
+      if (!item) return;
+      if (action === 'profile') { appState.pendingContentId = item.id; openDialog('profile-dialog'); return; }
+      if (action === 'plan') { document.getElementById('catalogo')?.scrollIntoView({ behavior: 'smooth', block: 'start' }); return; }
+      if (action === 'retry') { appState.readings.delete(item.id); renderDailyHoroscope(); await ensureDailyHoroscope(); return; }
+      generateReading(item);
+    }
+    async function pollDailyHoroscope(item) {
+      for (let attempt = 0; attempt < GENERATE_POLL_MAX_ATTEMPTS; attempt++) {
+        await sleep(GENERATE_POLL_INTERVAL_MS);
+        let data;
+        try { data = await apiRequest('/api/me/readings'); } catch (error) { return; }
+        const reading = (data.readings || []).find((r) => r.content_id === item.id);
+        if (!reading || reading.status === 'in_progress') continue;
+        appState.readings.set(item.id, reading);
+        renderDailyHoroscope();
+        return;
+      }
+    }
+    // Gera o horóscopo de hoje sozinha, assim que o painel abre — a assinante
+    // não deveria precisar clicar em nada pra descobrir que já tem uma leitura
+    // nova esperando (era exatamente essa a lacuna do dia 2 sem conteúdo).
+    async function ensureDailyHoroscope() {
+      if (!appState.authenticated || !appState.apiAvailable) return;
+      const item = LIBRARY_ITEMS.find((entry) => entry.id === 'site:content:horoscopo_diario');
+      if (!item || !profileComplete()) return;
+      const entitlement = item.productId && appState.entitlements.get(item.productId);
+      if (!entitlement || entitlement.status !== 'available') return;
+      const current = appState.readings.get(item.id);
+      if (current?.status === 'in_progress') { pollDailyHoroscope(item); return; }
+      try {
+        const data = await apiRequest(`/api/me/readings/${encodeURIComponent(item.id)}/generate`, { method: 'POST', body: '{}' });
+        if (data.reading) appState.readings.set(item.id, data.reading);
+        renderDailyHoroscope();
+        if (data.reading?.status === 'in_progress') pollDailyHoroscope(item);
+      } catch (error) {
+        renderDailyHoroscope();
+      }
     }
     function renderLibrary() {
       const grid = document.getElementById('library-grid');
@@ -1450,6 +1583,7 @@
       // pelo Cakto simplesmente não tem GET /api/me/subscription pra achar.
       apiRequest('/api/me/subscription').then((data) => { appState.subscription = data.subscription; syncAccountDialog(); }).catch(() => {});
       applyRemoteState(); syncAccountDialog();
+      void ensureDailyHoroscope();
     }
     async function bootstrap() {
       try {
@@ -1493,6 +1627,7 @@
       if (target.matches('[data-dialog]')) openDialog(target.dataset.dialog);
       if (target.matches('.dialog-close')) target.closest('dialog')?.close();
       if (target.matches('[data-read]')) openReading(LIBRARY_ITEMS.find((item) => item.id === target.dataset.read));
+      if (target.matches('[data-daily-action]')) handleDailyAction(target.dataset.dailyAction);
       if (target.matches('[data-print]')) { showToast('Preparando uma versão para impressão…'); window.print(); }
       if (target.matches('[data-print-reading-page]')) { showToast(`Preparando “${target.dataset.printTitle || 'leitura'}” para impressão…`); window.print(); }
       if (target.matches('[data-back-to-library]')) { event.preventDefault(); history.pushState(null, '', location.pathname + location.search + '#entregaveis'); showLibraryView(); }
@@ -1505,7 +1640,7 @@
     document.addEventListener('submit', (event) => { if (event.target.matches('[data-auth-form]')) { event.preventDefault(); submitAuth(event.target, event.target.dataset.authForm); } if (event.target.matches('#profile-form')) { event.preventDefault(); saveProfile(event.target); } });
     async function saveProfile(form) {
       const button = form.querySelector('button[type="submit"]'); button.disabled = true; setFormError('profile');
-      try { const data = await apiRequest('/api/me/profile', { method: 'PUT', body: JSON.stringify(payloadFromForm(form)) }); appState.profile = data.profile; renderUser(); syncAccountDialog(); document.getElementById('profile-dialog').close(); showToast(IS_ARGENTINA ? 'Datos guardados. Tu cielo está listo para la próxima lectura.' : 'Dados salvos. Seu céu está pronto para a próxima leitura.'); const pending = appState.pendingContentId; appState.pendingContentId = null; if (pending) generateReading(LIBRARY_ITEMS.find((item) => item.id === pending)); }
+      try { const data = await apiRequest('/api/me/profile', { method: 'PUT', body: JSON.stringify(payloadFromForm(form)) }); appState.profile = data.profile; renderUser(); syncAccountDialog(); renderDailyHoroscope(); document.getElementById('profile-dialog').close(); showToast(IS_ARGENTINA ? 'Datos guardados. Tu cielo está listo para la próxima lectura.' : 'Dados salvos. Seu céu está pronto para a próxima leitura.'); const pending = appState.pendingContentId; appState.pendingContentId = null; if (pending && pending !== 'site:content:horoscopo_diario') generateReading(LIBRARY_ITEMS.find((item) => item.id === pending)); else void ensureDailyHoroscope(); }
       catch (error) { setFormError('profile', error.message); }
       finally { button.disabled = false; }
     }

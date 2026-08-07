@@ -83,25 +83,64 @@ def _max_tokens_for(content_id: str) -> int:
 # guard rejection or truncation only costs that section's tokens/time — not
 # the whole 7000-token document.
 #
-# Per-section token budget: same per-section estimate used to size the old
-# whole-document budgets (2 a 3 parágrafos de 70 a 110 palavras ≈ 225
-# palavras/seção x 1.6 tokens/palavra ≈ 360 tokens + ~20 tokens de marcação
-# ≈ 380, com 40% de margem (maior que a margem de 20% do budget antigo,
-# porque aqui a distribuição por seção tem mais variância individual) ≈ 530
-# → arredondado para 550.
-_SECTION_TOKEN_BUDGET = int(os.getenv("MINIMAX_SECTION_MAX_TOKENS", "550"))
+# Per-section token budget.
+#
+# O valor original (550) foi calculado só para o corpo do texto e IGNOROU um
+# fato do MiniMax-M2.x: são modelos de raciocínio, e o bloco <think>...</think>
+# CONTA contra max_tokens — e para M2.x não existe jeito de desligar o
+# thinking (confirmado na doc oficial: "For M2.x models, thinking cannot be
+# disabled"; a doc recomenda literalmente "if generation stops due to length,
+# try increasing max_completion_tokens").
+#
+# Medido em produção (2026-08-07, 6 chamadas reais de seção via probe direto
+# à API com MiniMax-M2.1, mapa_astral_completo): o bloco <think> sozinho
+# consumiu de ~700 a ~2130 caracteres (≈530 tokens no pior caso, à razão
+# observada de ~4 chars/token em pt-BR) — ou seja, em mais de uma seção o
+# raciocínio sozinho já tomou o budget de 550 inteiro, cortando a resposta
+# ("finish_reason": "length") antes ou bem no início do corpo. Isso bateu
+# exatamente com o padrão visto na regeneração de teste: praticamente TODAS
+# as 15 seções truncaram na 1ª tentativa, esgotaram as 2 tentativas e caíram
+# no fallback (83% de fallback relatado) — não é falha de rede nem rate limit,
+# é o budget nunca ter sobrado para o corpo depois do raciocínio.
+#
+# Modelo trocado para MiniMax-M2.7 em 2026-08-07 após benchmark de 3 amostras:
+#   M2.7 → finish_reason=stop 3/3, 179-254 palavras, 461-1452 completion tokens,
+#           zero leak de script CJK/cirílico.
+#   M3   → finish_reason=length 3/3, corpo VAZIO, queima os 1800 tokens inteiros
+#           em raciocínio — descartado.
+#   M2.1 → PROIBIDO: causa raiz do bug de 83% de fallback documentado acima.
+#
+# Budget 2500: o probe de 15 seções reais (2026-08-07) com M2.7 mostrou que
+# 1800 era insuficiente para es-AR — Saturno e Plutão atingiram exatamente
+# 1800 completion tokens (finish_reason=length) em todas as 3 tentativas,
+# fallback 2/15 = 13.3%. A seção Vênus (es-AR) chegou a 1760 tokens com stop
+# — margens de um pixel. Re-testado Saturno e Plutão com max_tokens=2500:
+# ambos passaram limpo (Saturno 1154 tokens stop, Plutão 817 tokens stop).
+# Budget novo: ~60% de headroom sobre os 1560 tokens do pior caso observado
+# → arredondado para 2500.
+_SECTION_TOKEN_BUDGET = int(os.getenv("MINIMAX_SECTION_MAX_TOKENS", "2500"))
 
-# Per-section retry: a seção reprovada é refeita sozinha, então o custo de
-# uma tentativa extra é ~550 tokens (não 7000) — por isso 2 tentativas bastam
-# (contra as 3 do documento inteiro): o guard de idioma/truncamento é
-# estocástico e raramente falha duas vezes seguidas na MESMA seção pequena.
-_SECTION_MAX_ATTEMPTS_DEFAULT = "2"
+# Per-section retry.
+#
+# Depois de corrigir o budget de tokens (ver _SECTION_TOKEN_BUDGET), o log de
+# produção (2026-08-07, 2 leituras completas pós-fix) mostrou que truncamento
+# sumiu quase por completo, mas o guard de vazamento de script (CJK/cirílico)
+# passou a ser a causa dominante de fallback: o modelo pode soltar caractere
+# fora do alfabeto latino com frequência notável e independente do budget —
+# é estocástico por natureza, não algo que token extra resolve. Com M2.7 o
+# benchmark de 3 amostras mostrou zero leak, mas o guard permanece ativo como
+# rede de segurança. 2 tentativas ainda deixavam 2 a 4 das 15 seções
+# esgotarem (uma má sorte seguida da outra); 3 tentativas reduz essa
+# probabilidade sem custo relevante (cada tentativa extra é ~1800 tokens,
+# não 7000).
+_SECTION_MAX_ATTEMPTS_DEFAULT = "3"
 
-# Per-section timeout: a resposta é muito menor (550 tokens vs 7000), então
-# o tempo real de geração cai proporcionalmente. 45s cobre folgadamente o
-# pior caso observado de latência de rede + geração para um bloco pequeno,
-# sem herdar os 120s dimensionados para o documento inteiro.
-_SECTION_TIMEOUT_SECONDS_DEFAULT = "45"
+# Per-section timeout: a resposta ainda é bem menor que os 7000 tokens do
+# documento inteiro, mas o budget subiu para 1800 (ver _SECTION_TOKEN_BUDGET)
+# para acomodar o raciocínio do M2.7 — 60s cobre folgadamente o pior caso
+# observado de latência de rede + geração + thinking para um bloco desse
+# tamanho, sem herdar os 120s dimensionados para o documento inteiro.
+_SECTION_TIMEOUT_SECONDS_DEFAULT = "60"
 
 # Pool limitado: gerar as 15 seções em paralelo sem limite sobrecarregaria a
 # API do MiniMax (rate limit) e o processo local; 4 workers equilibra tempo
@@ -374,11 +413,13 @@ fatalista. Não cite inteligência artificial. {markdown_rule}{language_lock}{as
 
 
 # Um caractere fora do alfabeto latino no meio de uma leitura paga destrói a
-# credibilidade do produto inteiro. O MiniMax-M2.1 troca uma palavra solta pelo
-# equivalente em chinês, árabe ou russo algumas vezes por texto — validado em
-# 2026-08-05 sobre 4 leituras reais: "a natureza já حساسة do Ascendente",
-# "sugere que成长 pessoal", "estar стимулируя mudanças". Não é falha de encoding
-# (o UTF-8 chega íntegro), é o próprio modelo derrapando de idioma.
+# credibilidade do produto inteiro. O MiniMax-M2.1 (modelo anterior, PROIBIDO)
+# trocava uma palavra solta pelo equivalente em chinês, árabe ou russo algumas
+# vezes por texto — validado em 2026-08-05 sobre 4 leituras reais: "a natureza
+# já حساسة do Ascendente", "sugere que成长 pessoal", "estar стимулируя mudanças".
+# MiniMax-M2.7 (modelo atual) não exibiu leak nas 3 amostras do benchmark de
+# 2026-08-07, mas o guard permanece ativo: é estocástico. Não é falha de
+# encoding (o UTF-8 chega íntegro), é o modelo derrapando de idioma.
 #
 # Permitimos ASCII, Latin-1 suplementar e Latin Extended-A (cobre pt-BR e
 # es-AR), mais a pontuação tipográfica que o modelo usa legitimamente (aspas
@@ -434,6 +475,11 @@ _ENGLISH_LEAK_WORDS = frozenset(
         "however", "therefore", "moreover", "overall",
         "insight", "insights", "throughout", "meanwhile",
         "although", "whereas", "regarding",
+        # Observado em produção (2026-08-07, probe de seção 'Sol'): "posição
+        # deste astro essential revela..." — grafia inglesa ("essential") no
+        # lugar do português "essencial", não pega no guard de script (letras
+        # latinas) e passava batido porque não estava na lista.
+        "essential", "essentially",
     }
 )
 
@@ -521,7 +567,7 @@ def _call_minimax(prompt: str, locale: str = "pt-BR", max_tokens: int | None = N
     if not api_key:
         raise RuntimeError("MINIMAX_API_KEY não configurada")
     base_url = os.getenv("MINIMAX_BASE_URL", os.getenv("LLM_BASE_URL", "https://api.minimax.io/v1")).rstrip("/")
-    model = os.getenv("MINIMAX_MODEL", os.getenv("LLM_MODEL_TEXT", "MiniMax-M2.1"))
+    model = os.getenv("MINIMAX_MODEL", os.getenv("LLM_MODEL_TEXT", "MiniMax-M2.7"))
     # ``max_tokens`` explícito é usado pela geração seção-a-seção (budget bem
     # menor, ~550 tokens, em vez do documento inteiro); quando ausente, cai no
     # comportamento antigo (budget por content_id extraído do próprio prompt).
@@ -546,7 +592,14 @@ def _call_minimax(prompt: str, locale: str = "pt-BR", max_tokens: int | None = N
     try:
         with urlopen(request, timeout=effective_timeout) as response:
             result = json.loads(response.read().decode("utf-8"))
-    except (HTTPError, URLError, TimeoutError, ValueError) as exc:
+    except (HTTPError, URLError, TimeoutError, ValueError, ConnectionError, OSError) as exc:
+        # ConnectionError/OSError cobrem RemoteDisconnected e outros hiccups de
+        # rede que NÃO são URLError/TimeoutError — observado em produção
+        # (2026-08-07): sem isso, a exceção escapava do try/except do worker
+        # e derrubava a geração INTEIRA das 15 seções (a thread quebrava fora
+        # do laço de retry de _generate_section), em vez de só essa seção
+        # cair no fallback pontual como as demais falhas de rede já tratadas
+        # aqui.
         raise RuntimeError(f"MiniMax indisponível: {type(exc).__name__}") from exc
     try:
         content = result["choices"][0]["message"]["content"]
