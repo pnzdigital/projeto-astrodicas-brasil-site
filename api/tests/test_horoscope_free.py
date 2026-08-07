@@ -226,3 +226,29 @@ def test_segundo_aspecto_entra_no_texto_quando_existe(geocoded):
 def test_bloco_de_clima_geral_nao_vaza_idioma(client, geocoded, locale, proibida):
     body = client.post("/api/horoscopo/gratis", json={**BASE, "locale": locale}).json()
     assert proibida not in body["body_html"], body["body_html"]
+
+
+def test_o_dia_e_o_da_visitante_nao_o_do_servidor(monkeypatch):
+    """Às 22h no Brasil o servidor (UTC) já virou o dia — a visitante não.
+
+    Sem isso, quem abre o site à noite recebe o horóscopo de amanhã, e a
+    validação de data de nascimento passa a aceitar uma data que ainda não
+    chegou para ela. O horário de pico de tráfego pago é justamente a noite.
+    """
+    from datetime import datetime, timezone
+    from zoneinfo import ZoneInfo
+
+    from app import horoscope_free
+
+    # 2026-08-07 01:12 UTC == 2026-08-06 22:12 em São Paulo e Buenos Aires.
+    momento = datetime(2026, 8, 7, 1, 12, tzinfo=timezone.utc)
+
+    class _Now(datetime):
+        @classmethod
+        def now(cls, tz=None):
+            return momento.astimezone(tz) if tz else momento
+
+    monkeypatch.setattr(horoscope_free, "datetime", _Now)
+
+    assert horoscope_free.local_today("pt-BR").isoformat() == "2026-08-06"
+    assert horoscope_free.local_today("es-AR").isoformat() == "2026-08-06"

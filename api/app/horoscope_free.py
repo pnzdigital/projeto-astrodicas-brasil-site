@@ -499,20 +499,32 @@ def compose(
     }
 
 
+def local_today(locale: str) -> date:
+    """O "hoje" da visitante, não o do servidor.
+
+    O público está em UTC-3 e o servidor conta em UTC: das 21h à meia-noite no
+    Brasil e na Argentina já é o dia seguinte em UTC. Contando por UTC, quem
+    abrisse o site às 22h receberia o horóscopo de amanhã — e a validação de
+    data de nascimento aceitaria uma data que ainda não chegou.
+    """
+    return datetime.now(ZoneInfo(LOCALE_DEFAULTS[locale][1])).date()
+
+
 @router.post("/gratis", dependencies=[Depends(preview_rate_limit)])
 def free_horoscope(body: HoroscopeBody, request: Request) -> dict:
     locale = pick_locale(body.locale, request.headers.get("accept-language"))
 
-    if body.birth_date > datetime.now(timezone.utc).date():
+    if body.birth_date > local_today(locale):
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
             detail=message("invalid_date", locale),
         )
 
     natal = natal_chart(body, locale)
-    # Meio-dia UTC: a Lua anda ~13°/dia, então o meio do dia é o valor que
-    # melhor representa "hoje" para qualquer fuso do público (BR e AR).
-    today = datetime.now(timezone.utc).replace(hour=12, minute=0, second=0, microsecond=0)
+    # Meio-dia do dia LOCAL dela: a Lua anda ~13°/dia, então o meio do dia é o
+    # instante que melhor representa "hoje" — mas o dia tem que ser o dela.
+    dia = local_today(locale)
+    today = datetime(dia.year, dia.month, dia.day, 12, tzinfo=timezone.utc)
     transits = astrology._planet_positions(_julian_day(today))
 
     aspect = strongest_aspect(natal["points"], transits)
