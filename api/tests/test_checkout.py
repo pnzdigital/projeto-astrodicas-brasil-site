@@ -22,6 +22,25 @@ def sent_emails(monkeypatch):
     return outbox
 
 
+def _complete_order_via_webhook(client, monkeypatch, order_id, payment_status="approved", payment_id=1, merchant_order_id=None):
+    """Simula a notificação ``merchant_order`` do Checkout Pro: o cliente pagou
+    (ou não) na página hospedada, e o Mercado Pago avisa por aqui."""
+    merchant_order_id = merchant_order_id or f"mo-{order_id}"
+    monkeypatch.setattr(
+        mercadopago,
+        "get_merchant_order",
+        lambda merchant_order_id: {
+            "id": merchant_order_id,
+            "external_reference": order_id,
+            "payments": [{"id": payment_id, "status": payment_status}],
+        },
+    )
+    return client.post(
+        "/api/webhooks/mercadopago/notify",
+        json={"type": "merchant_order", "data": {"id": merchant_order_id}},
+    )
+
+
 def test_argentine_price_is_the_brazilian_price_converted():
     """A conversão vale para o catálogo geral. Plano Lua, Premium e a oferta de
     saída têm preço argentino próprio, definido comercialmente — esses estão em
@@ -40,14 +59,27 @@ def test_catalog_endpoint_serves_each_market(client):
     br = client.get("/api/catalog?locale=pt-BR").json()
     ar = client.get("/api/catalog?locale=es-AR").json()
     assert br["currency"] == "BRL" and ar["currency"] == "ARS"
-    assert ar["checkout"]["provider"] == "mercadopago" and ar["checkout"]["transparent"] is True
+    # Checkout Pro: o cartão é capturado numa página do Mercado Pago, não
+    # dentro do site — por isso "transparent" é False mesmo para o provedor
+    # mercadopago, e "redirect" é quem sinaliza o novo fluxo ao frontend.
+    assert ar["checkout"]["provider"] == "mercadopago"
+    assert ar["checkout"]["transparent"] is False
+    assert ar["checkout"]["redirect"] is True
     lua_ar = next(p for p in ar["products"] if p["product_id"] == "site:plano_lua")
     assert lua_ar["price_label"] == "ARS 9.900"
 
 
-def test_order_uses_server_price_and_rejects_unknown_product(client):
+def test_order_uses_server_price_and_opens_a_checkout_pro_preference(client, monkeypatch):
     unknown = client.post("/api/checkout/order", json={"product_id": "site:nope", "email": "a@b.com", "locale": "es-AR"})
     assert unknown.status_code == 404
+
+    captured = {}
+
+    def fake_create_preference(**kwargs):
+        captured.update(kwargs)
+        return {"id": "pref-1", "init_point": "https://www.mercadopago.com/checkout/pref-1"}
+
+    monkeypatch.setattr(mercadopago, "create_preference", fake_create_preference)
 
     response = client.post(
         "/api/checkout/order",
@@ -58,30 +90,44 @@ def test_order_uses_server_price_and_rejects_unknown_product(client):
     assert body["amount"] == 34900.0
     assert body["amount_minor"] == pricing.PRICES_ARS_MINOR["site:oferta_plano_lua_premium"]
     assert body["currency"] == "ARS"
+    assert body["redirect"] is True
+    assert body["init_point"] == "https://www.mercadopago.com/checkout/pref-1"
+    # O valor cobrado é o do servidor, não o que o navegador mandou.
+    assert captured["amount"] == 34900.0
+    assert captured["payer_email"] == "cliente@example.com"
 
 
-def test_payment_approved_creates_account_grants_bundle_and_emails(client, monkeypatch, sent_emails):
+def test_order_returns_502_when_provider_refuses_the_preference(client, monkeypatch):
+    def boom(**kwargs):
+        raise mercadopago.MercadoPagoError("timeout")
+
+    monkeypatch.setattr(mercadopago, "create_preference", boom)
+    response = client.post(
+        "/api/checkout/order",
+        json={"product_id": "site:mapa_astral", "email": "falha@cliente.com", "locale": "es-AR"},
+    )
+    assert response.status_code == 502
+
+
+def test_payment_route_is_gone_and_returns_410(client):
+    """Rota do checkout transparente aposentada: cliente antigo recebe um erro
+    claro em vez de 404, e é instruído a reabrir a compra."""
+    response = client.post(
+        "/api/checkout/payment",
+        json={"order_id": "qualquer-coisa", "form_data": {"payment_method_id": "visa"}},
+    )
+    assert response.status_code == 410
+
+
+def test_merchant_order_approved_creates_account_grants_bundle_and_emails(client, monkeypatch, sent_emails):
     order = client.post(
         "/api/checkout/order",
         json={"product_id": "site:oferta_plano_lua_premium", "email": "nova@cliente.com", "name": "Nova Cliente", "locale": "es-AR"},
     ).json()
 
-    captured = {}
-
-    def fake_create_payment(**kwargs):
-        captured.update(kwargs)
-        return {"id": 12345, "status": "approved", "status_detail": "accredited", "external_reference": kwargs["order_id"], "transaction_amount": kwargs["amount"]}
-
-    monkeypatch.setattr(mercadopago, "create_payment", fake_create_payment)
-
-    response = client.post(
-        "/api/checkout/payment",
-        json={"order_id": order["order_id"], "form_data": {"payment_method_id": "visa", "token": "tok", "installments": 1, "payer": {"email": "nova@cliente.com"}}},
-    )
+    response = _complete_order_via_webhook(client, monkeypatch, order["order_id"])
     assert response.status_code == 200, response.text
-    assert response.json()["approved"] is True
-    # O valor cobrado é o do servidor, não o que o navegador mandou.
-    assert captured["amount"] == 34900.0
+    assert response.json()["status"] == "paid"
 
     login = client.post("/api/auth/login", json={"email": "nova@cliente.com", "password": "qualquer"})
     assert login.status_code == 401  # senha provisória é aleatória, não adivinhável
@@ -103,19 +149,8 @@ def test_purchase_conversion_only_exposes_confirmed_order(client, monkeypatch, s
     pending = client.get(f"/api/checkout/order/{order['order_id']}/conversion")
     assert pending.status_code == 404
 
-    monkeypatch.setattr(
-        mercadopago,
-        "create_payment",
-        lambda **kwargs: {"id": 2468, "status": "approved", "external_reference": kwargs["order_id"]},
-    )
-    paid = client.post(
-        "/api/checkout/payment",
-        json={
-            "order_id": order["order_id"],
-            "form_data": {"payment_method_id": "visa", "token": "tok", "payer": {"email": "pixel@cliente.com"}},
-        },
-    )
-    assert paid.json()["approved"] is True
+    paid = _complete_order_via_webhook(client, monkeypatch, order["order_id"], payment_id=2468)
+    assert paid.json()["status"] == "paid"
 
     conversion = client.get(f"/api/checkout/order/{order['order_id']}/conversion")
     assert conversion.status_code == 200
@@ -133,21 +168,16 @@ def test_purchase_conversion_only_exposes_confirmed_order(client, monkeypatch, s
     assert "email" not in conversion.json()
 
 
-def test_payment_is_not_charged_twice_and_email_is_sent_once(client, monkeypatch, sent_emails):
+def test_merchant_order_notification_is_not_double_fulfilled_and_emails_once(client, monkeypatch, sent_emails):
     order = client.post(
         "/api/checkout/order",
         json={"product_id": "site:mapa_astral", "email": "repete@cliente.com", "locale": "es-AR"},
     ).json()
-    monkeypatch.setattr(
-        mercadopago,
-        "create_payment",
-        lambda **kwargs: {"id": 999, "status": "approved", "external_reference": kwargs["order_id"]},
-    )
-    payload = {"order_id": order["order_id"], "form_data": {"payment_method_id": "visa", "token": "t", "payer": {"email": "repete@cliente.com"}}}
-    first = client.post("/api/checkout/payment", json=payload)
-    second = client.post("/api/checkout/payment", json=payload)
-    assert first.json()["approved"] is True
-    assert second.json()["status"] == "approved"
+
+    first = _complete_order_via_webhook(client, monkeypatch, order["order_id"])
+    second = _complete_order_via_webhook(client, monkeypatch, order["order_id"])
+    assert first.json()["status"] == "paid"
+    assert second.json().get("duplicate") is True
     assert len(sent_emails) == 1
 
 
@@ -156,16 +186,8 @@ def test_rejected_payment_does_not_grant_access(client, monkeypatch, sent_emails
         "/api/checkout/order",
         json={"product_id": "site:mapa_carreira", "email": "recusa@cliente.com", "locale": "es-AR"},
     ).json()
-    monkeypatch.setattr(
-        mercadopago,
-        "create_payment",
-        lambda **kwargs: {"id": 1, "status": "rejected", "status_detail": "cc_rejected_other_reason", "external_reference": kwargs["order_id"]},
-    )
-    response = client.post(
-        "/api/checkout/payment",
-        json={"order_id": order["order_id"], "form_data": {"payment_method_id": "visa", "token": "t", "payer": {"email": "recusa@cliente.com"}}},
-    )
-    assert response.json()["approved"] is False
+    response = _complete_order_via_webhook(client, monkeypatch, order["order_id"], payment_status="rejected")
+    assert response.json()["status"] == "failed"
     assert sent_emails == []
 
 
@@ -205,66 +227,6 @@ def test_order_rejected_when_mp_not_enabled_for_ar(client, monkeypatch):
     assert response.status_code == 503
 
 
-def test_payment_for_unknown_order_returns_404(client):
-    response = client.post(
-        "/api/checkout/payment",
-        json={"order_id": "does-not-exist", "form_data": {"payment_method_id": "visa"}},
-    )
-    assert response.status_code == 404
-
-
-def test_payment_without_payment_method_returns_400(client):
-    order = client.post(
-        "/api/checkout/order",
-        json={"product_id": "site:mapa_astral", "email": "sem-metodo@cliente.com", "locale": "es-AR"},
-    ).json()
-    response = client.post(
-        "/api/checkout/payment",
-        json={"order_id": order["order_id"], "form_data": {"token": "tok"}},
-    )
-    assert response.status_code == 400
-
-
-def test_payment_without_payer_email_returns_400(client):
-    from app.db import SessionLocal
-    from app.models import Order
-
-    order = client.post(
-        "/api/checkout/order",
-        json={"product_id": "site:mapa_astral", "email": "sera-limpo@cliente.com", "locale": "es-AR"},
-    ).json()
-
-    db = SessionLocal()
-    try:
-        db.get(Order, order["order_id"]).customer_email = None
-        db.commit()
-    finally:
-        db.close()
-
-    response = client.post(
-        "/api/checkout/payment",
-        json={"order_id": order["order_id"], "form_data": {"payment_method_id": "visa", "token": "t"}},
-    )
-    assert response.status_code == 400
-
-
-def test_payment_provider_error_returns_502(client, monkeypatch):
-    order = client.post(
-        "/api/checkout/order",
-        json={"product_id": "site:mapa_astral", "email": "falha@cliente.com", "locale": "es-AR"},
-    ).json()
-
-    def boom(**kwargs):
-        raise mercadopago.MercadoPagoError("timeout")
-
-    monkeypatch.setattr(mercadopago, "create_payment", boom)
-    response = client.post(
-        "/api/checkout/payment",
-        json={"order_id": order["order_id"], "form_data": {"payment_method_id": "visa", "token": "t", "payer": {"email": "falha@cliente.com"}}},
-    )
-    assert response.status_code == 502
-
-
 def test_notify_without_data_id_is_ignored(client):
     response = client.post("/api/webhooks/mercadopago/notify", json={"type": "payment"})
     assert response.status_code == 200
@@ -288,10 +250,10 @@ def test_notify_ignores_unrelated_topic(client, monkeypatch):
     monkeypatch.setenv("ALLOW_INSECURE_DEV", "1")
     response = client.post(
         "/api/webhooks/mercadopago/notify",
-        json={"type": "merchant_order", "data": {"id": "1"}},
+        json={"type": "chargebacks", "data": {"id": "1"}},
     )
     assert response.status_code == 200
-    assert response.json()["ignored"] == "merchant_order"
+    assert response.json()["ignored"] == "chargebacks"
 
 
 def test_notify_provider_lookup_failure_returns_502(client, monkeypatch):
@@ -306,6 +268,22 @@ def test_notify_provider_lookup_failure_returns_502(client, monkeypatch):
     response = client.post(
         "/api/webhooks/mercadopago/notify",
         json={"type": "payment", "data": {"id": "999"}},
+    )
+    assert response.status_code == 502
+
+
+def test_notify_merchant_order_lookup_failure_returns_502(client, monkeypatch):
+    monkeypatch.delenv("MP_WEBHOOK_SECRET", raising=False)
+    monkeypatch.setenv("ENV", "test")
+    monkeypatch.setenv("ALLOW_INSECURE_DEV", "1")
+
+    def boom(merchant_order_id):
+        raise mercadopago.MercadoPagoError("indisponível")
+
+    monkeypatch.setattr(mercadopago, "get_merchant_order", boom)
+    response = client.post(
+        "/api/webhooks/mercadopago/notify",
+        json={"type": "merchant_order", "data": {"id": "mo-999"}},
     )
     assert response.status_code == 502
 
@@ -333,27 +311,15 @@ def test_fulfill_order_is_idempotent_for_already_available_entitlement(client, m
         "/api/checkout/order",
         json={"product_id": "site:mapa_astral", "email": "repete-fulfill@cliente.com", "locale": "es-AR"},
     ).json()
-    monkeypatch.setattr(
-        mercadopago,
-        "create_payment",
-        lambda **kwargs: {"id": 42, "status": "approved", "external_reference": kwargs["order_id"]},
-    )
-    payload = {"order_id": order["order_id"], "form_data": {"payment_method_id": "visa", "token": "t", "payer": {"email": "repete-fulfill@cliente.com"}}}
-    first = client.post("/api/checkout/payment", json=payload)
-    assert first.json()["approved"] is True
+    first = _complete_order_via_webhook(client, monkeypatch, order["order_id"], payment_id=42, merchant_order_id="mo-1")
+    assert first.json()["status"] == "paid"
 
     order2 = client.post(
         "/api/checkout/order",
         json={"product_id": "site:mapa_astral", "email": "repete-fulfill@cliente.com", "locale": "es-AR"},
     ).json()
-    monkeypatch.setattr(
-        mercadopago,
-        "create_payment",
-        lambda **kwargs: {"id": 43, "status": "approved", "external_reference": kwargs["order_id"]},
-    )
-    payload2 = {"order_id": order2["order_id"], "form_data": {"payment_method_id": "visa", "token": "t", "payer": {"email": "repete-fulfill@cliente.com"}}}
-    second = client.post("/api/checkout/payment", json=payload2)
-    assert second.json()["approved"] is True
+    second = _complete_order_via_webhook(client, monkeypatch, order2["order_id"], payment_id=43, merchant_order_id="mo-2")
+    assert second.json()["status"] == "paid"
     assert len(sent_emails) == 2
 
 
@@ -377,16 +343,8 @@ def test_fulfill_order_reactivates_a_revoked_entitlement(client, monkeypatch, se
         "/api/checkout/order",
         json={"product_id": "site:mapa_astral", "email": "revogado@cliente.com", "locale": "es-AR"},
     ).json()
-    monkeypatch.setattr(
-        mercadopago,
-        "create_payment",
-        lambda **kwargs: {"id": 7, "status": "approved", "external_reference": kwargs["order_id"]},
-    )
-    response = client.post(
-        "/api/checkout/payment",
-        json={"order_id": order["order_id"], "form_data": {"payment_method_id": "visa", "token": "t", "payer": {"email": "revogado@cliente.com"}}},
-    )
-    assert response.json()["approved"] is True
+    response = _complete_order_via_webhook(client, monkeypatch, order["order_id"], payment_id=7)
+    assert response.json()["status"] == "paid"
 
     db = SessionLocal()
     try:

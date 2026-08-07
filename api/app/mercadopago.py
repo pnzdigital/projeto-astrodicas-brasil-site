@@ -109,16 +109,62 @@ def get_payment(payment_id: str | int) -> dict:
     return _request("GET", f"/v1/payments/{payment_id}")
 
 
+def create_preference(
+    *,
+    order_id: str,
+    title: str,
+    amount: float,
+    currency: str,
+    payer_email: str,
+    success_url: str,
+    failure_url: str,
+    pending_url: str,
+    notification_url: str = "",
+) -> dict:
+    """Preferência do Checkout Pro: o cliente sai para a página hospedada do
+    Mercado Pago e volta por ``back_urls`` depois de pagar.
+
+    Ao contrário do checkout transparente, o cartão nunca passa pelo nosso
+    servidor nem pelo navegador do site — quem cobra é a página do provedor.
+    """
+    body: dict = {
+        "items": [
+            {
+                "title": title,
+                "quantity": 1,
+                "currency_id": currency,
+                "unit_price": amount,
+            }
+        ],
+        "payer": {"email": payer_email},
+        "external_reference": order_id,
+        "back_urls": {
+            "success": success_url,
+            "failure": failure_url,
+            "pending": pending_url,
+        },
+        "auto_return": "approved",
+        "statement_descriptor": os.getenv("MP_STATEMENT_DESCRIPTOR", "ASTRODICAS"),
+    }
+    if notification_url.startswith("https://") and "localhost" not in notification_url and "127.0.0.1" not in notification_url:
+        body["notification_url"] = notification_url
+    return _request("POST", "/checkout/preferences", body, idempotency_key=order_id)
+
+
+def get_merchant_order(merchant_order_id: str | int) -> dict:
+    return _request("GET", f"/merchant_orders/{merchant_order_id}")
+
+
 def create_preapproval(
     *,
     amount: float,
     currency: str,
     reason: str,
     payer_email: str,
-    card_token_id: str,
     external_reference: str,
     trial_days: int,
     back_url: str,
+    card_token_id: str = "",
     notification_url: str = "",
 ) -> dict:
     """Assinatura mensal que começa com ``trial_days`` grátis.
@@ -128,17 +174,16 @@ def create_preapproval(
     Fazer a contagem do nosso lado significaria ter que disparar a primeira
     cobrança sozinhos, e é justamente a parte que não pode falhar.
 
-    ``status: authorized`` é o que cria a assinatura já valendo com o cartão
-    tokenizado; sem isso o Mercado Pago devolve ``pending`` e espera o cliente
-    autorizar numa página deles, o que quebraria o funil dentro do site.
+    Sem ``card_token_id`` (Checkout Pro) a assinatura nasce ``pending`` e o
+    Mercado Pago devolve ``init_point``: uma página hospedada onde o cliente
+    escolhe e autoriza o cartão. Com o token (fluxo transparente legado) a
+    assinatura já nasce ``authorized``.
     """
     body: dict = {
         "reason": reason,
         "external_reference": external_reference,
         "payer_email": payer_email,
-        "card_token_id": card_token_id,
         "back_url": back_url,
-        "status": "authorized",
         "auto_recurring": {
             "frequency": 1,
             "frequency_type": "months",
@@ -147,6 +192,11 @@ def create_preapproval(
             "free_trial": {"frequency": trial_days, "frequency_type": "days"},
         },
     }
+    if card_token_id:
+        body["card_token_id"] = card_token_id
+        body["status"] = "authorized"
+    else:
+        body["status"] = "pending"
     if notification_url.startswith("https://") and "localhost" not in notification_url and "127.0.0.1" not in notification_url:
         body["notification_url"] = notification_url
     return _request("POST", "/preapproval", body, idempotency_key=external_reference)

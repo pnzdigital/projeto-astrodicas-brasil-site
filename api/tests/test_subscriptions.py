@@ -37,33 +37,76 @@ def provedor_ligado(monkeypatch):
 
 
 @pytest.fixture
+def sent_emails(monkeypatch):
+    outbox = []
+    monkeypatch.setattr(subscriptions, "send_purchase_confirmation", lambda **kwargs: outbox.append(kwargs) or {"sent": True})
+    return outbox
+
+
+@pytest.fixture
 def preapproval_criado(monkeypatch):
     capturado = {}
 
     def _fake(**kwargs):
         capturado.update(kwargs)
-        return {"id": "preapproval-1", "status": "authorized", "external_reference": kwargs["external_reference"]}
+        return {
+            "id": "preapproval-1",
+            "status": "pending",
+            "external_reference": kwargs["external_reference"],
+            "init_point": "https://www.mercadopago.com/subscriptions/preapproval-1",
+        }
 
     monkeypatch.setattr(mp, "create_preapproval", _fake)
     return capturado
+
+
+def _autoriza_preapproval(client, monkeypatch, preapproval_id: str = "preapproval-1") -> None:
+    """Simula o webhook que o Mercado Pago manda quando o cliente autoriza o
+    cartão na página do Checkout Pro — é isso que liga o trial de verdade."""
+    monkeypatch.setattr(
+        mp,
+        "get_preapproval",
+        lambda pid: {"id": pid, "status": "authorized", "external_reference": preapproval_id},
+    )
+    response = client.post(
+        "/api/webhooks/mercadopago/ar/subscription",
+        json={"type": "subscription_preapproval", "data": {"id": preapproval_id}},
+    )
+    assert response.status_code == 200, response.text
 
 
 def _assinatura(db):
     return db.scalar(select(Subscription))
 
 
-def test_trial_cria_conta_assinatura_e_acesso_com_prazo(client, preapproval_criado):
+def test_trial_start_devolve_init_point_sem_conceder_acesso_ainda(client, preapproval_criado):
     response = client.post("/api/trial/start", json=TRIAL)
 
     assert response.status_code == 200, response.text
     body = response.json()
-    assert body["status"] == "trialing"
+    assert body["status"] == "redirect"
+    assert body["init_point"] == "https://www.mercadopago.com/subscriptions/preapproval-1"
     assert body["trial_days"] == 3
 
     db = SessionLocal()
     try:
         assinatura = _assinatura(db)
         assert assinatura.external_id == "preapproval-1"
+        # Ninguém autorizou o cartão ainda: nem assinatura nem acesso nascem
+        # concedidos só por ter chamado esta rota.
+        assert assinatura.status == "pending"
+        assert db.scalar(select(Entitlement).where(Entitlement.product_id == "site:plano_lua")) is None
+    finally:
+        db.close()
+
+
+def test_autorizacao_do_checkout_pro_liga_o_trial_e_o_acesso(client, preapproval_criado, monkeypatch, sent_emails):
+    client.post("/api/trial/start", json=TRIAL)
+    _autoriza_preapproval(client, monkeypatch)
+
+    db = SessionLocal()
+    try:
+        assinatura = _assinatura(db)
         assert assinatura.status == "trialing"
         entitlement = db.scalar(
             select(Entitlement).where(Entitlement.product_id == "site:plano_lua")
@@ -83,6 +126,27 @@ def test_trial_cria_conta_assinatura_e_acesso_com_prazo(client, preapproval_cria
         )
     finally:
         db.close()
+
+    assert len(sent_emails) == 1
+
+
+def test_email_de_ativacao_do_trial_sai_uma_unica_vez(client, preapproval_criado, monkeypatch, sent_emails):
+    """Mercado Pago reenvia a notificação até receber 200 — duas autorizações
+    da mesma assinatura não podem virar dois e-mails de boas-vindas."""
+    client.post("/api/trial/start", json=TRIAL)
+    _autoriza_preapproval(client, monkeypatch)
+
+    monkeypatch.setattr(
+        mp,
+        "get_preapproval",
+        lambda pid: {"id": pid, "status": "authorized", "external_reference": "preapproval-1"},
+    )
+    segunda = client.post(
+        "/api/webhooks/mercadopago/ar/subscription",
+        json={"type": "subscription_preapproval", "data": {"id": "outro-evento-mesma-assinatura"}},
+    )
+    assert segunda.status_code == 200
+    assert len(sent_emails) == 1
 
 
 def test_o_periodo_gratis_e_pedido_ao_provedor(client, preapproval_criado):
@@ -145,6 +209,7 @@ def test_cancelar_avisa_o_provedor_e_mantem_o_acesso_ate_o_fim(client, preapprov
     monkeypatch.setattr(mp, "cancel_preapproval", lambda pid: cancelados.append(pid) or {"status": "cancelled"})
 
     client.post("/api/trial/start", json=TRIAL)
+    _autoriza_preapproval(client, monkeypatch)
     db = SessionLocal()
     try:
         user = db.scalar(select(User))
@@ -178,6 +243,7 @@ def test_provedor_fora_do_ar_nao_impede_o_cancelamento(client, preapproval_criad
 
     monkeypatch.setattr(mp, "cancel_preapproval", _falha)
     client.post("/api/trial/start", json=TRIAL)
+    _autoriza_preapproval(client, monkeypatch)
     db = SessionLocal()
     try:
         user = db.scalar(select(User))
@@ -194,6 +260,7 @@ def test_provedor_fora_do_ar_nao_impede_o_cancelamento(client, preapproval_criad
 
 def test_renovacao_paga_empurra_o_acesso_um_mes(client, preapproval_criado, monkeypatch):
     client.post("/api/trial/start", json=TRIAL)
+    _autoriza_preapproval(client, monkeypatch)
     db = SessionLocal()
     try:
         assinatura = _assinatura(db)
@@ -235,6 +302,7 @@ def test_renovacao_paga_empurra_o_acesso_um_mes(client, preapproval_criado, monk
 def test_a_mesma_renovacao_reenviada_nao_conta_duas_vezes(client, preapproval_criado, monkeypatch):
     """O Mercado Pago reenvia até receber 200: um mês não pode virar dois."""
     client.post("/api/trial/start", json=TRIAL)
+    _autoriza_preapproval(client, monkeypatch)
     monkeypatch.setattr(
         mp,
         "get_payment",
@@ -303,20 +371,14 @@ def test_ruido_do_painel_responde_ok_sem_mexer_em_nada(client, preapproval_criad
     assert "ignored" in response.json()
 
 
-def test_aceita_o_token_do_payment_brick_como_ele_vem(client, preapproval_criado):
-    """O Brick manda ``token``; a API de preapproval chama ``card_token_id``."""
-    payload = {key: value for key, value in TRIAL.items() if key != "card_token_id"}
-    response = client.post(
-        "/api/trial/start",
-        json={**payload, "token": "token-do-brick", "payment_method_id": "visa", "installments": 1},
-    )
-
-    assert response.status_code == 200, response.text
-    assert preapproval_criado["card_token_id"] == "token-do-brick"
-
-
-def test_sem_token_de_cartao_a_rota_recusa(client, preapproval_criado):
+def test_trial_nao_exige_mais_cartao_no_navegador(client, preapproval_criado):
+    """Checkout Pro: quem tokeniza o cartão é a página do Mercado Pago, não o
+    site. Campos de cartão legados do Payment Brick, se ainda chegarem, são
+    apenas ignorados."""
     payload = {key: value for key, value in TRIAL.items() if key != "card_token_id"}
     response = client.post("/api/trial/start", json=payload)
 
-    assert response.status_code == 400
+    assert response.status_code == 200, response.text
+    assert response.json()["status"] == "redirect"
+    assert response.json()["init_point"]
+    assert "card_token_id" not in preapproval_criado

@@ -100,7 +100,8 @@ def _checkout_config(locale: str) -> dict:
     if provider == "mercadopago":
         return {
             "provider": provider,
-            "transparent": True,
+            "transparent": False,
+            "redirect": True,
             "public_key": mp.public_key(),
             "enabled": mp.is_enabled(),
         }
@@ -147,6 +148,28 @@ def open_order(body: OrderBody, db: Session = Depends(get_db)) -> dict:
     # `external_id` é único por provedor: sem ele, duas ordens pendentes colidiriam.
     order.external_id = order.id
     db.commit()
+
+    init_point = ""
+    if provider == "mercadopago":
+        try:
+            preference = mp.create_preference(
+                order_id=order.id,
+                title=pricing.title_for(order.product_id, locale),
+                amount=round(minor / 100, 2),
+                currency=order.currency,
+                payer_email=order.customer_email or "",
+                success_url=f"{site_url()}/obrigado?order_id={order.id}",
+                failure_url=f"{site_url()}/checkout?order_id={order.id}&status=failure",
+                pending_url=f"{site_url()}/checkout?order_id={order.id}&status=pending",
+                notification_url=f"{site_url()}/api/webhooks/mercadopago/ar/notify",
+            )
+        except mp.MercadoPagoError as exc:
+            logger.warning("Preferência recusada pelo provedor: %s", exc)
+            raise HTTPException(status_code=502, detail="No pudimos iniciar el pago. Probá de nuevo.") from exc
+        order.raw_payload = {**(order.raw_payload or {}), "preference_id": preference.get("id")}
+        db.commit()
+        init_point = preference.get("init_point") or preference.get("sandbox_init_point") or ""
+
     return {
         "order_id": order.id,
         "product_id": order.product_id,
@@ -157,6 +180,8 @@ def open_order(body: OrderBody, db: Session = Depends(get_db)) -> dict:
         "price_label": pricing.format_amount(minor, order.currency),
         "locale": locale,
         "public_key": mp.public_key(),
+        "init_point": init_point,
+        "redirect": bool(init_point),
     }
 
 
@@ -186,58 +211,17 @@ def purchase_conversion(order_id: str, db: Session = Depends(get_db)) -> dict:
 
 @router.post("/api/checkout/payment")
 def pay(body: PaymentBody, db: Session = Depends(get_db)) -> dict:
-    order = db.get(Order, body.order_id)
-    if not order:
-        raise HTTPException(status_code=404, detail="Orden no encontrada.")
-    if order.status in PAID_STATUSES:
-        return {"status": "approved", "order_id": order.id, "portal_url": portal_url()}
-    # Esta rota é o cartão transparente do Mercado Pago. Com o provedor virando
-    # configuração, um pedido aberto para a Cakto poderia cair aqui e ser
-    # cobrado na conta errada — o pedido diz quem cobra, e só ele.
-    if order.provider != "mercadopago":
-        raise HTTPException(status_code=409, detail="Esta orden no se cobra por este medio de pago.")
-    if not body.form_data.get("payment_method_id"):
-        raise HTTPException(status_code=400, detail="Datos de pago incompletos.")
+    """Rota do checkout transparente, aposentada em favor do Checkout Pro.
 
-    payer = body.form_data.get("payer") or {}
-    payer_email = (payer.get("email") or order.customer_email or "").strip().lower()
-    if not payer_email:
-        raise HTTPException(status_code=400, detail="Falta el email del comprador.")
-
-    try:
-        payment = mp.create_payment(
-            amount=round(order.amount_minor / 100, 2),
-            description=pricing.title_for(order.product_id, order.locale),
-            order_id=order.id,
-            payer_email=payer_email,
-            form_data=body.form_data,
-            # Rota por aplicação: o Mercado Pago aqui é só a Argentina.
-            notification_url=f"{site_url()}/api/webhooks/mercadopago/ar/notify",
-        )
-    except mp.MercadoPagoError as exc:
-        logger.warning("Pagamento recusado pelo provedor: %s", exc)
-        raise HTTPException(status_code=502, detail="No pudimos procesar el pago. Probá con otro medio.") from exc
-
-    status = mp.internal_status(payment.get("status"))
-    order.customer_email = payer_email
-    order.external_id = str(payment.get("id") or order.id)
-    order.raw_payload = {**(order.raw_payload or {}), "payment": _payment_digest(payment)}
-    order.status = status
-    db.commit()
-
-    if status == "paid":
-        fulfill_order(db, order)
-
-    transaction = payment.get("transaction_details") or {}
-    interaction = (payment.get("point_of_interaction") or {}).get("transaction_data") or {}
-    return {
-        "status": payment.get("status"),
-        "detail": payment.get("status_detail"),
-        "order_id": order.id,
-        "approved": status == "paid",
-        "portal_url": portal_url() if status == "paid" else "",
-        "ticket_url": transaction.get("external_resource_url") or interaction.get("ticket_url"),
-    }
+    Mantida viva (em vez de apagada) porque um cliente antigo com a página do
+    Payment Brick ainda aberta pode chamar esta rota — ela responde de forma
+    clara em vez de sumir com um 404. ``POST /api/checkout/order`` já devolve
+    ``init_point`` para o novo fluxo.
+    """
+    raise HTTPException(
+        status_code=410,
+        detail="Este medio de pago fue reemplazado. Volvé a iniciar la compra para ser redirigido al checkout.",
+    )
 
 
 @router.post("/api/webhooks/mercadopago/ar/notify", dependencies=[Depends(webhook_rate_limit)])
@@ -285,12 +269,38 @@ async def _mercadopago_notification(request: Request, db: Session, env_var: str)
         env_var,
     ):
         raise HTTPException(status_code=401, detail="Assinatura inválida.")
-    if topic and topic not in {"payment", "payment.updated", "payment.created"}:
+    if topic and topic not in {"payment", "payment.updated", "payment.created", "merchant_order"}:
         return {"ok": True, "ignored": topic}
 
-    event_id = f"mp:{data_id}"
+    event_id = f"mp:{topic or 'payment'}:{data_id}"
     if db.scalar(select(WebhookEvent).where(WebhookEvent.provider == "mercadopago", WebhookEvent.event_id == event_id)):
         return {"ok": True, "duplicate": True}
+
+    if topic == "merchant_order":
+        try:
+            merchant_order = mp.get_merchant_order(data_id)
+        except mp.MercadoPagoError as exc:
+            raise HTTPException(status_code=502, detail="Não foi possível consultar a ordem.") from exc
+
+        db.add(WebhookEvent(provider="mercadopago", event_id=event_id, payload=_merchant_order_digest(merchant_order)))
+        order = (
+            db.get(Order, str(merchant_order.get("external_reference") or ""))
+            if merchant_order.get("external_reference")
+            else None
+        )
+        if not order:
+            db.commit()
+            return {"ok": True, "ignored": "ordem desconhecida"}
+
+        payments = merchant_order.get("payments") or []
+        order.status = _merchant_order_status(payments)
+        if payments:
+            order.external_id = str(payments[0].get("id") or order.external_id)
+        order.raw_payload = {**(order.raw_payload or {}), "merchant_order": _merchant_order_digest(merchant_order)}
+        db.commit()
+        if order.status == "paid":
+            fulfill_order(db, order)
+        return {"ok": True, "order_id": order.id, "status": order.status}
 
     try:
         payment = mp.get_payment(data_id)
@@ -360,6 +370,28 @@ def fulfill_order(db: Session, order: Order) -> User:
             temp_password=temp_password or None,
         )
     return user
+
+
+def _merchant_order_status(payments: list) -> str:
+    """Uma ordem do Checkout Pro pode ter vários pagamentos (retentativas do
+    cliente); um único aprovado já libera a compra."""
+    statuses = [p.get("status") for p in payments]
+    if any(status == "approved" for status in statuses):
+        return "paid"
+    if any(status == "rejected" for status in statuses):
+        return "failed"
+    return "pending"
+
+
+def _merchant_order_digest(merchant_order: dict) -> dict:
+    return {
+        "id": merchant_order.get("id"),
+        "order_status": merchant_order.get("order_status"),
+        "external_reference": merchant_order.get("external_reference"),
+        "payments": [
+            {"id": p.get("id"), "status": p.get("status")} for p in (merchant_order.get("payments") or [])
+        ],
+    }
 
 
 def _payment_digest(payment: dict) -> dict:

@@ -197,6 +197,15 @@ def subscription_to_dict(subscription: Subscription | None) -> dict | None:
 
 @router.post("/api/trial/start", dependencies=[Depends(checkout_rate_limit)])
 def start_trial(body: TrialBody, db: Session = Depends(get_db)) -> dict:
+    """Abre a assinatura no Checkout Pro do Mercado Pago (sem tokenizar cartão
+    no site) e devolve ``init_point`` para o cliente autorizar lá.
+
+    Nem entitlement nem e-mail de compra saem daqui: a conta nasce ``pending``
+    e só vira ``trialing`` — com acesso e aviso — quando o webhook
+    ``subscription_preapproval`` confirmar que o Mercado Pago autorizou o
+    cartão. Prometer o trial antes disso seria dar acesso a quem nunca chegou
+    a completar o checkout hospedado.
+    """
     locale = pricing.normalize_locale(body.locale)
     market = pricing.market_for(locale)
 
@@ -205,15 +214,12 @@ def start_trial(body: TrialBody, db: Session = Depends(get_db)) -> dict:
         raise HTTPException(status_code=409, detail=message("trial_unavailable", locale))
     if not mp.is_enabled():
         raise HTTPException(status_code=503, detail=message("provider_off", locale))
-    if not body.card_token:
-        raise HTTPException(status_code=400, detail=message("card_required", locale))
 
     email = body.email.lower()
     user = db.scalar(select(User).where(User.email == email))
     if user and active_subscription(db, user.id):
         raise HTTPException(status_code=409, detail=message("already_subscribed", locale))
 
-    temp_password = ""
     if not user:
         temp_password = secrets.token_urlsafe(9)
         user = User(email=email, password_hash=hash_password(temp_password), name=body.name, locale=locale)
@@ -242,7 +248,6 @@ def start_trial(body: TrialBody, db: Session = Depends(get_db)) -> dict:
             currency=currency,
             reason=pricing.title_for(PRODUCT_ID, locale),
             payer_email=email,
-            card_token_id=body.card_token,
             external_reference=subscription.id,
             trial_days=TRIAL_DAYS,
             back_url=portal_url(),
@@ -255,29 +260,14 @@ def start_trial(body: TrialBody, db: Session = Depends(get_db)) -> dict:
         db.rollback()
         raise HTTPException(status_code=402, detail=message("provider_refused", locale))
 
-    trial_ends_at = _now() + timedelta(days=TRIAL_DAYS)
     subscription.external_id = str(preapproval.get("id") or "")
-    subscription.status = "trialing"
-    subscription.trial_ends_at = trial_ends_at
-    subscription.current_period_end = trial_ends_at
     subscription.raw_payload = _digest(preapproval)
-    sync_entitlements(db, subscription)
     db.commit()
 
-    send_purchase_confirmation(
-        email=user.email,
-        name=user.name,
-        product_title=pricing.title_for(PRODUCT_ID, locale),
-        amount_label=pricing.format_amount(amount_minor, currency),
-        locale=locale,
-        temp_password=temp_password or None,
-    )
-
     return {
-        "status": "trialing",
-        "trial_ends_at": trial_ends_at.isoformat(),
+        "status": "redirect",
+        "init_point": preapproval.get("init_point") or preapproval.get("sandbox_init_point") or "",
         "trial_days": TRIAL_DAYS,
-        "portal_url": portal_url(),
         "subscription": subscription_to_dict(subscription),
     }
 
@@ -373,18 +363,46 @@ async def subscription_notification(request: Request, db: Session = Depends(get_
         if not subscription:
             return {"ok": True, "ignored": "assinatura desconhecida"}
         db.add(WebhookEvent(provider="mercadopago", event_id=event_id, payload=_digest(preapproval)))
-        novo = PREAPPROVAL_STATUS.get(str(preapproval.get("status") or ""), subscription.status)
-        # ``authorized`` durante o período grátis continua sendo trial: quem
-        # separa os dois é a data, não o provedor.
-        trial_ends_at = _aware(subscription.trial_ends_at)
-        if novo == "active" and trial_ends_at and trial_ends_at > _now():
-            novo = "trialing"
-        subscription.status = novo
-        if novo == "cancelled" and not subscription.cancelled_at:
-            subscription.cancelled_at = _now()
+
+        mp_status = str(preapproval.get("status") or "")
+        just_authorized = mp_status == "authorized" and subscription.status == "pending"
+        if just_authorized:
+            # Checkout Pro: o cliente acabou de autorizar o cartão na página do
+            # Mercado Pago. É aqui, e só aqui, que o trial de fato começa —
+            # antes disso a assinatura era só uma promessa sem cartão nenhum.
+            trial_ends_at = _now() + timedelta(days=TRIAL_DAYS)
+            subscription.status = "trialing"
+            subscription.trial_ends_at = trial_ends_at
+            subscription.current_period_end = trial_ends_at
+        else:
+            novo = PREAPPROVAL_STATUS.get(mp_status, subscription.status)
+            # ``authorized`` durante o período grátis continua sendo trial: quem
+            # separa os dois é a data, não o provedor.
+            trial_ends_at = _aware(subscription.trial_ends_at)
+            if novo == "active" and trial_ends_at and trial_ends_at > _now():
+                novo = "trialing"
+            subscription.status = novo
+            if novo == "cancelled" and not subscription.cancelled_at:
+                subscription.cancelled_at = _now()
+
+        already_notified = bool((subscription.raw_payload or {}).get("notified_at"))
         subscription.raw_payload = _digest(preapproval)
         sync_entitlements(db, subscription)
         db.commit()
+
+        if just_authorized and not already_notified:
+            user = db.get(User, subscription.user_id)
+            send_purchase_confirmation(
+                email=user.email,
+                name=user.name,
+                product_title=pricing.title_for(subscription.product_id, subscription.locale),
+                amount_label=pricing.format_amount(subscription.amount_minor, subscription.currency),
+                locale=subscription.locale,
+                temp_password=None,
+            )
+            subscription.raw_payload = {**subscription.raw_payload, "notified_at": _now().isoformat()}
+            db.commit()
+
         return {"ok": True, "subscription_id": subscription.id, "status": subscription.status}
 
     # subscription_authorized_payment: a mensalidade foi cobrada.

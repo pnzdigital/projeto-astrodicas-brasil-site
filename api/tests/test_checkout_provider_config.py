@@ -61,7 +61,8 @@ def test_catalogo_br_segue_a_configuracao(client, monkeypatch, _mp_habilitado):
     monkeypatch.setenv("CHECKOUT_PROVIDER_BR", "mercadopago")
     configurado = client.get("/api/catalog?locale=pt-BR").json()["checkout"]
     assert configurado["provider"] == "mercadopago"
-    assert configurado["transparent"] is True, "checkout transparente segue o provedor, não o país"
+    assert configurado["transparent"] is False, "Checkout Pro redireciona; não é mais capturado no site"
+    assert configurado["redirect"] is True, "o redirecionamento segue o provedor, não o país"
     assert configurado["public_key"].startswith("APP_USR-")
 
 
@@ -75,8 +76,10 @@ def test_pedido_br_configurado_no_mp_nasce_com_o_provedor_certo(client, monkeypa
     assert pedido.json()["currency"] == "BRL", "o preço continua sendo do mercado, não do provedor"
 
 
-def test_pedido_da_cakto_nao_pode_ser_cobrado_pela_rota_do_mercado_pago(client, _mp_habilitado):
-    """O pedido diz quem cobra. Sem isso, uma venda BR cairia na conta argentina."""
+def test_pedido_da_cakto_nao_e_cobrado_pela_rota_aposentada_do_mercado_pago(client, _mp_habilitado):
+    """A rota do checkout transparente foi aposentada para todo mundo: uma
+    venda Cakto não tem como cair na conta argentina por ela porque a rota
+    não cobra mais ninguém."""
     pedido = client.post(
         "/api/checkout/order",
         json={"product_id": "site:mapa_astral", "email": "br@cliente.com", "name": "Cliente BR", "locale": "pt-BR"},
@@ -94,4 +97,4 @@ def test_pedido_da_cakto_nao_pode_ser_cobrado_pela_rota_do_mercado_pago(client, 
             },
         },
     )
-    assert resposta.status_code == 409, resposta.text
+    assert resposta.status_code == 410, resposta.text

@@ -32,6 +32,24 @@ def clean_database():
     yield
 
 
+@pytest.fixture(autouse=True)
+def _fake_mercadopago_preference(monkeypatch):
+    """Checkout Pro real faria uma chamada de rede em ``open_order``; por
+    padrão os testes recebem uma preferência fake e só sobrescrevem quando
+    precisam inspecionar o que foi enviado ao provedor."""
+    from app import mercadopago
+
+    monkeypatch.setattr(
+        mercadopago,
+        "create_preference",
+        lambda **kwargs: {
+            "id": "pref-test",
+            "init_point": "https://www.mercadopago.com/checkout/pref-test",
+            "sandbox_init_point": "https://sandbox.mercadopago.com/checkout/pref-test",
+        },
+    )
+
+
 @pytest.fixture()
 def db_session():
     """Sessão direta no banco, para testes que checam regra e não rota HTTP."""

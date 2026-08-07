@@ -87,43 +87,25 @@ def test_as_duas_rotas_existem_no_app():
     assert "/api/webhooks/mercadopago/notify" in caminhos, "rota legada mantém vivos os pagamentos em voo"
 
 
-def test_pagamento_novo_aponta_para_a_rota_argentina(client, monkeypatch):
+def test_pedido_novo_aponta_a_preferencia_para_a_rota_argentina(client, monkeypatch):
     """Passa pelo endpoint real: é o checkout que escolhe a URL, não o teste."""
     from app import mercadopago
 
-    order = client.post(
+    capturado = {}
+
+    def _fake_create_preference(**kwargs):
+        capturado.update(kwargs)
+        return {"id": "pref-ar-1", "init_point": "https://www.mercadopago.com/checkout/pref-ar-1"}
+
+    monkeypatch.setattr(mercadopago, "create_preference", _fake_create_preference)
+
+    response = client.post(
         "/api/checkout/order",
         json={
             "product_id": "site:oferta_plano_lua_premium",
             "email": "ar@cliente.com",
             "name": "Cliente AR",
             "locale": "es-AR",
-        },
-    ).json()
-
-    capturado = {}
-
-    def _fake_create_payment(**kwargs):
-        capturado.update(kwargs)
-        return {
-            "id": 999,
-            "status": "approved",
-            "status_detail": "accredited",
-            "external_reference": kwargs["order_id"],
-            "transaction_amount": kwargs["amount"],
-        }
-
-    monkeypatch.setattr(mercadopago, "create_payment", _fake_create_payment)
-    response = client.post(
-        "/api/checkout/payment",
-        json={
-            "order_id": order["order_id"],
-            "form_data": {
-                "payment_method_id": "visa",
-                "token": "tok",
-                "installments": 1,
-                "payer": {"email": "ar@cliente.com"},
-            },
         },
     )
 
