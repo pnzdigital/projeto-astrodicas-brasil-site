@@ -7,14 +7,14 @@ import secrets
 from datetime import date, datetime, time, timedelta, timezone
 from pathlib import Path
 
-from fastapi import Cookie, Depends, FastAPI, HTTPException, Request, Response, status
+from fastapi import BackgroundTasks, Cookie, Depends, FastAPI, HTTPException, Request, Response, status
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, EmailStr, Field
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from .db import Base, engine, get_db
+from .db import Base, SessionLocal, engine, get_db
 from .astrology import resolve_coordinates
 from .mailer import send_purchase_confirmation
 from . import admin, checkout, entitlements, horoscope_free, migrations, preview, pricing, security, sessions, subscriptions
@@ -517,8 +517,60 @@ def readings(request: Request, site_session: str | None = Cookie(default=None), 
     return {"readings": [reading_to_dict(row, user.locale) for row in rows]}
 
 
-@app.post("/api/me/readings/{content_id}/generate")
-def generate(content_id: str, request: Request, site_session: str | None = Cookie(default=None), db: Session = Depends(get_db)) -> dict:
+def _run_generation_job(reading_id: str, content_id: str, title: str, user_id: str, locale: str, customer_name: str) -> None:
+    """Roda `generate_reading` fora do ciclo request/response.
+
+    Corre num BackgroundTask do FastAPI/Starlette — mesmo worker, mas depois
+    que a resposta 202 já foi enviada ao cliente, então a chamada ao MiniMax
+    (segundos a poucos minutos, mesmo seccionada) nunca mais bloqueia o
+    request HTTP nem estoura o proxy_read_timeout do nginx.
+
+    Risco documentado (BackgroundTasks não é uma fila durável): se o
+    container reiniciar enquanto esta task está rodando, a task morre com
+    ele e a `Reading` fica presa em `status="in_progress"` para sempre — sem
+    processo nenhum vai retomá-la sozinho. Mitigação hoje: `GET
+    /api/me/readings` mostra `in_progress` no portal, então o cliente não vê
+    silêncio; se ficar travado, gerar de novo (mesmo content_id) cria uma
+    nova tentativa porque `reading_is_current` só aceita linhas com status
+    `ready`/`fallback`. Não é resumo automático — é reentrada manual. Uma
+    fila durável (ex.: tabela de jobs com `attempts`/`locked_at`, revisitada
+    por um cron) resolveria isso de verdade, mas não foi adicionada aqui
+    porque não há hoje um worker separado do processo web para consumi-la, e
+    inventar um destes dois de uma vez só (fila OU worker) sem o outro não
+    reduz o risco — fica registrado como dívida, não escondido.
+    """
+    db = SessionLocal()
+    try:
+        reading = db.get(Reading, reading_id)
+        if not reading:
+            logger.error("generate background job: reading %s sumiu antes de terminar", reading_id)
+            return
+        profile = db.get(Profile, user_id)
+        try:
+            generated = generate_reading(content_id, title, profile, locale, customer_name)
+        except Exception:
+            logger.exception("generate_reading levantou exceção não tratada para reading=%s", reading_id)
+            reading.status = "fallback"
+            reading.error_message = "Leitura gerada por modelo editorial padrão. A leitura personalizada está temporariamente indisponível."
+            db.commit()
+            return
+        reading.body_html = generated.body_html
+        reading.source = generated.source
+        reading.content_sections = generated.sections or []
+        reading.birth_time_assumed = generated.birth_time_assumed
+        reading.ascendant_warning = generated.ascendant_warning or {}
+        if generated.source == "fallback":
+            reading.error_message = generated.warning
+            reading.status = "fallback"
+        else:
+            reading.status = "ready"
+        db.commit()
+    finally:
+        db.close()
+
+
+@app.post("/api/me/readings/{content_id}/generate", status_code=status.HTTP_202_ACCEPTED)
+def generate(content_id: str, request: Request, response: Response, background_tasks: BackgroundTasks, site_session: str | None = Cookie(default=None), db: Session = Depends(get_db)) -> dict:
     user = current_user(site_session, db, accept_language=request.headers.get("accept-language"))
     profile = db.get(Profile, user.id)
     if not profile or not profile.birth_date or not profile.birth_city:
@@ -528,6 +580,8 @@ def generate(content_id: str, request: Request, site_session: str | None = Cooki
     snapshot = profile_to_dict(profile)
     existing = db.scalar(select(Reading).where(Reading.user_id == user.id, Reading.content_id == content_id, Reading.status.in_(["ready", "fallback"])).order_by(Reading.created_at.desc()))
     if existing and reading_is_current(existing, content_id, snapshot):
+        # Já pronta: nada para gerar, devolve 200 de verdade (não 202).
+        response.status_code = status.HTTP_200_OK
         return {"reading": reading_to_dict(existing, user.locale)}
     product_id = content_product(content_id)
     # Vencimento conta: o Plano Lua por assinatura expira quando o trial acaba
@@ -540,19 +594,13 @@ def generate(content_id: str, request: Request, site_session: str | None = Cooki
     reading = Reading(user_id=user.id, content_id=content_id, product_id=product_id, status="in_progress", title=content_title(content_id), input_snapshot=snapshot)
     db.add(reading)
     db.commit()
-    generated = generate_reading(content_id, reading.title, profile, user.locale, user.name)
-    reading.body_html = generated.body_html
-    reading.source = generated.source
-    reading.content_sections = generated.sections or []
-    reading.birth_time_assumed = generated.birth_time_assumed
-    reading.ascendant_warning = generated.ascendant_warning or {}
-    if generated.source == "fallback":
-        reading.error_message = generated.warning
-        reading.status = "fallback"
-    else:
-        reading.status = "ready"
-    db.commit()
     db.refresh(reading)
+    response.status_code = status.HTTP_202_ACCEPTED
+    # A resposta volta AGORA, com status "in_progress" — a geração de verdade
+    # roda depois, em background (ver `_run_generation_job`). O portal já
+    # sabia lidar com `status === 'in_progress'` (ACCESS_STATES.inProgress) e
+    # agora passa a fazer polling em /api/me/readings até `ready`/`fallback`.
+    background_tasks.add_task(_run_generation_job, reading.id, content_id, reading.title, user.id, user.locale, user.name)
     return {"reading": reading_to_dict(reading, user.locale)}
 
 

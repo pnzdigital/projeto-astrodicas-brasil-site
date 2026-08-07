@@ -28,7 +28,8 @@ def test_user_b_readings_never_include_user_a_readings(client, monkeypatch):
         json={"event_id": "evt-isolamento-a", "email": "isolamento-a@example.com", "product_id": "site:plano_lua"},
     )
     generated = client.post("/api/me/readings/site:content:horoscopo_diario/generate")
-    assert generated.status_code == 200
+    # /generate is async now: a freshly-queued generation answers 202.
+    assert generated.status_code == 202
 
     client.post("/api/auth/logout")
     _register(client, "isolamento-b@example.com")
@@ -73,4 +74,5 @@ def test_entitlement_for_one_product_does_not_unlock_unrelated_paid_content(clie
     unrelated = client.post("/api/me/readings/site:content:mapa_astral_completo/generate")
     assert unrelated.status_code == 403
     allowed = client.post("/api/me/readings/site:content:mapa_da_carreira/generate")
-    assert allowed.status_code == 200
+    # /generate is async now: a freshly-queued generation answers 202.
+    assert allowed.status_code == 202

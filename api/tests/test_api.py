@@ -81,8 +81,22 @@ def test_generate_requires_profile_then_returns_ready_reading(client):
     assert granted.status_code == 200, granted.text
 
     generated = client.post("/api/me/readings/site:content:horoscopo_diario/generate")
-    assert generated.status_code == 200, generated.text
-    reading = generated.json()["reading"]
+    # /generate is now async: it enqueues generation as a BackgroundTask and
+    # answers 202 immediately with the reading still "in_progress" — it never
+    # blocks the HTTP request on the LLM call. The actual body only shows up
+    # once the client polls GET /api/me/readings.
+    assert generated.status_code == 202, generated.text
+    in_progress_reading = generated.json()["reading"]
+    assert in_progress_reading["status"] == "in_progress"
+    reading_id = in_progress_reading["id"]
+
+    # TestClient runs BackgroundTasks synchronously before returning control,
+    # so by the time we poll here the job has already finished — in
+    # production the client polls GET /api/me/readings until the status
+    # flips away from "in_progress".
+    polled = client.get("/api/me/readings")
+    assert polled.status_code == 200
+    reading = next(r for r in polled.json()["readings"] if r["id"] == reading_id)
     # In the test env MINIMAX_API_KEY is unset, so the engine returns the
     # editorial fallback. The new contract surfaces this honestly via
     # status='fallback' + source='fallback' + warning, instead of silently
@@ -92,7 +106,11 @@ def test_generate_requires_profile_then_returns_ready_reading(client):
     assert reading["warning"]
     assert "Touro" in reading["body_html"]
 
+    # A second call with the same (still current) profile snapshot finds the
+    # already-ready reading and returns it synchronously with 200 — no new
+    # generation job is queued.
     same = client.post("/api/me/readings/site:content:horoscopo_diario/generate")
+    assert same.status_code == 200
     assert same.json()["reading"]["id"] == reading["id"]
 
 

@@ -434,8 +434,13 @@ def test_generation_works_for_every_paid_content(client, monkeypatch):
     ]
     for content_id in contents:
         response = client.post(f"/api/me/readings/{content_id}/generate")
-        assert response.status_code == 200, f"{content_id}: {response.text}"
-        reading = response.json()["reading"]
+        # /generate answers 202 immediately (BackgroundTask); the reading is
+        # only "ready"/"fallback" once GET /api/me/readings is polled.
+        assert response.status_code == 202, f"{content_id}: {response.text}"
+        assert response.json()["reading"]["status"] == "in_progress"
+        reading = next(
+            r for r in client.get("/api/me/readings").json()["readings"] if r["content_id"] == content_id
+        )
         # In test env MINIMAX_API_KEY is unset, so every reading falls back
         # to the editorial template. The new contract surfaces this honestly.
         assert reading["status"] == "fallback"

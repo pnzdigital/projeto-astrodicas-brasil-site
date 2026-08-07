@@ -1168,7 +1168,17 @@
       showReadingView();
       try {
         const data = await apiRequest(`/api/me/readings/${encodeURIComponent(item.id)}/generate`, { method: 'POST', body: '{}' });
-        if (data.reading) { appState.readings.set(item.id, data.reading); item.state = ACCESS_STATES.available; showReading(item, data.reading); }
+        if (data.reading && data.reading.status === 'in_progress') {
+          // /generate agora responde na hora (202) e a geração roda em
+          // background no servidor — sem isso o cliente ficava esperando a
+          // requisição travada até 60s (timeout do proxy) num mapa demorado.
+          // O portal faz polling em /api/me/readings até sair de
+          // "in_progress".
+          appState.readings.set(item.id, data.reading);
+          await pollReadingUntilDone(item);
+        } else if (data.reading) {
+          appState.readings.set(item.id, data.reading); item.state = ACCESS_STATES.available; showReading(item, data.reading);
+        }
       } catch (error) {
         item.state = fallbackState(item); renderLibrary();
         showLibraryView();
@@ -1176,6 +1186,34 @@
         else if (error.status === 403) { await refreshPrivateData(); showToast('Este conteúdo ainda não está liberado para sua conta.'); }
         else showToast(error.message);
       }
+    }
+    const GENERATE_POLL_INTERVAL_MS = 2500;
+    const GENERATE_POLL_MAX_ATTEMPTS = 60; // ~2.5min de teto: cobre folgadamente o pior caso seccionado
+    function sleep(ms) { return new Promise((resolve) => setTimeout(resolve, ms)); }
+    async function pollReadingUntilDone(item) {
+      for (let attempt = 0; attempt < GENERATE_POLL_MAX_ATTEMPTS; attempt++) {
+        await sleep(GENERATE_POLL_INTERVAL_MS);
+        let data;
+        try {
+          data = await apiRequest('/api/me/readings');
+        } catch (error) {
+          showToast(error.message);
+          return;
+        }
+        const reading = (data.readings || []).find((r) => r.content_id === item.id);
+        if (!reading || reading.status === 'in_progress') continue;
+        appState.readings.set(item.id, reading);
+        item.state = ACCESS_STATES.available;
+        showReading(item, reading);
+        return;
+      }
+      // Excedeu o teto de polling: não trava o cliente pra sempre — devolve
+      // pra biblioteca com aviso, e uma nova tentativa de geração cria um
+      // novo job (reading_is_current só aceita status ready/fallback).
+      item.state = ACCESS_STATES.inProgress;
+      renderLibrary();
+      showLibraryView();
+      showToast(IS_ARGENTINA ? 'La generación está demorando más de lo esperado. Intentá de nuevo en unos instantes.' : 'A geração está demorando mais que o esperado. Tente novamente em alguns instantes.');
     }
     function renderAscendantWarning(reading) {
       // reading.birth_time_assumed/ascendant_warning vêm do backend (mesmo
