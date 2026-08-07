@@ -39,6 +39,18 @@ NEW_COLUMNS: dict[str, tuple[tuple[str, str, str], ...]] = {
         # Ascendente era estimativa.
         ("birth_time_assumed", "BOOLEAN", "FALSE"),
         ("ascendant_warning", "JSON", ""),
+        # Colunas que já existiam no modelo (Reading, app/models.py) desde o
+        # commit inicial, mas nunca entraram nesta lista: numa tabela criada
+        # antes delas existirem, `create_all` nunca as adiciona e todo SELECT
+        # em site_readings — inclusive GET /api/me/readings — quebra com
+        # UndefinedColumn. Isso derrubava o painel: refreshPrivateData() faz
+        # Promise.all incluindo /api/me/readings, então até um login com
+        # senha correta era reportado como falha e o reload perdia a sessão.
+        ("source", "VARCHAR(16)", "'llm'"),
+        ("reading_kind", "VARCHAR(32)", "'love'"),
+        ("generated_at", "VARCHAR(40)", "''"),
+        ("input_snapshot", "JSON", ""),
+        ("error_message", "TEXT", "''"),
     ),
 }
 
