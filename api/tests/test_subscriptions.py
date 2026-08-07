@@ -79,6 +79,12 @@ def _assinatura(db):
     return db.scalar(select(Subscription))
 
 
+def _aware_utc(moment):
+    if moment is None:
+        return None
+    return moment if moment.tzinfo else moment.replace(tzinfo=timezone.utc)
+
+
 def test_trial_start_devolve_init_point_sem_conceder_acesso_ainda(client, preapproval_criado):
     response = client.post("/api/trial/start", json=TRIAL)
 
@@ -95,6 +101,52 @@ def test_trial_start_devolve_init_point_sem_conceder_acesso_ainda(client, preapp
         # Ninguém autorizou o cartão ainda: nem assinatura nem acesso nascem
         # concedidos só por ter chamado esta rota.
         assert assinatura.status == "pending"
+        assert db.scalar(select(Entitlement).where(Entitlement.product_id == "site:plano_lua")) is None
+    finally:
+        db.close()
+
+
+def test_paga_no_mp_e_recebe_a_senha_por_email_uma_unica_vez(client, preapproval_criado, monkeypatch, sent_emails):
+    """O bug que já queimou o produto: senha gerada e nunca entregue. A senha
+    tem que nascer e ser mandada no mesmo passo — a confirmação do webhook —
+    e não antes, quando ninguém garantiu que o cartão foi autorizado."""
+    client.post("/api/trial/start", json=TRIAL)
+    _autoriza_preapproval(client, monkeypatch)
+
+    assert len(sent_emails) == 1
+    senha_enviada = sent_emails[0]["temp_password"]
+    assert senha_enviada
+
+    login = client.post("/api/auth/login", json={"email": TRIAL["email"], "password": senha_enviada})
+    assert login.status_code == 200, login.text
+
+    # Reenvio da mesma confirmação (Mercado Pago insiste até receber 200) não
+    # pode gerar segunda senha nem segundo e-mail.
+    outro_evento = "preapproval-1-outro-evento"
+    monkeypatch.setattr(
+        mp,
+        "get_preapproval",
+        lambda pid: {"id": pid, "status": "authorized", "external_reference": "preapproval-1"},
+    )
+    client.post(
+        "/api/webhooks/mercadopago/ar/subscription",
+        json={"type": "subscription_preapproval", "data": {"id": outro_evento}},
+    )
+    assert len(sent_emails) == 1
+    ainda_loga = client.post("/api/auth/login", json={"email": TRIAL["email"], "password": senha_enviada})
+    assert ainda_loga.status_code == 200
+
+
+def test_abandonar_o_checkout_do_mp_nao_manda_nenhum_email(client, preapproval_criado, sent_emails):
+    """Sem o webhook confirmando autorização, ela não recebeu acesso nenhum —
+    e não pode receber um e-mail de compra prometendo o que não existe."""
+    response = client.post("/api/trial/start", json=TRIAL)
+    assert response.status_code == 200
+
+    assert sent_emails == []
+    db = SessionLocal()
+    try:
+        assert _assinatura(db).status == "pending"
         assert db.scalar(select(Entitlement).where(Entitlement.product_id == "site:plano_lua")) is None
     finally:
         db.close()
@@ -232,6 +284,61 @@ def test_cancelar_avisa_o_provedor_e_mantem_o_acesso_ate_o_fim(client, preapprov
     try:
         entitlement = db.scalar(select(Entitlement).where(Entitlement.product_id == "site:plano_lua"))
         assert entitlement.expires_at is not None
+    finally:
+        db.close()
+
+
+def test_cancelar_durante_o_trial_nao_cobra_e_mantem_o_prazo_ate_o_fim_do_trial(client, preapproval_criado, monkeypatch):
+    """A assinatura da rota de redirect nasce ``pending``/sem cartão; o
+    ``external_id`` já está gravado desde o /trial/start, então cancelar
+    durante o trial precisa achar a assinatura no provedor sem ambiguidade,
+    sem gerar cobrança nenhuma."""
+    cancelados = []
+    monkeypatch.setattr(mp, "cancel_preapproval", lambda pid: cancelados.append(pid) or {"status": "cancelled"})
+    cobrancas = []
+    monkeypatch.setattr(mp, "create_payment", lambda **kwargs: cobrancas.append(kwargs) or {"status": "approved"})
+
+    client.post("/api/trial/start", json=TRIAL)
+    db = SessionLocal()
+    try:
+        assinatura = _assinatura(db)
+        assert assinatura.external_id == "preapproval-1", "external_id já existe antes de qualquer autorização"
+    finally:
+        db.close()
+
+    _autoriza_preapproval(client, monkeypatch)
+    db = SessionLocal()
+    try:
+        prazo_do_trial = _aware_utc(_assinatura(db).current_period_end)
+    finally:
+        db.close()
+
+    db = SessionLocal()
+    try:
+        user = db.scalar(select(User))
+        from app.security import hash_password
+
+        user.password_hash = hash_password("senha-de-teste-123")
+        db.commit()
+    finally:
+        db.close()
+    client.post("/api/auth/login", json={"email": TRIAL["email"], "password": "senha-de-teste-123"})
+
+    response = client.post("/api/me/subscription/cancel")
+
+    assert response.status_code == 200, response.text
+    assert cancelados == ["preapproval-1"], "cancelar tem que chegar no preapproval certo no provedor"
+    assert cobrancas == [], "cancelar durante o trial não pode cobrar nada"
+
+    db = SessionLocal()
+    try:
+        assinatura = _assinatura(db)
+        assert assinatura.status == "cancelled"
+        # O prazo do acesso é o mesmo de antes de cancelar: cancelar não
+        # antecipa nem estica o fim do trial.
+        assert _aware_utc(assinatura.current_period_end) == prazo_do_trial
+        entitlement = db.scalar(select(Entitlement).where(Entitlement.product_id == "site:plano_lua"))
+        assert _aware_utc(entitlement.expires_at) == prazo_do_trial
     finally:
         db.close()
 

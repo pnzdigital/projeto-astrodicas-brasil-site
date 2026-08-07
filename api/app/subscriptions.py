@@ -220,9 +220,13 @@ def start_trial(body: TrialBody, db: Session = Depends(get_db)) -> dict:
     if user and active_subscription(db, user.id):
         raise HTTPException(status_code=409, detail=message("already_subscribed", locale))
 
+    # Guardado na assinatura (não na sessão) porque quem manda o e-mail é o
+    # webhook, numa outra requisição, minutos ou horas depois: sem esta marca
+    # ele não teria como saber se a conta é nova.
+    is_new_account = user is None
     if not user:
-        temp_password = secrets.token_urlsafe(9)
-        user = User(email=email, password_hash=hash_password(temp_password), name=body.name, locale=locale)
+        placeholder_password = secrets.token_urlsafe(9)
+        user = User(email=email, password_hash=hash_password(placeholder_password), name=body.name, locale=locale)
         db.add(user)
         db.flush()
 
@@ -261,7 +265,7 @@ def start_trial(body: TrialBody, db: Session = Depends(get_db)) -> dict:
         raise HTTPException(status_code=402, detail=message("provider_refused", locale))
 
     subscription.external_id = str(preapproval.get("id") or "")
-    subscription.raw_payload = _digest(preapproval)
+    subscription.raw_payload = {**_digest(preapproval), "new_account": is_new_account}
     db.commit()
 
     return {
@@ -386,19 +390,28 @@ async def subscription_notification(request: Request, db: Session = Depends(get_
                 subscription.cancelled_at = _now()
 
         already_notified = bool((subscription.raw_payload or {}).get("notified_at"))
-        subscription.raw_payload = _digest(preapproval)
+        is_new_account = bool((subscription.raw_payload or {}).get("new_account"))
+        subscription.raw_payload = {**_digest(preapproval), "new_account": is_new_account}
         sync_entitlements(db, subscription)
         db.commit()
 
         if just_authorized and not already_notified:
+            # É só agora, com o cartão de fato autorizado, que a senha
+            # provisória é gerada e mandada — gerar lá no /trial/start e nunca
+            # entregar já deixou gente sem senha no fluxo antigo (ver commit
+            # da migração para Checkout Pro).
             user = db.get(User, subscription.user_id)
+            temp_password = None
+            if is_new_account:
+                temp_password = secrets.token_urlsafe(9)
+                user.password_hash = hash_password(temp_password)
             send_purchase_confirmation(
                 email=user.email,
                 name=user.name,
                 product_title=pricing.title_for(subscription.product_id, subscription.locale),
                 amount_label=pricing.format_amount(subscription.amount_minor, subscription.currency),
                 locale=subscription.locale,
-                temp_password=None,
+                temp_password=temp_password,
             )
             subscription.raw_payload = {**subscription.raw_payload, "notified_at": _now().isoformat()}
             db.commit()
