@@ -27,6 +27,7 @@ Três decisões deliberadas, na mesma linha do ``preview.py``:
 
 from __future__ import annotations
 
+import logging
 from datetime import date, datetime, time, timezone
 from zoneinfo import ZoneInfo
 
@@ -47,6 +48,7 @@ from .ratelimit import preview_rate_limit
 
 
 router = APIRouter(prefix="/api/horoscopo", tags=["horoscopo"])
+logger = logging.getLogger(__name__)
 
 # Só estes entram na leitura do dia. Urano, Netuno e Plutão levam anos no mesmo
 # aspecto: citá-los faria o "horóscopo de hoje" repetir a mesma frase por meses,
@@ -324,6 +326,10 @@ def natal_chart(body: HoroscopeBody, locale: str) -> dict:
     timezone_name = body.birth_timezone or default_timezone
     coordinates = astrology.resolve_coordinates(body.birth_city, country, body.birth_state)
     if not coordinates:
+        logger.warning(
+            "horoscopo/gratis: cidade nao resolvida city=%r state=%r country=%r locale=%s",
+            body.birth_city, body.birth_state, country, locale,
+        )
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
             detail=message("city_not_found", locale),

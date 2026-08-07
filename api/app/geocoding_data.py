@@ -103,6 +103,31 @@ OFFLINE_CITIES: dict[str, dict[str, tuple[float, float]]] = {
         "parana": (-31.7330145, -60.5298511),
         "formosa": (-24.5955306, -60.4289718),
         "rio cuarto": (-33.1237585, -64.3489782),
+        # CABA: apelido comum pra Cidade Autônoma de Buenos Aires, mesmas coordenadas.
+        "caba": (-34.6095579, -58.3887904),
+        "ciudad autonoma de buenos aires": (-34.6095579, -58.3887904),
+        # Grande Buenos Aires (conurbano): concentra boa parte do tráfego pago
+        # argentino e não tinha nenhuma cidade do cordão fora da capital.
+        "san isidro": (-34.4708225, -58.5271399),
+        "vicente lopez": (-34.5266331, -58.4779081),
+        "quilmes": (-34.7205196, -58.2703865),
+        "lanus": (-34.7058656, -58.3927285),
+        "avellaneda": (-34.6626597, -58.3654568),
+        "moron": (-34.6534247, -58.6198937),
+        "moreno": (-34.6473376, -58.7908956),
+        "merlo": (-34.6656672, -58.7285256),
+        "tigre": (-34.4263145, -58.5796101),
+        "san justo": (-34.6839729, -58.5631452),
+        "florencio varela": (-34.8222774, -58.2751877),
+        "san nicolas de los arroyos": (-33.335833, -60.213056),
+        "concordia": (-31.3930591, -58.0209457),
+        "san rafael": (-34.6177153, -68.3301442),
+        "villa maria": (-32.4076162, -63.2418432),
+        "comodoro rivadavia": (-45.8641876, -67.4964792),
+        "rio gallegos": (-51.6229941, -69.2181458),
+        "ushuaia": (-54.8069332, -68.3073246),
+        "santa rosa": (-36.6166738, -64.2833834),
+        "viedma": (-40.813328, -63.0006405),
     },
 }
 
