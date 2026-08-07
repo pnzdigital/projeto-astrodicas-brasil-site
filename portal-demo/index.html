@@ -421,6 +421,27 @@
     .dialog-content .reading-subtitle { margin: -4px 0 10px; color: var(--cream-faint); font-style: italic; font-size: 13px; }
     .dialog-content .reading-fallback-notice { margin: 0 0 18px; padding: 12px 14px; border: 1px solid var(--gold-lit); border-radius: 8px; color: var(--cream); font-size: 13px; }
     .dialog-content .reading-ascendant-warning { margin: 0 0 18px; padding: 14px 16px; border: 2px solid #ffcf4d; border-radius: 8px; background: rgba(255, 207, 77, 0.14); color: var(--cream); font-size: 14px; font-weight: 500; line-height: 1.5; }
+
+    .back-link { display: inline-flex; align-items: center; gap: 6px; margin-bottom: 22px; color: var(--gold-lit); font-size: 12px; font-weight: 600; }
+    .back-link:hover { text-decoration: underline; text-decoration-color: var(--gold-line); }
+    .back-link-bottom { margin: 34px 0 0; }
+    .reading-header { padding-bottom: 22px; border-bottom: 1px solid var(--gold-line); }
+    .reading-header h1 { margin: 6px 0 14px; font: 500 clamp(28px, 3.6vw, 42px)/1.05 var(--display); letter-spacing: -.02em; }
+    .reading-birth { margin: 0 0 20px; color: var(--cream-dim); font-size: 12px; }
+    .reading-birth p { margin: 0; }
+    .reading-header-actions { display: flex; flex-wrap: wrap; gap: 10px; }
+    .reading-ascendant-warning { margin: 22px 0 0; padding: 14px 16px; border: 2px solid #ffcf4d; border-radius: 8px; background: rgba(255, 207, 77, 0.14); color: var(--cream); font-size: 14px; font-weight: 500; line-height: 1.5; }
+    .reading-fallback-notice { margin: 22px 0 0; padding: 12px 14px; border: 1px solid var(--gold-lit); border-radius: 8px; color: var(--cream); font-size: 13px; }
+    .reading-toc { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; margin: 26px 0 0; padding: 18px 20px; border: 1px solid rgba(244,239,228,.12); background: rgba(19, 15, 59, .5); }
+    .reading-toc a { color: var(--cream-dim); font-size: 12px; }
+    .reading-toc a:hover { color: var(--gold-lit); }
+    .reading-body { max-width: 760px; margin-top: 30px; }
+    .reading-body .reading-section { margin-bottom: 34px; padding-top: 26px; border-top: 1px solid rgba(244,239,228,.1); scroll-margin-top: 24px; }
+    .reading-body .reading-section:first-child { border-top: 0; padding-top: 0; }
+    .reading-body h2 { margin-bottom: 8px; color: var(--gold-lit); font: 500 27px/1.1 var(--display); }
+    .reading-body .reading-subtitle { margin: -2px 0 12px; color: var(--cream-faint); font-style: italic; font-size: 13px; }
+    .reading-body p { margin: 0 0 14px; color: var(--cream-dim); font-size: 14px; line-height: 1.65; }
+    @media (max-width: 760px) { .reading-toc { grid-template-columns: 1fr; } }
     .account-detail { display: grid; gap: 10px; margin-top: 17px; }
     .account-detail div { display: flex; justify-content: space-between; gap: 15px; padding-bottom: 9px; border-bottom: 1px solid rgba(244,239,228,.1); color: var(--cream-dim); font-size: 12px; }
     .account-detail strong { color: var(--cream); font-weight: 500; }
@@ -572,7 +593,7 @@
     </aside>
 
     <main id="inicio">
-      <div class="page">
+      <div class="page" id="dashboard-view">
         <header class="topbar">
           <div>
             <p class="eyebrow">Seu céu pessoal</p>
@@ -679,6 +700,23 @@
           </aside>
         </section>
       </div>
+
+      <div class="page reading-page" id="reading-view" hidden>
+        <a class="back-link" href="#entregaveis" data-back-to-library>← <span data-reading-back-label>Voltar para minha biblioteca</span></a>
+        <header class="reading-header">
+          <p class="eyebrow" id="reading-page-kicker">Leitura AstroDicas</p>
+          <h1 id="reading-page-title">Seu mapa</h1>
+          <div class="reading-birth" id="reading-page-birth"></div>
+          <div class="reading-header-actions">
+            <a class="button" id="reading-page-pdf" href="#" download hidden>Baixar PDF completo</a>
+            <button class="button ghost" type="button" data-print-reading-page>Imprimir / PDF</button>
+          </div>
+        </header>
+        <div id="reading-page-warning"></div>
+        <nav class="reading-toc" id="reading-page-toc" aria-label="Índice da leitura" hidden></nav>
+        <div class="reading-body" id="reading-page-body"></div>
+        <a class="back-link back-link-bottom" href="#entregaveis" data-back-to-library>← <span data-reading-back-label>Voltar para minha biblioteca</span></a>
+      </div>
     </main>
   </div>
 
@@ -707,21 +745,6 @@
       <h2 id="upgrade-title">Mais duas lentes para ler seu céu.</h2>
       <p>Desbloqueie o Mapa do Amor e o Mapa da Prosperidade. O acesso aparece imediatamente no seu portal após a confirmação.</p>
       <div class="dialog-actions"><button class="button ghost small dialog-close" type="button">Agora não</button><button class="button small" type="button" data-checkout-upgrade data-checkout-key="plano_lua_premium" data-offer-title="Plano Lua Premium">Ir para checkout →</button></div>
-    </div>
-  </dialog>
-
-  <dialog id="reading-dialog" aria-labelledby="reading-title">
-    <div class="dialog-inner">
-      <button class="dialog-close" type="button" aria-label="Fechar">×</button>
-      <p class="eyebrow" id="reading-kicker">Leitura AstroDicas</p>
-      <h2 id="reading-title">Seu conteúdo</h2>
-      <div class="dialog-content" id="reading-content"></div>
-      <div class="dialog-actions">
-        <button class="button ghost small dialog-close" type="button">Voltar ao portal</button>
-        <button class="button ghost small" type="button" data-print-reading>Imprimir / PDF</button>
-        <a class="button small" type="button" id="reading-pdf-download" href="#" download hidden>Baixar PDF completo</a>
-        <button class="button small" type="button" data-toast="Leitura salva na sua biblioteca.">Salvar leitura</button>
-      </div>
     </div>
   </dialog>
 
@@ -1049,6 +1072,10 @@
         'aguardando acesso': 'esperando acceso',
         'gerando leitura…': 'generando lectura…',
         'Esqueceu a senha?': '¿Olvidaste tu contraseña?',
+        'Voltar para minha biblioteca': 'Volver a mi biblioteca',
+        'Baixar PDF completo': 'Descargar PDF completo',
+        'Leitura AstroDicas': 'Lectura AstroDicas',
+        'Seu mapa': 'Tu mapa',
       });
       const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
       const nodes = [];
@@ -1121,11 +1148,7 @@
       return { birth_date: value('birth_date'), birth_time: value('birth_time'), birth_city: value('birth_city') || '', birth_country: (value('birth_country') || (IS_ARGENTINA ? 'AR' : 'BR')).toUpperCase(), birth_timezone: value('birth_timezone') || (IS_ARGENTINA ? 'America/Argentina/Buenos_Aires' : 'America/Sao_Paulo'), birth_latitude: null, birth_longitude: null, partner_name: value('partner_name') || '', partner_birth_date: value('partner_birth_date'), partner_birth_time: value('partner_birth_time'), partner_birth_city: value('partner_birth_city') || '', partner_country: (value('partner_country') || (IS_ARGENTINA ? 'AR' : 'BR')).toUpperCase() };
     }
     function showStaticReading(item) {
-      document.getElementById('reading-kicker').textContent = `${item.kicker} · leitura web`;
-      document.getElementById('reading-title').textContent = item.title;
-      document.getElementById('reading-content').innerHTML = item.reading;
-      document.querySelector('[data-print-reading]').dataset.printTitle = item.title;
-      openDialog('reading-dialog');
+      showReading(item, { title: item.title, body_html: item.reading, sections: [], content_id: item.id });
     }
     async function generateReading(item) {
       if (!appState.apiAvailable || !appState.authenticated) { showStaticReading(item); return; }
@@ -1134,16 +1157,21 @@
       if (reading?.status === 'ready') { showReading(item, reading); return; }
       item.state = ACCESS_STATES.inProgress;
       renderLibrary();
-      document.getElementById('reading-kicker').textContent = `${item.kicker} · geração em andamento`;
-      document.getElementById('reading-title').textContent = item.title;
-      document.getElementById('reading-content').innerHTML = '<p>Estamos lendo seu céu a partir dos dados salvos. Este momento leva só alguns instantes.</p>';
-      openDialog('reading-dialog');
+      document.getElementById('reading-page-kicker').textContent = `${item.kicker} · ${IS_ARGENTINA ? 'generación en curso' : 'geração em andamento'}`;
+      document.getElementById('reading-page-title').textContent = item.title;
+      document.getElementById('reading-page-birth').innerHTML = '';
+      document.getElementById('reading-page-warning').innerHTML = '';
+      document.getElementById('reading-page-toc').hidden = true;
+      document.getElementById('reading-page-toc').innerHTML = '';
+      document.getElementById('reading-page-body').innerHTML = `<p>${IS_ARGENTINA ? 'Estamos leyendo tu cielo a partir de los datos guardados. Este momento lleva solo unos instantes.' : 'Estamos lendo seu céu a partir dos dados salvos. Este momento leva só alguns instantes.'}</p>`;
+      navigateToReading(item.id);
+      showReadingView();
       try {
         const data = await apiRequest(`/api/me/readings/${encodeURIComponent(item.id)}/generate`, { method: 'POST', body: '{}' });
         if (data.reading) { appState.readings.set(item.id, data.reading); item.state = ACCESS_STATES.available; showReading(item, data.reading); }
       } catch (error) {
         item.state = fallbackState(item); renderLibrary();
-        document.getElementById('reading-dialog')?.close();
+        showLibraryView();
         if (error.status === 422) { appState.pendingContentId = item.id; openDialog('profile-dialog'); }
         else if (error.status === 403) { await refreshPrivateData(); showToast('Este conteúdo ainda não está liberado para sua conta.'); }
         else showToast(error.message);
@@ -1157,36 +1185,61 @@
       if (!reading.birth_time_assumed || !reading.ascendant_warning) return '';
       return `<div class="reading-ascendant-warning" role="status">⚠️ ${escapeHtml(reading.ascendant_warning)}</div>`;
     }
-    function renderReadingSections(reading, item) {
-      // reading.sections vem de content_sections (backend): lista de
-      // {title, subtitle, order, content}. Quando presente, renderiza a
-      // hierarquia de títulos em vez do blob de <p> corrido — mesmo conteúdo,
-      // navegável como o PDF de referência do bot Telegram.
-      const sections = Array.isArray(reading.sections) ? reading.sections : [];
-      if (!sections.length) return renderAscendantWarning(reading) + (reading.body_html || item.reading);
-      let html = renderAscendantWarning(reading);
-      if (reading.status === 'fallback' && reading.warning) {
-        html += `<div class="reading-fallback-notice" role="status">${escapeHtml(reading.warning)}</div>`;
-      }
-      for (const section of sections.slice().sort((a, b) => (a.order || 0) - (b.order || 0))) {
-        html += `<h3>${escapeHtml(section.title || '')}</h3>`;
-        if (section.subtitle) html += `<p class="reading-subtitle">${escapeHtml(section.subtitle)}</p>`;
-        const paragraphs = String(section.content || '').split(/\n\s*\n/).map((p) => p.trim()).filter(Boolean);
-        for (const paragraph of paragraphs) html += `<p>${escapeHtml(paragraph.replace(/\s*\n\s*/g, ' '))}</p>`;
-      }
-      return html;
-    }
     function escapeHtml(text) {
       const div = document.createElement('div');
       div.textContent = text;
       return div.innerHTML;
     }
+    function renderReadingBirth() {
+      // Dados de nascimento no topo da leitura: o contrato de reading_to_dict
+      // não devolve os dados de nascimento junto com a leitura, mas o portal
+      // já os tem em appState.profile (salvos via /api/me/profile).
+      const profile = appState.profile;
+      if (!profile || !profile.birth_date) return '';
+      const parts = [profile.birth_date, profile.birth_time, profile.birth_city].filter(Boolean).map(escapeHtml);
+      if (!parts.length) return '';
+      const label = IS_ARGENTINA ? 'Datos de nacimiento' : 'Dados de nascimento';
+      return `<p>${label}: ${parts.join(' · ')}</p>`;
+    }
+    function buildReadingSections(reading, item) {
+      // reading.sections vem de content_sections (backend): lista de
+      // {title, subtitle, order, content}. Quando presente, renderiza a
+      // hierarquia de títulos com índice navegável em vez do blob de <p>
+      // corrido — mesmo conteúdo, organizado igual ao PDF de referência.
+      const sections = Array.isArray(reading.sections) ? reading.sections.slice().sort((a, b) => (a.order || 0) - (b.order || 0)) : [];
+      let warning = renderAscendantWarning(reading);
+      if (reading.status === 'fallback' && reading.warning) {
+        warning += `<div class="reading-fallback-notice" role="status">${escapeHtml(reading.warning)}</div>`;
+      }
+      if (!sections.length) {
+        return { warning, toc: '', body: reading.body_html || item.reading || '' };
+      }
+      let toc = '';
+      let body = '';
+      sections.forEach((section, index) => {
+        const sectionId = `reading-section-${index}`;
+        toc += `<a href="#${sectionId}">${escapeHtml(section.title || '')}</a>`;
+        body += `<section class="reading-section" id="${sectionId}"><h2>${escapeHtml(section.title || '')}</h2>`;
+        if (section.subtitle) body += `<p class="reading-subtitle">${escapeHtml(section.subtitle)}</p>`;
+        const paragraphs = String(section.content || '').split(/\n\s*\n/).map((p) => p.trim()).filter(Boolean);
+        for (const paragraph of paragraphs) body += `<p>${escapeHtml(paragraph.replace(/\s*\n\s*/g, ' '))}</p>`;
+        body += `</section>`;
+      });
+      return { warning, toc, body };
+    }
     function showReading(item, reading) {
-      document.getElementById('reading-kicker').textContent = `${item.kicker} · leitura web`;
-      document.getElementById('reading-title').textContent = reading.title || item.title;
-      document.getElementById('reading-content').innerHTML = renderReadingSections(reading, item);
-      document.querySelector('[data-print-reading]').dataset.printTitle = reading.title || item.title;
-      const pdfLink = document.getElementById('reading-pdf-download');
+      const { warning, toc, body } = buildReadingSections(reading, item);
+      document.getElementById('reading-page-kicker').textContent = `${item.kicker} · ${IS_ARGENTINA ? 'lectura web' : 'leitura web'}`;
+      document.getElementById('reading-page-title').textContent = reading.title || item.title;
+      document.getElementById('reading-page-birth').innerHTML = renderReadingBirth();
+      document.getElementById('reading-page-warning').innerHTML = warning;
+      const tocNode = document.getElementById('reading-page-toc');
+      tocNode.innerHTML = toc;
+      tocNode.hidden = !toc;
+      document.getElementById('reading-page-body').innerHTML = body;
+      const printBtn = document.querySelector('[data-print-reading-page]');
+      if (printBtn) printBtn.dataset.printTitle = reading.title || item.title;
+      const pdfLink = document.getElementById('reading-page-pdf');
       const hasSections = Array.isArray(reading.sections) && reading.sections.length > 0;
       if (pdfLink) {
         if (hasSections && appState.authenticated) {
@@ -1197,7 +1250,36 @@
           pdfLink.removeAttribute('href');
         }
       }
-      openDialog('reading-dialog');
+      navigateToReading(reading.content_id || item.id);
+      showReadingView();
+    }
+    function showReadingView() {
+      document.getElementById('dashboard-view').hidden = true;
+      document.getElementById('reading-view').hidden = false;
+      document.getElementById('reading-view').scrollIntoView({ block: 'start' });
+    }
+    function showLibraryView() {
+      document.getElementById('reading-view').hidden = true;
+      document.getElementById('dashboard-view').hidden = false;
+      if (location.hash.startsWith('#/leitura/')) history.replaceState(null, '', location.pathname + location.search + '#entregaveis');
+    }
+    function navigateToReading(contentId) {
+      const target = `#/leitura/${encodeURIComponent(contentId)}`;
+      if (location.hash !== target) history.pushState(null, '', location.pathname + location.search + target);
+    }
+    function readingIdFromHash() {
+      const match = location.hash.match(/^#\/leitura\/(.+)$/);
+      return match ? decodeURIComponent(match[1]) : null;
+    }
+    function openReadingById(contentId) {
+      const item = LIBRARY_ITEMS.find((entry) => entry.id === contentId);
+      if (!item || item.state === ACCESS_STATES.locked || item.state === ACCESS_STATES.pending) { showLibraryView(); return; }
+      generateReading(item);
+    }
+    function handleHashRoute() {
+      const contentId = readingIdFromHash();
+      if (contentId) openReadingById(contentId);
+      else showLibraryView();
     }
     function openReading(item) {
       if (!item) return;
@@ -1230,6 +1312,7 @@
       } finally {
         appState.authResolved = true;
         renderUser(); syncAccountDialog(); applyRemoteState();
+        handleHashRoute();
       }
     }
     async function submitAuth(form, mode) {
@@ -1262,7 +1345,8 @@
       if (target.matches('.dialog-close')) target.closest('dialog')?.close();
       if (target.matches('[data-read]')) openReading(LIBRARY_ITEMS.find((item) => item.id === target.dataset.read));
       if (target.matches('[data-print]')) { showToast('Preparando uma versão para impressão…'); window.print(); }
-      if (target.matches('[data-print-reading]')) { showToast(`Preparando “${target.dataset.printTitle || 'leitura'}” para impressão…`); window.print(); }
+      if (target.matches('[data-print-reading-page]')) { showToast(`Preparando “${target.dataset.printTitle || 'leitura'}” para impressão…`); window.print(); }
+      if (target.matches('[data-back-to-library]')) { event.preventDefault(); history.pushState(null, '', location.pathname + location.search + '#entregaveis'); showLibraryView(); }
       if (target.matches('[data-offer-checkout]')) startCheckout(target.dataset.offerCheckout, target.dataset.offerTitle);
       if (target.matches('[data-checkout-upgrade]')) { startCheckout(target.dataset.checkoutKey, target.dataset.offerTitle || 'seu upgrade'); target.closest('dialog')?.close(); }
       if (target.matches('[data-logout]')) { apiRequest('/api/auth/logout', { method: 'POST', body: '{}' }).catch(() => {}); appState.authenticated = false; appState.user = null; appState.profile = null; appState.entitlements.clear(); appState.readings.clear(); applyRemoteState(); renderUser(); syncAccountDialog(); enforceDashboardGate(); target.closest('dialog')?.close(); showToast(IS_ARGENTINA ? 'Cerraste sesión en tu cuenta.' : 'Você saiu da sua conta.'); }
@@ -1275,6 +1359,8 @@
       catch (error) { setFormError('profile', error.message); }
       finally { button.disabled = false; }
     }
+    window.addEventListener('hashchange', handleHashRoute);
+    window.addEventListener('popstate', handleHashRoute);
     void bootstrap();
   </script>
 </body>
