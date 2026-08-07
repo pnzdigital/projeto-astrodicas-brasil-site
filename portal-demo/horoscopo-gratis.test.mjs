@@ -20,17 +20,24 @@ const test = (name, fn) => tests.push([name, fn]);
 
 // ── Formulário completo de nascimento ───────────────────────────────────────
 
-test('formulário pede nome, data, hora e cidade de nascimento', () => {
+test('formulário pede nome, data, hora (opcional) e cidade de nascimento', () => {
   assert.match(html, /name="name"/);
   assert.match(html, /name="birth_date"/);
   assert.match(html, /name="birth_time"/);
   assert.match(html, /name="birth_city"/);
 });
 
-test('chama o contrato POST /api/horoscopo/gratis com os campos certos', () => {
+test('campo de hora de nascimento não é required e é rotulado como opcional', () => {
+  const fieldMatch = html.match(/<input id="f-time"[^>]*>/);
+  assert.ok(fieldMatch, 'input f-time não encontrado');
+  assert.ok(!fieldMatch[0].includes('required'), 'campo de hora ainda é required');
+  assert.match(html, /Hora de nascimento \(opcional\)/);
+});
+
+test('chama o contrato POST /api/horoscopo/gratis com os campos certos, hora só quando preenchida', () => {
   assert.match(html, /\/api\/horoscopo\/gratis/);
   assert.match(html, /birth_date:\s*birthDate/);
-  assert.match(html, /birth_time:\s*birthTime/);
+  assert.match(html, /if \(birthTime\) payload\.birth_time = birthTime;/);
   assert.match(html, /birth_city:\s*birthCity/);
   assert.match(html, /locale/);
 });

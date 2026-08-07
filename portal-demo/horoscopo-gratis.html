@@ -86,7 +86,7 @@
       <form class="card" id="form" novalidate>
         <div class="field"><label for="f-name" data-copy="nameLabel">Seu nome</label><input id="f-name" name="name" type="text" autocomplete="name" required></div>
         <div class="field"><label for="f-date" data-copy="dateLabel">Data de nascimento</label><input id="f-date" name="birth_date" type="date" required></div>
-        <div class="field"><label for="f-time" data-copy="timeLabel">Hora de nascimento</label><input id="f-time" name="birth_time" type="time" required><small class="hint" data-copy="timeHint">A hora define seu Ascendente — a parte que o horóscopo de revista ignora.</small></div>
+        <div class="field"><label for="f-time" data-copy="timeLabel">Hora de nascimento (opcional)</label><input id="f-time" name="birth_time" type="time"><small class="hint" data-copy="timeHint">Não sabe a hora? Sem problema — calculamos com 00:00 e seu horóscopo continua válido, só o Ascendente e as casas ficam menos precisos.</small></div>
         <div class="field"><label for="f-city" data-copy="cityLabel">Cidade de nascimento</label><input id="f-city" name="birth_city" type="text" autocomplete="off" required></div>
         <div class="field"><label for="f-state" data-copy="stateLabel">Estado de nascimento</label><select id="f-state" name="birth_state" required></select></div>
         <button class="button" type="submit" id="submit" data-copy="cta">Ver meu horóscopo grátis →</button>
@@ -112,15 +112,15 @@
       lede: 'Nombre, fecha, hora y ciudad de nacimiento. Calculamos el cielo de hoy sobre TU carta y te mostramos la lectura en pantalla, ahora mismo.',
       nameLabel: 'Tu nombre',
       dateLabel: 'Fecha de nacimiento',
-      timeLabel: 'Hora de nacimiento',
-      timeHint: 'La hora define tu Ascendente — lo que el horóscopo de revista ignora.',
+      timeLabel: 'Hora de nacimiento (opcional)',
+      timeHint: '¿No sabés la hora? No hay problema — calculamos con 00:00 y tu horóscopo sigue siendo válido, solo el Ascendente y las casas quedan menos precisos.',
       cityLabel: 'Ciudad de nacimiento',
       stateLabel: 'Provincia de nacimiento',
       statePlaceholder: 'Elegí tu provincia',
       cta: 'Ver mi horóscopo gratis →',
       note: 'No pedimos e-mail ni tarjeta para mostrarte tu horóscopo de hoy.',
       disclaimer: 'Contenido de astrología con fines de autoconocimiento y entretenimiento. No reemplaza orientación médica, psicológica, jurídica ni financiera.',
-      missing: 'Completá nombre, fecha, hora, ciudad y provincia de nacimiento.',
+      missing: 'Completá nombre, fecha, ciudad y provincia de nacimiento.',
       genericError: 'No pudimos calcular tu horóscopo ahora. Probá de nuevo en unos instantes.',
       loading: 'Calculando…',
       resultTitleFallback: 'Tu horóscopo de hoy',
@@ -146,15 +146,15 @@
       lede: 'Nome, data, hora e cidade de nascimento. A gente calcula o céu de hoje em cima do SEU mapa e mostra a leitura na tela, agora.',
       nameLabel: 'Seu nome',
       dateLabel: 'Data de nascimento',
-      timeLabel: 'Hora de nascimento',
-      timeHint: 'A hora define seu Ascendente — a parte que o horóscopo de revista ignora.',
+      timeLabel: 'Hora de nascimento (opcional)',
+      timeHint: 'Não sabe a hora? Sem problema — calculamos com 00:00 e seu horóscopo continua válido, só o Ascendente e as casas ficam menos precisos.',
       cityLabel: 'Cidade de nascimento',
       stateLabel: 'Estado de nascimento',
       statePlaceholder: 'Selecione seu estado',
       cta: 'Ver meu horóscopo grátis →',
       note: 'Não pedimos e-mail nem cartão pra mostrar seu horóscopo de hoje.',
       disclaimer: 'Conteúdo de astrologia com finalidade de autoconhecimento e entretenimento. Não substitui orientação médica, psicológica, jurídica ou financeira.',
-      missing: 'Preencha nome, data, hora, cidade e estado de nascimento.',
+      missing: 'Preencha nome, data, cidade e estado de nascimento.',
       genericError: 'Não conseguimos calcular seu horóscopo agora. Tente de novo em instantes.',
       loading: 'Calculando…',
       resultTitleFallback: 'Seu horóscopo de hoje',
@@ -257,15 +257,17 @@
       const birthTime = value('birth_time');
       const birthCity = value('birth_city');
       const birthState = value('birth_state');
-      if (!name || !birthDate || !birthTime || !birthCity || !birthState) { formError.textContent = copy.missing; return; }
+      if (!name || !birthDate || !birthCity || !birthState) { formError.textContent = copy.missing; return; }
       submitButton.disabled = true;
       const previousLabel = submitButton.textContent;
       submitButton.textContent = copy.loading;
       try {
+        const payload = { name, birth_date: birthDate, birth_city: birthCity, birth_state: birthState, locale };
+        if (birthTime) payload.birth_time = birthTime;
         const response = await fetch(`${API}/api/horoscopo/gratis`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json', 'Accept-Language': locale },
-          body: JSON.stringify({ name, birth_date: birthDate, birth_time: birthTime, birth_city: birthCity, birth_state: birthState, locale }),
+          body: JSON.stringify(payload),
         });
         const data = await response.json().catch(() => ({}));
         if (!response.ok) {
@@ -286,7 +288,13 @@
     function renderReading(data, name) {
       const title = data.title || copy.resultTitleFallback;
       const bodyHtml = data.body_html || '';
-      const readingHtml = `<article class="reading"><h2>${escapeHtml(title)}</h2><div class="body">${bodyHtml}</div></article>`;
+      // data.birth_time_assumed/ascendant_warning vêm do backend quando a
+      // hora não foi informada: o Ascendente calculado é estimativa (00:00)
+      // e a pessoa precisa ver isso, não só descobrir sem querer.
+      const ascendantWarning = (data.birth_time_assumed && data.ascendant_warning)
+        ? `<p class="notice" role="status">⚠️ ${escapeHtml(data.ascendant_warning)}</p>`
+        : '';
+      const readingHtml = `<article class="reading"><h2>${escapeHtml(title)}</h2>${ascendantWarning}<div class="body">${bodyHtml}</div></article>`;
       const offerHtml = es ? renderTrialOffer() : renderPlanoLuaOffer();
       result.innerHTML = readingHtml + offerHtml;
       result.scrollIntoView({ behavior: 'smooth', block: 'start' });

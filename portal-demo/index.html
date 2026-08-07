@@ -786,7 +786,7 @@
         <h3>Você</h3>
         <div class="form-grid">
           <div class="field"><label for="birth-date">Data de nascimento</label><input id="birth-date" name="birth_date" type="date" required></div>
-          <div class="field"><label for="birth-time">Hora de nascimento</label><input id="birth-time" name="birth_time" type="time"></div>
+          <div class="field"><label for="birth-time">Hora de nascimento (opcional)</label><input id="birth-time" name="birth_time" type="time"><small class="hint">Sem a hora, calculamos com 00:00 e a leitura continua válida — só o Ascendente e as casas ficam menos precisos.</small></div>
           <div class="field"><label for="birth-city">Cidade de nascimento</label><input id="birth-city" name="birth_city" type="text" autocomplete="address-level2" required></div>
           <div class="field"><label for="birth-country">País</label><input id="birth-country" name="birth_country" type="text" value="BR" maxlength="2" required></div>
           <div class="field"><label for="birth-timezone">Fuso horário</label><input id="birth-timezone" name="birth_timezone" type="text" value="America/Sao_Paulo"></div>
@@ -1076,6 +1076,8 @@
         'Baixar PDF completo': 'Descargar PDF completo',
         'Leitura AstroDicas': 'Lectura AstroDicas',
         'Seu mapa': 'Tu mapa',
+        'Hora de nascimento (opcional)': 'Hora de nacimiento (opcional)',
+        'Sem a hora, calculamos com 00:00 e a leitura continua válida — só o Ascendente e as casas ficam menos precisos.': 'Sin la hora, calculamos con 00:00 y la lectura sigue siendo válida — solo el Ascendente y las casas quedan menos precisos.',
       });
       const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
       const nodes = [];
