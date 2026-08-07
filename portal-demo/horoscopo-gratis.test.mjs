@@ -93,18 +93,19 @@ test('copy es-AR deixa explícita a cobrança futura: dia 4 cobra o Plan Luna', 
   assert.match(html, /día 4.*se cobra el Plan Luna/i);
 });
 
-test('copy pt-BR NÃO promete trial nem período grátis com cartão', () => {
+test('copy pt-BR vende os 3 dias grátis, sem pegadinha', () => {
   const match = html.match(/\} : \{([\s\S]*?)\n\s*\};/);
   assert.ok(match, 'objeto de copy pt-BR não encontrado');
   const ptCopy = match[1];
-  for (const termoTrial of ['dias grátis', 'trial', 'não se cobra nada hoje']) {
-    assert.ok(!ptCopy.toLowerCase().includes(termoTrial.toLowerCase()), `pt-BR promete trial: "${termoTrial}"`);
-  }
+  assert.ok(ptCopy.includes('3 dias grátis'), 'pt-BR não promete os 3 dias grátis');
+  assert.ok(ptCopy.toLowerCase().includes('cancela quando quiser'), 'pt-BR não deixa explícito o cancelamento');
+  assert.ok(ptCopy.toLowerCase().includes('não paga nada'), 'pt-BR não deixa explícito que não cobra durante o teste');
 });
 
-test('copy pt-BR deixa explícita a cobrança recorrente mensal a partir de hoje', () => {
-  assert.match(html, /cobrança recorrente a partir de hoje/i);
-  assert.match(html, /Cancela quando quiser.*para de cobrar no ciclo seguinte/i);
+test('copy pt-BR deixa explícito que só cobra depois dos 3 dias, e o CTA de trial ainda aponta pro checkout avulso', () => {
+  assert.match(html, /[Dd]ia 4:.*cobramos \{price\}/);
+  assert.match(html, /cancela quando quiser e para de cobrar no ciclo seguinte/i);
+  assert.match(html, /CTA de trial pt-BR pendente de meio de pagamento/);
 });
 
 test('bullets do Plano Lua batem com o que o produto realmente entrega (horóscopo diário + guia do mês), sem prometer Mapa Astral de brinde', () => {
@@ -117,8 +118,8 @@ test('bullets do Plano Lua batem com o que o produto realmente entrega (horósco
   assert.ok(/[Gg]uía del mes/.test(esCopy), 'bullet da Guía del mes ausente no es-AR');
 });
 
-test('preço do offer-price pt-BR usa priceLabel vindo do /api/catalog (via offerBilling), não valor fixo', () => {
-  assert.match(html, /offerBilling\.replace\('\{price\}', priceLabel\)/);
+test('preço do offer-price pt-BR usa priceLabel vindo do /api/catalog (via offerHonesty), não valor fixo', () => {
+  assert.match(html, /offerHonesty\.replace\('\{price\}', priceLabel\)/);
 });
 
 // ── Localização: nada de PT vazando pro ES e vice-versa ─────────────────────

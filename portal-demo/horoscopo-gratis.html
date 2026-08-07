@@ -159,14 +159,14 @@
       loading: 'Calculando…',
       resultTitleFallback: 'Seu horóscopo de hoje',
       offerTitle: 'O que você leu foi só o de hoje',
-      offerLede: 'Amanhã o céu muda e o Plano Lua continua calculando por você, todo dia. Assinatura mensal, cobrança já a partir de hoje — sem período de teste, sem pegadinha.',
+      offerLede: 'Amanhã o céu muda e o Plano Lua continua calculando por você, todo dia. Comece com 3 dias grátis — só cobra se você não cancelar.',
       offerItems: [
         'Horóscopo personalizado todos os dias, calculado no seu mapa — não uma leitura genérica de revista',
         'Guia do Mês com os movimentos astrais que vêm por aí',
         'Acesso direto na sua área do site, sem precisar pedir de novo',
       ],
-      offerBilling: 'Assinatura de {price} por mês, cobrança recorrente a partir de hoje. Cancela quando quiser, direto na sua área — para de cobrar no ciclo seguinte.',
-      offerCta: 'Assinar o Plano Lua →',
+      offerHonesty: 'Dia 1 a 3: grátis, você cancela quando quiser e não paga nada. Dia 4: se não cancelou, cobramos {price} por mês, direto na sua área — cancela quando quiser e para de cobrar no ciclo seguinte.',
+      offerCta: 'Começar meus 3 dias grátis →',
       priceFallback: 'Consultar',
     };
 
@@ -294,14 +294,16 @@
       else wirePlanoLuaCta();
     }
 
-    // pt-BR: sem trial com cartão — oferta é o Plano Lua pelo checkout existente.
+    // pt-BR: copy vende o trial de 3 dias, mas o CTA segue apontando pro
+    // checkout avulso (Cakto) — trial recorrente com cartão só existe hoje
+    // na conta MLA (Argentina). CTA de trial pt-BR pendente de meio de pagamento recorrente no Brasil.
     function renderPlanoLuaOffer() {
       return `<section class="offer" id="offer">
         <h3>${escapeHtml(copy.offerTitle)}</h3>
         <p class="lede">${escapeHtml(copy.offerLede)}</p>
         <ul>${copy.offerItems.map((item) => `<li>${escapeHtml(item)}</li>`).join('')}</ul>
-        <div class="price" id="offer-price">${escapeHtml(priceLabel)}<small>/mês</small></div>
-        <p class="honesty">${escapeHtml(copy.offerBilling.replace('{price}', priceLabel))}</p>
+        <div class="price" id="offer-price">${escapeHtml(priceLabel)} <small>depois dos 3 dias grátis</small></div>
+        <p class="honesty">${escapeHtml(copy.offerHonesty.replace('{price}', priceLabel))}</p>
         <a class="button" id="offer-cta" href="${escapeHtml(checkoutUrl)}">${escapeHtml(copy.offerCta)}</a>
       </section>`;
     }
