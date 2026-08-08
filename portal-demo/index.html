@@ -950,7 +950,7 @@
 
     const toast = document.querySelector('.toast');
     const API_BASE = (window.PORTAL_API_URL || document.querySelector('meta[name="portal-api"]')?.content || '').replace(/\/$/, '');
-    const appState = { apiAvailable: false, authenticated: false, authResolved: !IS_DASHBOARD || DEMO_PAID, user: null, profile: null, subscription: null, entitlements: new Map(), readings: new Map(), pendingContentId: null, activeReadingId: null, pollingContentIds: new Set() };
+    const appState = { apiAvailable: false, authenticated: false, authResolved: !IS_DASHBOARD || DEMO_PAID, user: null, profile: null, subscription: null, entitlements: new Map(), readings: new Map(), allReadings: [], pendingContentId: null, activeReadingId: null, pollingContentIds: new Set() };
     let toastTimer;
     function showToast(message) {
       toast.textContent = message;
@@ -1659,7 +1659,11 @@
       const [profile, access, readings] = await Promise.all([apiRequest('/api/me/profile'), apiRequest('/api/me/access'), apiRequest('/api/me/readings')]);
       appState.profile = profile.profile;
       appState.entitlements = new Map((access.entitlements || []).map((entry) => [entry.product_id, entry]));
-      appState.readings = new Map((readings.readings || []).map((entry) => [entry.content_id, entry]));
+      // GET /api/me/readings devolve DESC (mais novo primeiro). Map com chave
+      // repetida guardava o ÚLTIMO — o mais antigo. Agora para no primeiro.
+      appState.allReadings = readings.readings || [];
+      appState.readings = new Map();
+      for (const entry of appState.allReadings) { if (!appState.readings.has(entry.content_id)) appState.readings.set(entry.content_id, entry); }
       // Só existe assinatura pra quem entrou pelo trial argentino (Checkout
       // Pro). Falha aqui não pode travar o resto do painel: quem comprou
       // pelo Cakto simplesmente não tem GET /api/me/subscription pra achar.
@@ -1716,7 +1720,7 @@
       if (target.matches('[data-back-to-library]')) { event.preventDefault(); history.pushState(null, '', location.pathname + location.search + '#entregaveis'); showLibraryView(); }
       if (target.matches('[data-offer-checkout]')) startCheckout(target.dataset.offerCheckout, target.dataset.offerTitle);
       if (target.matches('[data-checkout-upgrade]')) { startCheckout(target.dataset.checkoutKey, target.dataset.offerTitle || 'seu upgrade'); target.closest('dialog')?.close(); }
-      if (target.matches('[data-logout]')) { apiRequest('/api/auth/logout', { method: 'POST', body: '{}' }).catch(() => {}); appState.authenticated = false; appState.user = null; appState.profile = null; appState.entitlements.clear(); appState.readings.clear(); applyRemoteState(); renderUser(); syncAccountDialog(); enforceDashboardGate(); target.closest('dialog')?.close(); showToast(IS_ARGENTINA ? 'Cerraste sesión en tu cuenta.' : 'Você saiu da sua conta.'); }
+      if (target.matches('[data-logout]')) { apiRequest('/api/auth/logout', { method: 'POST', body: '{}' }).catch(() => {}); appState.authenticated = false; appState.user = null; appState.profile = null; appState.entitlements.clear(); appState.readings.clear(); appState.allReadings = []; applyRemoteState(); renderUser(); syncAccountDialog(); enforceDashboardGate(); target.closest('dialog')?.close(); showToast(IS_ARGENTINA ? 'Cerraste sesión en tu cuenta.' : 'Você saiu da sua conta.'); }
       if (target.matches('#cancel-confirm')) confirmCancelSubscription();
       if (target.matches('[data-scroll]')) { document.getElementById(target.dataset.scroll)?.scrollIntoView({ behavior: 'smooth', block: 'start' }); document.querySelectorAll('.mobile-nav button').forEach((item) => item.classList.toggle('active', item === target)); }
     });

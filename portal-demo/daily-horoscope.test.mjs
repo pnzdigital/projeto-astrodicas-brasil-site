@@ -97,6 +97,19 @@ test('meta do guia do mês é calculada a partir da data, não fica presa em "Ju
   assert.match(script, /item\.meta = `\$\{monthLabelFor\(reading\?\.created_at\)\} · 12 min`;/);
 });
 
+// ── Map bug: guarda o mais recente por content_id ───────────────────────────
+
+test('refreshPrivateData guarda todas as leituras em appState.allReadings', () => {
+  const match = script.match(/async function refreshPrivateData\(\)\s*\{[\s\S]*?\n    \}/);
+  assert.ok(match, 'refreshPrivateData não encontrada');
+  assert.ok(match[0].includes('appState.allReadings'), 'allReadings não armazenado');
+});
+
+test('refreshPrivateData usa has() antes de set() para guardar só o mais recente por content_id (DESC → primeiro ganha)', () => {
+  const match = script.match(/async function refreshPrivateData\(\)\s*\{[\s\S]*?\n    \}/);
+  assert.ok(match[0].includes('appState.readings.has(entry.content_id)'), 'não checa duplicata — Map ainda pode guardar o mais antigo');
+});
+
 // ── pt-BR e es-AR: toda cópia nova tem os dois lados ───────────────────────
 
 test('cada string nova do horóscopo diário aparece nos dois idiomas via IS_ARGENTINA (não só na tabela de tradução)', () => {
