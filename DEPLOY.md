@@ -8,7 +8,7 @@ Runbook para deploy em Coolify (ou compose.yaml local).
 - **DNS:** Ambos apontando pro Coolify/reverse proxy
 - **TLS:** Proxy reverso termina HTTPS; containers falam HTTP (nginx.runtime.conf:1-4)
 - **Banco:** PostgreSQL 16+ com acesso de rede ou volume local
-- **Contas externas:** Mercado Pago (Argentina), Cakto (Brasil), Resend (e-mail), MiniMax (LLM)
+- **Contas externas:** Mercado Pago (Argentina), GG Checkout (Brasil), Resend (e-mail), MiniMax (LLM)
 
 ---
 
@@ -32,10 +32,13 @@ Obrigatórias marcar com ⚠️.
 | `MP_WEBHOOK_SECRET_AR` | ⚠️ (se MP ligado) | Painel MP (app argentina) > Webhooks > Clave secreta | 401 nas rotas de webhook; venda paga não é liberada |
 | `MP_WEBHOOK_SECRET` | Não (legado) | Clave secreta da aplicação antiga | Só afeta pagamentos abertos antes do deploy |
 | `CHECKOUT_PROVIDER_AR` | Não | `mercadopago` (padrão) ou `cakto` | Troca quem cobra na Argentina |
-| `CHECKOUT_PROVIDER_BR` | Não | `cakto` (padrão) ou `mercadopago` | Mercado Pago no BR exige conta MLB; a conta MLA não cobra em BRL |
+| `CHECKOUT_PROVIDER_BR` | Não | `ggcheckout` (padrão) ou `mercadopago` | GG Checkout é o padrão BR (PIX/cartão nacional); MP exige conta MLB |
 | `MP_STATEMENT_DESCRIPTOR` | Não | `ASTRODICAS` (padrão) ou custom | Nome da loja na fatura do cliente |
 | `TRIAL_DAYS` | Não | `3` (padrão) | Tamanho do teste grátis do Plano Lua; só vale para assinaturas novas |
 | `CAKTO_WEBHOOK_SECRET` | ⚠️ (se Cakto ligado) | Painel Cakto > Webhooks > Chave secreta | 403 webhook rejeitado; pedido não confirma |
+| `GG_CHECKOUT_SECRET` | ⚠️ (se GG Checkout ligado) | Painel GG > Webhooks > Chave secreta | 503 no webhook; pedido não confirma e acesso não é liberado |
+| `GG_CHECKOUT_URLS` | ⚠️ (se GG Checkout ligado) | JSON `{"site:plano_lua": "https://..."}` com URLs de checkout por produto | 503 em `/api/checkout/order` BR; checkout não abre |
+| `GG_PRODUCT_MAP` | ⚠️ (se GG Checkout ligado) | JSON `{"gg-uuid": "site:plano_lua"}` mapeando UID do produto GG ao nosso product_id | 422 no webhook; produto não mapeado e acesso não é liberado |
 | `RESEND_API_KEY` | Não | Painel Resend > API keys | Confirmação e reset de senha por e-mail falham silenciosamente |
 | `MAIL_FROM` | Não | `AstroDicas <naoresponda@pnzdigital.com.br>` | Remetente padrão nos e-mails |
 | `MINIMAX_API_KEY` | Não | Painel MiniMax > Credenciais | Leituras usam fallback editorial local (OK) |
@@ -119,7 +122,30 @@ Obrigatórias marcar com ⚠️.
    - 500: Erro na app; checar logs
    - Checkout não abre: `MP_ACCESS_TOKEN` errado ou `SITE_PUBLIC_URL` / `PORTAL_URL` não são HTTPS públicos
 
-### Cakto
+### GG Checkout (Brasil)
+
+1. **Configurar:**
+   - Painel GG > Webhooks > Criar
+   - URL: `https://astrodicas.pnzdigital.com.br/api/webhooks/ggcheckout`
+   - Guardar **Chave secreta** → `GG_CHECKOUT_SECRET` env
+   - `GG_CHECKOUT_URLS` → JSON com URL de checkout por produto: `{"site:plano_lua": "https://checkout.gg.com/..."}`
+   - `GG_PRODUCT_MAP` → JSON com UUID GG por produto: `{"gg-uuid-do-produto": "site:plano_lua"}`
+
+2. **Testar:**
+   ```bash
+   curl -X POST https://astrodicas.pnzdigital.com.br/api/webhooks/ggcheckout \
+     -H "Content-Type: application/json" \
+     -d '{"event": "payment.completed", "payment": {"id": "123", "status": "paid"}}'
+   ```
+   Esperado: `503 {"detail": "...GG_CHECKOUT_SECRET não configurado..."}` se a secret estiver ausente,
+   ou `401` se a assinatura for inválida com a secret presente.
+
+3. **Troubleshoot:**
+   - 503 no webhook: `GG_CHECKOUT_SECRET` ausente no container
+   - 422 no webhook: `GG_PRODUCT_MAP` não tem o UUID do produto GG
+   - 503 em `/api/checkout/order` BR: `GG_CHECKOUT_URLS` ausente ou não tem o product_id
+
+### Cakto (legado — não usado para Brasil; manter apenas se houver clientes antigos)
 
 1. **Configurar:**
    - Painel > Webhooks > Criar
@@ -165,7 +191,8 @@ Obrigatórias marcar com ⚠️.
 - [ ] MP Compra: Webhook `/api/webhooks/mercadopago/ar/notify` recebe `payment.created`/`payment.updated`/`merchant_order.closed` e libera acesso
 - [ ] MP Trial: POST `/api/trial/start` (Argentina, 3 dias grátis) → devolve `init_point` e `portal_url`
 - [ ] MP Trial: Webhook `/api/webhooks/mercadopago/ar/subscription` recebe `subscription_preapproval` e autoriza cartão
-- [ ] Cakto: POST `/api/checkout/order` (Brasil) → devolve `order_id`; cliente sai pra link externo
+- [ ] GG Checkout: POST `/api/checkout/order` (Brasil) → devolve `order_id` e link GG; cliente sai para URL do checkout GG
+- [ ] GG Checkout: Webhook `/api/webhooks/ggcheckout` recebe `payment.completed` e libera acesso
 - [ ] E-mail: Confirmar que post-compra chega (Resend logs)
 - [ ] Leitura astrológica: Gerar uma, checar que MiniMax ou fallback editorial aparece
 
