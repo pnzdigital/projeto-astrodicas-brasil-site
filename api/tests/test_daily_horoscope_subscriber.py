@@ -46,7 +46,7 @@ def _grant_plano_lua(client, email):
 
 
 def _fake_generate_reading(monkeypatch, calls):
-    def _fake(content_id, title, profile, locale, customer_name=""):
+    def _fake(content_id, title, profile, locale, customer_name="", on_section_done=None):
         calls.append(content_id)
         return ReadingResult(body_html=f"<p>Horóscopo de teste #{len(calls)}.</p>", source="minimax")
 

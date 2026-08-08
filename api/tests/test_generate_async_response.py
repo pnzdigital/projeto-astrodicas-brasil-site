@@ -81,7 +81,7 @@ def test_background_job_runs_generate_reading_and_updates_the_row(db_session, mo
 
     calls = []
 
-    def _fake_generate_reading(content_id, title, profile, locale, customer_name):
+    def _fake_generate_reading(content_id, title, profile, locale, customer_name, on_section_done=None):
         calls.append(content_id)
         from app.engine import ReadingResult
         return ReadingResult(body_html="<p>Leitura de teste.</p>", source="minimax")
