@@ -186,3 +186,29 @@ class WebhookEvent(Base):
     event_id: Mapped[str] = mapped_column(String(255))
     payload: Mapped[dict] = mapped_column(JSON, default=dict)
     received_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now_utc)
+
+
+class GenerationJob(Base):
+    """Fila durável de geração de leitura consumida pelo worker separado.
+
+    status: queued → running → done | failed
+    Visibility timeout: job running com locked_at antigo volta para queued.
+    Backoff: not_before empurra a próxima tentativa (1min, 5min, 15min).
+    Idempotência: enqueue verifica abertos por (user_id, content_id) antes de criar.
+    """
+
+    __tablename__ = "generation_jobs"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=lambda: str(uuid4()))
+    reading_id: Mapped[str] = mapped_column(String(36), index=True)
+    content_id: Mapped[str] = mapped_column(String(120), index=True)
+    user_id: Mapped[str] = mapped_column(String(36), index=True)
+    locale: Mapped[str] = mapped_column(String(10), default="pt-BR")
+    customer_name: Mapped[str] = mapped_column(String(160), default="")
+    status: Mapped[str] = mapped_column(String(16), default="queued", index=True)
+    attempts: Mapped[int] = mapped_column(Integer, default=0)
+    locked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    locked_by: Mapped[str | None] = mapped_column(String(120), nullable=True)
+    not_before: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now_utc)
+    last_error: Mapped[str | None] = mapped_column(Text, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now_utc)
