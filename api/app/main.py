@@ -222,6 +222,7 @@ class ProfileBody(BaseModel):
     birth_date: date | None = None
     birth_time: time | None = None
     birth_city: str = Field(default="", max_length=160)
+    birth_state: str | None = Field(default=None, max_length=64)
     birth_country: str = Field(default="BR", min_length=2, max_length=2)
     birth_timezone: str = Field(default="America/Sao_Paulo", max_length=64)
     birth_latitude: str | None = Field(default=None, max_length=32)
@@ -230,6 +231,7 @@ class ProfileBody(BaseModel):
     partner_birth_date: date | None = None
     partner_birth_time: time | None = None
     partner_birth_city: str = Field(default="", max_length=160)
+    partner_birth_state: str | None = Field(default=None, max_length=64)
     partner_country: str = Field(default="BR", min_length=2, max_length=2)
 
     @field_validator("birth_time", "partner_birth_time", mode="before")
@@ -492,7 +494,7 @@ def save_profile(body: ProfileBody, request: Request, site_session: str | None =
     for key, value in body.model_dump().items():
         setattr(profile, key, value)
     if profile.birth_city and (not profile.birth_latitude or not profile.birth_longitude):
-        coordinates = resolve_coordinates(profile.birth_city, profile.birth_country)
+        coordinates = resolve_coordinates(profile.birth_city, profile.birth_country, profile.birth_state)
         if coordinates:
             profile.birth_latitude, profile.birth_longitude = map(str, coordinates)
     db.add(profile)
@@ -869,7 +871,7 @@ def reading_is_current(reading: Reading, content_id: str, snapshot: dict, locale
 def profile_to_dict(profile: Profile | None) -> dict | None:
     if not profile:
         return None
-    return {key: getattr(profile, key).isoformat() if isinstance(getattr(profile, key), (date, time)) else getattr(profile, key) for key in ("user_id", "birth_date", "birth_time", "birth_city", "birth_country", "birth_timezone", "birth_latitude", "birth_longitude", "partner_name", "partner_birth_date", "partner_birth_time", "partner_birth_city", "partner_country")}
+    return {key: getattr(profile, key).isoformat() if isinstance(getattr(profile, key), (date, time)) else getattr(profile, key) for key in ("user_id", "birth_date", "birth_time", "birth_city", "birth_state", "birth_country", "birth_timezone", "birth_latitude", "birth_longitude", "partner_name", "partner_birth_date", "partner_birth_time", "partner_birth_city", "partner_birth_state", "partner_country")}
 
 
 def reading_to_dict(reading: Reading, locale: str = "pt-BR") -> dict:

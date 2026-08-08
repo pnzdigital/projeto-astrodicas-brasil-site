@@ -166,7 +166,7 @@ def astrology_context(profile) -> dict:
         if os.getenv("GEOCODING_ENABLED", "1") != "1":
             geocoding_status = "disabled"
         else:
-            resolved = resolve_coordinates(profile.birth_city, profile.birth_country)
+            resolved = resolve_coordinates(profile.birth_city, profile.birth_country, getattr(profile, "birth_state", None))
             if resolved:
                 latitude, longitude = resolved
                 geocoding_status = "resolved"

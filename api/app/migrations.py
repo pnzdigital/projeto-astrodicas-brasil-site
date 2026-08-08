@@ -18,6 +18,10 @@ logger = logging.getLogger(__name__)
 
 # tabela -> (coluna, tipo SQL, default)
 NEW_COLUMNS: dict[str, tuple[tuple[str, str, str], ...]] = {
+    "site_profiles": (
+        ("birth_state", "VARCHAR(64)", ""),
+        ("partner_birth_state", "VARCHAR(64)", ""),
+    ),
     "site_orders": (
         ("locale", "VARCHAR(10)", "'pt-BR'"),
         ("market", "VARCHAR(2)", "'BR'"),
