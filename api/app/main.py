@@ -614,7 +614,7 @@ def _run_generation_job(reading_id: str, content_id: str, title: str, user_id: s
 
 
 @app.post("/api/me/readings/{content_id}/generate", status_code=status.HTTP_202_ACCEPTED)
-def generate(content_id: str, request: Request, response: Response, background_tasks: BackgroundTasks | None = None, site_session: str | None = Cookie(default=None), db: Session = Depends(get_db)) -> dict:
+def generate(content_id: str, request: Request, response: Response, background_tasks: BackgroundTasks, site_session: str | None = Cookie(default=None), db: Session = Depends(get_db)) -> dict:
     user = current_user(site_session, db, accept_language=request.headers.get("accept-language"))
     profile = db.get(Profile, user.id)
     if not profile or not profile.birth_date or not profile.birth_city:
@@ -672,7 +672,7 @@ def generate(content_id: str, request: Request, response: Response, background_t
     # A resposta volta AGORA, com status "in_progress". A geração roda no
     # worker separado (ver worker.py) que consome a tabela generation_jobs.
     # O portal já faz polling em /api/me/readings até `ready`/`fallback`.
-    _worker.enqueue_generation_job(db, reading.id, content_id, user.id, locale, user.name)
+    _worker.enqueue_generation_job(reading.id, content_id, user.id, locale, user.name)
     return {"reading": reading_to_dict(reading, user.locale)}
 
 

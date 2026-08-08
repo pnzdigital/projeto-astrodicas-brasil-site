@@ -22,8 +22,17 @@ sys.path.insert(0, str(TEST_DIR.parents[1]))
 
 
 def _reload_main(monkeypatch):
-    """Reload app.main with the requested env vars."""
-    sys.modules.pop("app.main", None)
+    """Reload app.main with the requested env vars.
+
+    Usa monkeypatch para rastrear as mudanças em sys.modules e no atributo do
+    pacote, garantindo que ambos sejam restaurados ao término de cada teste.
+    Sem isso, reloads sucessivos fazem run_job() importar _run_generation_job
+    de um módulo diferente do que os testes patcheiam, quebrando a suíte.
+    """
+    import app as _app_pkg
+    # Track current package attribute so monkeypatch restores it after the test.
+    monkeypatch.setattr(_app_pkg, "main", _app_pkg.main)
+    monkeypatch.delitem(sys.modules, "app.main", raising=False)
     return importlib.import_module("app.main")
 
 

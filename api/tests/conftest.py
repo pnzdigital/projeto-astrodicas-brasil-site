@@ -32,6 +32,48 @@ def clean_database():
     yield
 
 
+@pytest.fixture()
+def skip_auto_run():
+    """Testes que pedem este fixture desabilitam a execução automática de jobs.
+
+    Usado em testes que verificam o comportamento ASSÍNCRONO do endpoint
+    /generate (o job deve existir no banco mas NÃO ser executado inline).
+    """
+    return True
+
+
+@pytest.fixture(autouse=True)
+def _auto_run_generation_jobs(request, monkeypatch):
+    """Em testes, jobs enfileirados rodam sincronamente para manter o contrato
+    que os testes existentes esperam (leitura pronta após POST /generate).
+
+    Testes que querem verificar o comportamento assíncrono (job criado mas não
+    executado) devem solicitar o fixture `skip_auto_run`.
+
+    O mecanismo: intercepta worker.enqueue_generation_job e, logo após criar o
+    job no banco, chama worker.run_job() no mesmo thread. Como run_job faz late
+    import de main._run_generation_job, e _run_generation_job usa generate_reading
+    do namespace de main, qualquer monkeypatch de main.generate_reading que o teste
+    tenha feito é automaticamente respeitado aqui.
+    """
+    if "skip_auto_run" in request.fixturenames:
+        yield
+        return
+
+    import app.worker as _worker
+
+    real_enqueue = _worker.enqueue_generation_job
+
+    def _enqueue_and_run(reading_id, content_id, user_id, locale, customer_name):
+        job = real_enqueue(reading_id, content_id, user_id, locale, customer_name)
+        if job and job.status == "queued":
+            _worker.run_job(job.id)
+        return job
+
+    monkeypatch.setattr(_worker, "enqueue_generation_job", _enqueue_and_run)
+    yield
+
+
 @pytest.fixture(autouse=True)
 def _fake_mercadopago_preference(monkeypatch):
     """Checkout Pro real faria uma chamada de rede em ``open_order``; por

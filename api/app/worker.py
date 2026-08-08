@@ -48,34 +48,41 @@ signal.signal(signal.SIGINT, _handle_signal)
 # ---------------------------------------------------------------------------
 
 def enqueue_generation_job(
-    db: Session,
     reading_id: str,
     content_id: str,
     user_id: str,
     locale: str,
     customer_name: str,
 ) -> GenerationJob | None:
-    """Enfileira job de geração. Idempotente por (user_id, content_id) em aberto."""
-    existing = db.scalars(
-        select(GenerationJob).where(
-            GenerationJob.user_id == user_id,
-            GenerationJob.content_id == content_id,
-            GenerationJob.status.in_(["queued", "running"]),
+    """Enfileira job de geração. Idempotente por (user_id, content_id) em aberto.
+
+    Abre sessão própria para não expirar objetos da sessão do chamador
+    (expire_on_commit=True do SQLAlchemy expiraria a Reading da requisição web).
+    """
+    db = SessionLocal()
+    try:
+        existing = db.scalars(
+            select(GenerationJob).where(
+                GenerationJob.user_id == user_id,
+                GenerationJob.content_id == content_id,
+                GenerationJob.status.in_(["queued", "running"]),
+            )
+        ).first()
+        if existing:
+            return existing
+        job = GenerationJob(
+            reading_id=reading_id,
+            content_id=content_id,
+            user_id=user_id,
+            locale=locale,
+            customer_name=customer_name,
         )
-    ).first()
-    if existing:
-        return existing
-    job = GenerationJob(
-        reading_id=reading_id,
-        content_id=content_id,
-        user_id=user_id,
-        locale=locale,
-        customer_name=customer_name,
-    )
-    db.add(job)
-    db.commit()
-    db.refresh(job)
-    return job
+        db.add(job)
+        db.commit()
+        db.refresh(job)
+        return job
+    finally:
+        db.close()
 
 
 # ---------------------------------------------------------------------------
@@ -112,7 +119,11 @@ def _claim_next_job(db: Session) -> GenerationJob | None:
             return None
         job = db.get(GenerationJob, row[0])
     else:
-        job = db.scalars(
+        # SQLite: SELECT candidate, then UPDATE with status guard (optimistic lock).
+        # Two concurrent sessions can both SELECT the same row, but only one will
+        # win the subsequent UPDATE because SQLite serializes writes; the loser
+        # gets rowcount=0 and returns None.
+        candidate = db.scalars(
             select(GenerationJob)
             .where(
                 ((GenerationJob.status == "queued") & (GenerationJob.not_before <= now))
@@ -121,6 +132,28 @@ def _claim_next_job(db: Session) -> GenerationJob | None:
             .order_by(GenerationJob.created_at)
             .limit(1)
         ).first()
+        if not candidate:
+            return None
+        result = db.execute(
+            text("""
+                UPDATE generation_jobs
+                SET status = 'running',
+                    locked_at = :now,
+                    locked_by = :worker,
+                    attempts = attempts + 1
+                WHERE id = :id
+                  AND (
+                      (status = 'queued' AND not_before <= :now)
+                      OR (status = 'running' AND locked_at < :cutoff)
+                  )
+            """),
+            {"now": now, "worker": _LOCK_ID, "id": candidate.id, "cutoff": cutoff},
+        )
+        db.commit()
+        if result.rowcount == 0:
+            return None  # another worker won the optimistic race
+        db.refresh(candidate)
+        return candidate
 
     if not job:
         return None
