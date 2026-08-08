@@ -112,7 +112,8 @@ async def ggcheckout_webhook(request: Request, db: Session = Depends(get_db)) ->
     payment = payload.get("payment") or {}
     payment_id = str(payment.get("id") or "").strip()
     status = str(payment.get("status") or "").strip().lower()
-    customer = payload.get("customer") or {}
+    # GG nests customer inside payment; fall back to top-level for forward compat
+    customer = payment.get("customer") or payload.get("customer") or {}
     email = str(customer.get("email") or "").strip().lower()
 
     if not payment_id or not email:
