@@ -17,7 +17,7 @@ import json
 import logging
 import os
 import secrets
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from urllib.parse import urlencode, urlparse, urlunparse, parse_qs
 
 from fastapi import APIRouter, Depends, HTTPException, Request
@@ -37,6 +37,13 @@ logger = logging.getLogger(__name__)
 router = APIRouter()
 
 PAID_STATUSES = {"paid", "approved"}
+
+# Produtos cuja compra avulsa (canal BR, GG Checkout / PIX) gera acesso com prazo.
+# Ambos liberam site:plano_lua; o prazo é carimbado no entitlement plano_lua.
+# Outros produtos (mapas, combos) continuam vitalícios.
+TIMED_ACCESS_PRODUCTS = {"site:plano_lua", "site:oferta_plano_lua_exit"}
+PLANO_LUA_PRODUCT_ID = "site:plano_lua"
+PLANO_LUA_ACCESS_DAYS = 30
 
 
 class OrderBody(BaseModel):
@@ -87,8 +94,7 @@ def _append_checkout_params(base_url: str, email: str, order_id: str) -> str:
 
 
 # Quem cobra em cada mercado é configuração, não regra de negócio. O padrão
-# reproduz o que sempre valeu (Argentina no Mercado Pago, Brasil na Cakto),
-# então nada muda sem alguém pedir.
+# é Argentina no Mercado Pago e Brasil no GG Checkout (PIX/cartão nacional).
 #
 # Trocar o Brasil para "mercadopago" exige credenciais de uma conta brasileira
 # (MLB): contas do Mercado Pago são presas ao país, e a conta argentina em uso
@@ -380,16 +386,41 @@ def fulfill_order(db: Session, order: Order) -> User:
         db.flush()
 
     granted_now = []
+    timed = order.product_id in TIMED_ACCESS_PRODUCTS
     for product_id in pricing.granted_products(order.product_id):
         entitlement = db.scalar(
             select(Entitlement).where(Entitlement.user_id == user.id, Entitlement.product_id == product_id)
         )
+
+        # Prazo de 30 dias só para o entitlement site:plano_lua quando a compra
+        # é de um produto avulso com prazo. Estende a partir do vencimento atual
+        # se ainda ativo, para não cortar dias já pagos.
+        new_expires_at = None
+        if timed and product_id == PLANO_LUA_PRODUCT_ID:
+            now = datetime.now(timezone.utc)
+            if entitlement and entitlement.expires_at is not None:
+                current = entitlement.expires_at
+                if current.tzinfo is None:
+                    current = current.replace(tzinfo=timezone.utc)
+                base = max(current, now)
+            else:
+                base = now
+            new_expires_at = base + timedelta(days=PLANO_LUA_ACCESS_DAYS)
+
         if entitlement:
             if entitlement.status != "available":
                 entitlement.status = "available"
                 granted_now.append(product_id)
+            if new_expires_at is not None:
+                entitlement.expires_at = new_expires_at
             continue
-        db.add(Entitlement(user_id=user.id, product_id=product_id, status="available", source="site"))
+        db.add(Entitlement(
+            user_id=user.id,
+            product_id=product_id,
+            status="available",
+            source="site",
+            expires_at=new_expires_at,
+        ))
         granted_now.append(product_id)
 
     already_notified = bool((order.raw_payload or {}).get("notified_at"))
