@@ -34,7 +34,7 @@ Obrigatórias marcar com ⚠️.
 | `CHECKOUT_PROVIDER_AR` | Não | `mercadopago` (padrão) ou `cakto` | Troca quem cobra na Argentina |
 | `CHECKOUT_PROVIDER_BR` | Não | `ggcheckout` (padrão) ou `mercadopago` | GG Checkout é o padrão BR (PIX/cartão nacional); MP exige conta MLB |
 | `MP_STATEMENT_DESCRIPTOR` | Não | `ASTRODICAS` (padrão) ou custom | Nome da loja na fatura do cliente |
-| `TRIAL_DAYS` | Não | `3` (padrão) | Tamanho do teste grátis do Plano Lua; só vale para assinaturas novas |
+| `TRIAL_DAYS` | Não | `3` (padrão) | Tamanho do teste grátis do Diário Astral (trial local, sem cartão); só vale para trials novos |
 | `CAKTO_WEBHOOK_SECRET` | ⚠️ (se Cakto ligado) | Painel Cakto > Webhooks > Chave secreta | 403 webhook rejeitado; pedido não confirma |
 | `GG_CHECKOUT_SECRET` | ⚠️ (se GG Checkout ligado) | Painel GG > Webhooks > Chave secreta | 503 no webhook; pedido não confirma e acesso não é liberado |
 | `GG_CHECKOUT_URLS` | ⚠️ (se GG Checkout ligado) | JSON `{"site:diario_astral": "https://..."}` com URLs de checkout por produto | 503 em `/api/checkout/order` BR; checkout não abre |

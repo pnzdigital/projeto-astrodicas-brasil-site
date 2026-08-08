@@ -12,7 +12,7 @@ Clientes que compraram um produto pelo canal web e acessam uma área privada pel
 
 Entregar uma experiência web premium e contínua para os produtos vendidos pelo site AstroDicas. O portal é a entrega principal: leituras, horóscopos, mapas, previsões e conteúdos devem aparecer como experiências de leitura dentro da área logada. Download (como PDF) é opcional e complementar.
 
-O portal deve ser preparado para o catálogo web inicial já existente: Plano Lua, Mapa Astral, Mapa do Amor/Sinastria, Mapa da Carreira, Mapa da Prosperidade e combinações/ofertas desses produtos. Esse catálogo é do site e não deve ser confundido com o catálogo, checkout ou identidade do AstroDicas Telegram.
+O portal deve ser preparado para o catálogo web inicial já existente: Diário Astral, Mapa Astral, Mapa do Amor/Sinastria, Mapa da Carreira, Mapa da Prosperidade e combinações/ofertas desses produtos. Esse catálogo é do site e não deve ser confundido com o catálogo, checkout ou identidade do AstroDicas Telegram.
 
 Sucesso significa que um cliente consegue entrar, entender o que tem acesso, abrir uma leitura, encontrar conteúdos novos e comprar um upgrade sem sair da experiência AstroDicas.
 
