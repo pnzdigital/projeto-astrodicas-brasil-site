@@ -133,9 +133,9 @@
     if(es){ document.getElementById('mp-badge')?.style.removeProperty('display'); }
 
     if(es)document.querySelectorAll('#legal-links a').forEach(link=>{link.href='/es'+link.getAttribute('href')});
-    const pricesBR={'site:diario_astral':'R$ 27,90 / mês','site:mapa_astral':'R$ 47,00','site:mapa_amor_sinastria':'R$ 47,00','site:mapa_carreira':'R$ 47,00','site:mapa_prosperidade':'R$ 47,00','site:diario_astral_completo':'R$ 97,00','site:combo_mapa_astral_amor':'R$ 79,00','site:combo_mapa_astral_carreira':'R$ 79,00','site:combo_mapa_astral_prosperidade':'R$ 79,00','site:combo_amor_carreira':'R$ 79,00','site:combo_amor_prosperidade':'R$ 79,00','site:combo_carreira_prosperidade':'R$ 79,00','site:combo_diario_astral_mapa_astral':'R$ 67,00','site:combo_diario_astral_mapa_amor':'R$ 67,00','site:combo_diario_astral_mapa_prosperidade':'R$ 67,00'};
+    const pricesBR={'site:diario_astral':'R$ 27,90','site:mapa_astral':'R$ 47,00','site:mapa_amor_sinastria':'R$ 47,00','site:mapa_carreira':'R$ 47,00','site:mapa_prosperidade':'R$ 47,00','site:diario_astral_completo':'R$ 97,00','site:combo_mapa_astral_amor':'R$ 79,00','site:combo_mapa_astral_carreira':'R$ 79,00','site:combo_mapa_astral_prosperidade':'R$ 79,00','site:combo_amor_carreira':'R$ 79,00','site:combo_amor_prosperidade':'R$ 79,00','site:combo_carreira_prosperidade':'R$ 79,00','site:combo_diario_astral_mapa_astral':'R$ 67,00','site:combo_diario_astral_mapa_amor':'R$ 67,00','site:combo_diario_astral_mapa_prosperidade':'R$ 67,00'};
     const config=(await import(es?'/portal-config-ar.js':'/portal-config.js')).default;
-    const kindLabel={subscription:es?'Suscripción':'Assinatura',single:es?'Lectura individual':'Leitura individual',offer:es?'Experiencia completa':'Experiência completa',combo:es?'Combinación':'Combinação'};
+    const kindLabel={access:es?'Acceso 30 días':'Acesso 30 dias',single:es?'Lectura individual':'Leitura individual',offer:es?'Experiencia completa':'Experiência completa',combo:es?'Combinación':'Combinação'};
     const arNames={
       'site:combo_amor_carreira':['Mapa del Amor + Mapa de la Carrera','Relaciones y dirección profesional en dos lecturas complementarias.'],
       'site:combo_amor_prosperidade':['Mapa del Amor + Mapa de la Prosperidad','Vínculos y recursos vistos desde dos lecturas complementarias.'],
