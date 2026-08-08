@@ -66,11 +66,25 @@ Obrigatórias marcar com ⚠️.
 - Healthcheck: `pg_isready -U astrodicas -d astrodicas`
 - Credenciais: `POSTGRES_USER=astrodicas`, senha secret-managed
 
-### 2. API (`api/Dockerfile`)
-- Dependência: postgres healthy
-- Porta: 8000 (interno); proxy reverso expõe HTTPS
+### 2. Container único (Dockerfile raiz — o que o Coolify usa)
+O `build_pack: dockerfile` do Coolify constrói e sobe o `Dockerfile` da raiz.
+Esse container roda **três processos** via `start.sh`:
+- `uvicorn` — API na porta 8000 (loopback only)
+- `python -m app.worker` — worker de geração de leituras
+- `nginx` — proxy reverso público na porta 80
+
+**Supervisão:** se qualquer um dos três processos morrer, `start.sh` encerra com
+`exit 1`. O Coolify detecta e reinicia o container inteiro. Nunca fica uma fila
+parada sem supervisão.
+
+**Graceful shutdown:** SIGTERM → start.sh → kill nos três filhos. O worker pode
+demorar até 5 min para terminar jobs em andamento. Configure o **stop timeout do
+Coolify para ≥ 330 s** (5min30s). Jobs que não terminarem são recuperados
+automaticamente pelo visibility timeout (padrão 10 min) na próxima inicialização.
+
+- Porta exposta: 80 (nginx)
 - Startup: auto-cria schema + migrations (SQLAlchemy Base.metadata.create_all)
-- Healthcheck: `curl http://localhost:8000/api/health` → `{"ok": true, ...}`
+- Healthcheck: `curl http://localhost:80/api/health` → `{"ok": true, "queue": {...}}`
 
 ### 3. Frontend (`portal-demo/Dockerfile`)
 - Dependência: api started (não health; apenas started)
@@ -157,6 +171,38 @@ Obrigatórias marcar com ⚠️.
 ---
 
 ## Verificação Pós-Deploy
+
+### Worker de Geração
+
+**Verificar se está vivo:**
+```bash
+curl -s https://astrodicas.pnzdigital.com.br/api/health | python3 -m json.tool
+```
+Resposta esperada inclui `"queue": {"pending": N, "failed": M}`.
+- `pending` ≥ 0: fila saudável (jobs aguardando ou em execução)
+- `pending` = -1: banco inacessível (problema de conexão, não de worker)
+- `failed` crescendo: jobs falhando 3× → investigar logs e `MINIMAX_API_KEY`
+
+**Verificar logs do worker (Coolify UI → Logs, ou):**
+```bash
+# Filtra só as linhas do worker (PID registrado no boot)
+docker logs <container-id> 2>&1 | grep -E 'worker|job-'
+```
+
+**Jobs em andamento num deploy (graceful shutdown):**
+O worker captura SIGTERM e para de puxar novos jobs. Jobs já em execução
+terminam normalmente (até 5 min). Jobs que não terminarem voltam para `queued`
+automaticamente após o visibility timeout (padrão: 10 min) — o novo container
+os pega na próxima iteração do loop. Nenhuma leitura é perdida.
+
+**Variáveis que afetam o worker:**
+| Variável | Padrão | Efeito |
+|---|---|---|
+| `JOB_VISIBILITY_TIMEOUT_MINUTES` | `10` | Quanto tempo um job `running` espera antes de ser re-reivindicado |
+| `MINIMAX_MAX_CONCURRENCY` | `8` | Jobs simultâneos por container |
+| `WORKER_POLL_INTERVAL_SECONDS` | `2` | Intervalo de polling quando fila está vazia |
+
+---
 
 ### Roteamento (curl)
 

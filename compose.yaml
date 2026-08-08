@@ -1,3 +1,15 @@
+# ATENÇÃO — DOIS MODOS DE DEPLOY
+#
+# Desenvolvimento (local):  docker compose up
+#   Usa este arquivo: api, worker e portal sobem como serviços separados.
+#   O serviço `worker` aqui só existe para dev/compose; ele IGNORA o Dockerfile
+#   raiz (build_pack: dockerfile do Coolify não lê compose.yaml).
+#
+# Produção (Coolify):  build_pack=dockerfile → usa o Dockerfile da raiz
+#   O Dockerfile sobe uvicorn + worker + nginx num container único via start.sh.
+#   O serviço `worker` abaixo NÃO é criado em produção — não edite o Dockerfile
+#   para remover o worker do start.sh achando que o compose o cobre.
+
 services:
   db:
     image: postgres:16-alpine

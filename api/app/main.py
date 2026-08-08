@@ -22,7 +22,7 @@ from . import admin, checkout, entitlements, ggcheckout, horoscope_free, migrati
 from .ratelimit import auth_rate_limit, password_reset_rate_limit, webhook_rate_limit
 from .engine import generate_reading, sections_for
 from .pdf_export import build_pdf
-from .models import Entitlement, Order, PasswordResetToken, Profile, Reading, User, WebhookEvent
+from .models import Entitlement, GenerationJob, Order, PasswordResetToken, Profile, Reading, User, WebhookEvent
 from .security import (
     create_token,
     decode_token,
@@ -324,7 +324,29 @@ def startup() -> None:
 
 @app.get("/api/health")
 def health() -> dict:
-    return {"ok": True, "service": "astrodicas-site", "channel": "site"}
+    try:
+        from sqlalchemy import func, select as sa_select
+        db = SessionLocal()
+        try:
+            pending = db.scalar(
+                sa_select(func.count()).where(
+                    GenerationJob.status.in_(["queued", "running"])
+                )
+            ) or 0
+            failed_recent = db.scalar(
+                sa_select(func.count()).where(GenerationJob.status == "failed")
+            ) or 0
+        finally:
+            db.close()
+        queue_info: dict = {"pending": pending, "failed": failed_recent}
+    except Exception:
+        queue_info = {"pending": -1, "failed": -1}
+    return {
+        "ok": True,
+        "service": "astrodicas-site",
+        "channel": "site",
+        "queue": queue_info,
+    }
 
 
 # /api/auth/register foi removido: a única forma de criar conta é a compra

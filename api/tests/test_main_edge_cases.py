@@ -6,7 +6,13 @@ from conftest import create_user, register
 def test_health_endpoint(client):
     response = client.get("/api/health")
     assert response.status_code == 200
-    assert response.json() == {"ok": True, "service": "astrodicas-site", "channel": "site"}
+    body = response.json()
+    assert body["ok"] is True
+    assert body["service"] == "astrodicas-site"
+    assert body["channel"] == "site"
+    assert "queue" in body
+    assert "pending" in body["queue"]
+    assert "failed" in body["queue"]
 
 
 def test_register_route_is_gone(client):

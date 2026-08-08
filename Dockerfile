@@ -48,12 +48,13 @@ COPY nginx.runtime.conf /etc/nginx/conf.d/default.conf
 RUN rm -f /etc/nginx/sites-enabled/default \
     && mkdir -p /app/data /run/nginx
 
+COPY start.sh /start.sh
+RUN chmod +x /start.sh
+
 EXPOSE 80
-# --forwarded-allow-ips='*': uvicorn's default (127.0.0.1) only trusts the
-# X-Forwarded-For hop nginx itself adds, so it stops there and reports
-# nginx's upstream peer (Coolify/Traefik's own IP) as the client — every
-# visitor behind that ingress collapses onto one IP, which starves the
-# per-IP rate limiter (ratelimit.py) for real visitors sharing it. Safe to
-# trust unconditionally here: port 8000 is bound to 127.0.0.1 only, so nginx
-# in this same container is the sole process that can ever reach uvicorn.
-CMD ["sh", "-c", "uvicorn app.main:app --host 127.0.0.1 --port 8000 --proxy-headers --forwarded-allow-ips='*' & exec nginx -g 'daemon off;'"]
+# start.sh sobe uvicorn + worker de geração + nginx.
+# Se qualquer processo morrer, o script encerra com exit 1 para que a
+# restart policy do Coolify/Docker reinicie o container inteiro — nunca
+# fica a fila parada sem supervisão.
+# Ver start.sh para detalhes de supervisão e graceful shutdown.
+CMD ["/start.sh"]
