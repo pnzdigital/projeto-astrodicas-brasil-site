@@ -130,19 +130,22 @@
       loading: 'Calculando…',
       resultTitleFallback: 'Tu horóscopo de hoy',
       offerTitle: 'Lo que acabás de leer es apenas hoy',
-      offerLede: 'Mañana tu cielo cambia y el Diario Astral sigue calculándolo por vos, todos los días. Empezá con 3 días gratis.',
+      offerLede: 'Mañana tu cielo cambia y el Diario Astral sigue calculándolo por vos, todos los días.',
       offerItems: [
-        'Horóscopo personalizado todos los días, calculado sobre tu carta — no una lectura genérica de revista',
-        'Guía del mes con los movimientos astrales que vienen',
+        '3 días de horóscopo diario personalizado, calculado sobre tu carta — no una lectura genérica de revista',
+        'Con tu primer mes: Mapa Astral Completo en PDF — tuyo para siempre',
+        'Guía del mes y previsión de la semana todos los meses que seguís',
         'Acceso a tu área en el sitio con todo guardado',
       ],
-      honesty: 'Pedimos tu tarjeta para arrancar la suscripción — la cargás en el checkout de Mercado Pago, no acá. Día 1 a 3: no se cobra nada, cancelás cuando quieras y no pagás nada. Día 4: si no cancelaste, se cobra el Diario Astral a {price} por mes, hasta que canceles. Cancelás cuando quieras desde tu área en el sitio.',
-      startTrialCta: 'Empezar 3 días gratis →',
-      mpCta: 'Continuar en Mercado Pago →',
+      noCardPitch: 'Solo tu e-mail — sin tarjeta.',
+      cancelPromise: 'Cancelás cuando querás. Hasta el día 3, no se cobra nada.',
+      honesty: 'Día 4: si no cancelaste, se cobra el Diario Astral a {price} por mes, hasta que canceles. Cancelás cuando quieras desde tu área en el sitio.',
+      startTrialCta: 'Desbloquear 3 días gratis de horóscopo',
+      mpCta: 'Activar mis 3 días gratis →',
       buyerName: 'Nombre',
       buyerEmail: 'E-mail',
       trialFailed: 'No pudimos activar tu trial ahora. Probá de nuevo en unos instantes.',
-      trialOpening: 'Redirigiendo a Mercado Pago…',
+      trialOpening: 'Activando tu acceso…',
       priceFallback: 'Consultar',
     } : {
       eyebrow: 'Grátis · na hora',
@@ -163,13 +166,17 @@
       loading: 'Calculando…',
       resultTitleFallback: 'Seu horóscopo de hoje',
       offerTitle: 'O que você leu foi só o de hoje',
-      offerLede: 'Amanhã o céu muda e o Diário Astral continua calculando por você, todo dia. Comece com 3 dias grátis — só cobra se você não cancelar.',
+      offerLede: 'Amanhã o céu muda e o Diário Astral continua calculando por você, todo dia.',
       offerItems: [
-        'Horóscopo personalizado todos os dias, calculado no seu mapa — não uma leitura genérica de revista',
-        'Guia do Mês com os movimentos astrais que vêm por aí',
+        '3 dias de horóscopo personalizado, calculado no seu mapa — não uma leitura genérica de revista',
+        'Com o 1º mês: Mapa Astral Completo em PDF — seu para sempre',
+        'Guia do Mês e previsão da semana todos os meses que continuar',
         'Acesso direto na sua área do site, sem precisar pedir de novo',
       ],
-      offerHonesty: 'Dia 1 a 3: grátis, você cancela quando quiser e não paga nada. Dia 4: se não cancelou, cobramos {price} por mês, direto na sua área — cancela quando quiser e para de cobrar no ciclo seguinte.',
+      noCardPitch: 'Só o seu e-mail — sem cartão.',
+      cancelPromise: 'Cancela quando quiser. Até o dia 3, grátis.',
+      offerHonesty: 'Dia 4: se não cancelou, cobramos {price} por mês — cancela quando quiser e para de cobrar no ciclo seguinte.',
+      startTrialCta: 'Desbloquear 3 dias grátis de horóscopo',
       offerCta: 'Começar meus 3 dias grátis →',
       priceFallback: 'Consultar',
     };
@@ -306,17 +313,20 @@
       else wirePlanoLuaCta();
     }
 
-    // pt-BR: copy vende o trial de 3 dias, mas o CTA segue apontando pro
-    // checkout avulso (Cakto) — trial recorrente com cartão só existe hoje
-    // na conta MLA (Argentina). CTA de trial pt-BR pendente de meio de pagamento recorrente no Brasil.
+    // pt-BR: trial sem cartão — botão abre a oferta, formulário coleta só e-mail,
+    // backend cria acesso local e redireciona pro portal.
     function renderPlanoLuaOffer() {
       return `<section class="offer" id="offer">
-        <h3>${escapeHtml(copy.offerTitle)}</h3>
-        <p class="lede">${escapeHtml(copy.offerLede)}</p>
-        <ul>${copy.offerItems.map((item) => `<li>${escapeHtml(item)}</li>`).join('')}</ul>
-        <div class="price" id="offer-price">${escapeHtml(priceLabel)} <small>depois dos 3 dias grátis</small></div>
-        <p class="honesty">${escapeHtml(copy.offerHonesty.replace('{price}', priceLabel))}</p>
-        <a class="button" id="offer-cta" href="${escapeHtml(checkoutUrl)}">${escapeHtml(copy.offerCta)}</a>
+        <details class="trial-reveal" id="trial-reveal">
+          <summary class="button">${escapeHtml(copy.startTrialCta)}</summary>
+          <p class="no-card-pitch">${escapeHtml(copy.noCardPitch)}</p>
+          <p class="cancel-promise">${escapeHtml(copy.cancelPromise)}</p>
+          <h3>${escapeHtml(copy.offerTitle)}</h3>
+          <ul>${copy.offerItems.map((item) => `<li>${escapeHtml(item)}</li>`).join('')}</ul>
+          <a class="button" id="offer-cta" href="${escapeHtml(checkoutUrl)}">${escapeHtml(copy.offerCta)}</a>
+          <div class="price"><span id="offer-price">${escapeHtml(priceLabel)}</span> <small>depois dos 3 dias grátis</small></div>
+          <p class="honesty">${escapeHtml(copy.offerHonesty.replace('{price}', priceLabel))}</p>
+        </details>
       </section>`;
     }
 
@@ -326,30 +336,30 @@
       });
     }
 
-    // es-AR: oferta primeiro, cartão só entra depois que ela decidiu — o
-    // <details>/<summary> revela nome/e-mail só no clique, sem reload e sem
-    // depender de JS pra funcionar (nativo do HTML). O cartão em si é
-    // digitado no checkout do Mercado Pago, não aqui: fluxo é trial de 3
-    // dias com cartão exigido no signup, cobrança só no dia 4 se não
-    // cancelar.
+    // es-AR: botão primeiro, oferta abre só no clique — <details>/<summary>
+    // nativo, sem JS obrigatório. Trial nasce local (sem MP, sem cartão):
+    // backend devolve status="trialing" e redireciona pro portal.
     function renderTrialOffer() {
       return `<section class="offer" id="offer">
-        <h3>${escapeHtml(copy.offerTitle)}</h3>
-        <p class="lede">${escapeHtml(copy.offerLede)}</p>
-        <ul>${copy.offerItems.map((item) => `<li>${escapeHtml(item)}</li>`).join('')}</ul>
-        <div class="price" id="offer-price">${escapeHtml(priceLabel)} <small>después de los 3 días gratis</small></div>
-        <p class="honesty">${escapeHtml(copy.honesty.replace('{price}', priceLabel))}</p>
         <details class="trial-reveal" id="trial-reveal">
           <summary class="button">${escapeHtml(copy.startTrialCta)}</summary>
+          <p class="no-card-pitch">${escapeHtml(copy.noCardPitch)}</p>
+          <p class="cancel-promise">${escapeHtml(copy.cancelPromise)}</p>
+          <h3>${escapeHtml(copy.offerTitle)}</h3>
+          <ul>${copy.offerItems.map((item) => `<li>${escapeHtml(item)}</li>`).join('')}</ul>
           <form id="trial-form">
             <div class="field"><label for="t-name">${escapeHtml(copy.buyerName)}</label><input id="t-name" name="trial_name" type="text" autocomplete="name" required></div>
             <div class="field"><label for="t-email">${escapeHtml(copy.buyerEmail)}</label><input id="t-email" name="trial_email" type="email" autocomplete="email" required></div>
             <button class="button" type="submit" id="trial-submit">${escapeHtml(copy.mpCta)}</button>
             <p class="error" role="alert" id="trial-error"></p>
           </form>
+          <div class="price"><span id="offer-price">${escapeHtml(priceLabel)}</span> <small>después de los 3 días gratis</small></div>
+          <p class="honesty">${escapeHtml(copy.honesty.replace('{price}', priceLabel))}</p>
         </details>
       </section>`;
     }
+
+    const PORTAL = 'https://dash.astrodicas.pnzdigital.com.br/';
 
     function wireTrialCard() {
       const trialForm = document.getElementById('trial-form');
@@ -364,15 +374,15 @@
         trialSubmit.disabled = true;
         trialError.textContent = copy.trialOpening;
         try {
-          if (window.fbq) fbq('track', 'StartTrial', { content_name: 'plano-lua-trial', content_language: locale, predicted_ltv: 0 });
+          if (window.fbq) fbq('track', 'StartTrial', { content_name: 'diario-astral-trial', content_language: locale, predicted_ltv: 0 });
           const response = await fetch(`${API}/api/trial/start`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ email: trialEmail, name: trialName, locale }),
           });
           const data = await response.json().catch(() => ({}));
-          if (!response.ok || !data.init_point) { trialError.textContent = data.detail || copy.trialFailed; trialSubmit.disabled = false; return; }
-          window.location.href = data.init_point;
+          if (!response.ok || data.status !== 'trialing') { trialError.textContent = data.detail || copy.trialFailed; trialSubmit.disabled = false; return; }
+          window.location.href = PORTAL;
         } catch {
           trialError.textContent = copy.trialFailed;
           trialSubmit.disabled = false;
