@@ -39,7 +39,7 @@ router = APIRouter()
 PAID_STATUSES = {"paid", "approved"}
 
 # Produtos cuja compra avulsa (canal BR, GG Checkout / PIX) gera acesso com prazo.
-# Ambos liberam site:diario_astral; o prazo é carimbado no entitlement plano_lua.
+# Ambos liberam site:diario_astral; o prazo é carimbado no entitlement diario_astral.
 # Outros produtos (mapas, combos) continuam vitalícios.
 TIMED_ACCESS_PRODUCTS = {"site:diario_astral", "site:diario_astral_oferta_saida"}
 PLANO_LUA_PRODUCT_ID = "site:diario_astral"
