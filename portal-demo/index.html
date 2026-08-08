@@ -319,6 +319,19 @@
     .tag { padding: 5px 9px; border: 1px solid var(--gold-line); color: var(--cream-faint); font-size: 10px; }
     .progress-card { padding: 23px; }
     .progress-card h3 { margin-bottom: 18px; font: 500 25px/1 var(--display); }
+    @keyframes gen-indeterminate { 0% { transform: translateX(-100%); } 100% { transform: translateX(400%); } }
+    @keyframes asset-pulse { 0%, 100% { opacity: 1; } 50% { opacity: .55; } }
+    .asset[data-state="in_progress"] { animation: asset-pulse 2s ease-in-out infinite; }
+    .gen-bar { height: 5px; background: rgba(244,239,228,.1); border-radius: 3px; overflow: hidden; margin: 10px 0; }
+    .gen-bar i { display: block; height: 100%; background: linear-gradient(90deg, var(--gold), var(--gold-lit)); border-radius: 3px; transition: width 1.2s ease; }
+    .gen-bar-indeterminate { height: 5px; background: rgba(244,239,228,.1); border-radius: 3px; overflow: hidden; margin: 10px 0; position: relative; }
+    .gen-bar-indeterminate::after { content: ''; position: absolute; top: 0; left: 0; height: 100%; width: 25%; background: linear-gradient(90deg, transparent, var(--gold), transparent); animation: gen-indeterminate 1.8s ease-in-out infinite; }
+    .generating-progress { margin: 2rem 0; }
+    .generating-progress p { color: var(--cream-dim); margin: 0 0 4px; }
+    .generating-progress .gen-note { font-size: 13px; color: var(--cream-faint); margin-top: 10px; }
+    .ready-notification { display: flex; align-items: center; gap: 12px; padding: 14px 18px; background: var(--gold-soft); border: 1px solid var(--gold-line); border-radius: 10px; margin-bottom: 16px; }
+    .ready-notification p { flex: 1; margin: 0; font-size: 15px; }
+    .ready-notification .notif-actions { display: flex; gap: 8px; flex-shrink: 0; }
     .profile-line { display: flex; align-items: center; justify-content: space-between; margin-bottom: 13px; color: var(--cream-dim); font-size: 11px; }
     .progress { height: 7px; overflow: hidden; background: rgba(244,239,228,.1); }
     .progress i { display: block; width: 68%; height: 100%; background: linear-gradient(90deg, var(--gold), var(--gold-lit)); }
@@ -676,6 +689,7 @@
           <h2>Minha biblioteca</h2>
           <a href="#" data-toast="Todos os seus conteúdos já estão visíveis aqui.">04 conteúdos ativos</a>
         </div>
+        <div id="ready-notifications" aria-live="polite" aria-label="Notificações de leituras prontas"></div>
         <section class="library" id="library-grid" aria-label="Entregáveis disponíveis"></section>
 
         <div class="section-head" id="catalogo">
@@ -936,7 +950,7 @@
 
     const toast = document.querySelector('.toast');
     const API_BASE = (window.PORTAL_API_URL || document.querySelector('meta[name="portal-api"]')?.content || '').replace(/\/$/, '');
-    const appState = { apiAvailable: false, authenticated: false, authResolved: !IS_DASHBOARD || DEMO_PAID, user: null, profile: null, subscription: null, entitlements: new Map(), readings: new Map(), pendingContentId: null };
+    const appState = { apiAvailable: false, authenticated: false, authResolved: !IS_DASHBOARD || DEMO_PAID, user: null, profile: null, subscription: null, entitlements: new Map(), readings: new Map(), pendingContentId: null, activeReadingId: null, pollingContentIds: new Set() };
     let toastTimer;
     function showToast(message) {
       toast.textContent = message;
@@ -1040,6 +1054,12 @@
       });
       renderLibrary();
       renderDailyHoroscope();
+      // Retoma polling para leituras em progresso sem poll ativo (ex: aba fechada e reaberta).
+      LIBRARY_ITEMS.forEach((item) => {
+        if (item.state === ACCESS_STATES.inProgress && !appState.pollingContentIds.has(item.id)) {
+          pollReadingUntilDone(item);
+        }
+      });
     }
     function excerptFromHtml(html, maxLen = 220) {
       const div = document.createElement('div');
@@ -1390,40 +1410,79 @@
     function showStaticReading(item) {
       showReading(item, { title: item.title, body_html: item.reading, sections: [], content_id: item.id });
     }
-    async function generateReading(item) {
-      if (!appState.apiAvailable || !appState.authenticated) { showStaticReading(item); return; }
-      if (!profileComplete()) { appState.pendingContentId = item.id; showToast('Complete seus dados de nascimento para gerar esta leitura.'); openDialog('profile-dialog'); return; }
+    function renderGeneratingProgress(reading) {
+      const done = reading?.sections_done || 0;
+      const total = reading?.sections_total || 0;
+      const hasProgress = total > 0 && done > 0;
+      const pct = total > 0 ? Math.round((done / total) * 100) : 0;
+      const label = IS_ARGENTINA
+        ? (hasProgress ? `Sección ${done} de ${total} lista…` : 'Estamos preparando tu lectura…')
+        : (hasProgress ? `Seção ${done} de ${total} pronta…` : 'Estamos preparando sua leitura…');
+      const note = IS_ARGENTINA
+        ? 'Podés volver a la biblioteca y regresar cuando esté lista — no vamos a cambiar la pantalla sin que lo pidas.'
+        : 'Você pode voltar à biblioteca e retornar quando estiver pronta — não trocaremos a tela sem que você peça.';
+      const bar = hasProgress
+        ? `<div class="gen-bar" role="progressbar" aria-valuenow="${done}" aria-valuemin="0" aria-valuemax="${total}" aria-label="${escapeHtml(label)}"><i style="width:${pct}%"></i></div>`
+        : `<div class="gen-bar-indeterminate" role="progressbar" aria-label="${escapeHtml(label)}"></div>`;
+      return `<div class="generating-progress" aria-live="polite"><p>${escapeHtml(label)}</p>${bar}<p class="gen-note">${escapeHtml(note)}</p></div>`;
+    }
+    function showReadingProgress(item) {
       const reading = appState.readings.get(item.id);
-      if (reading?.status === 'ready') { showReading(item, reading); return; }
-      item.state = ACCESS_STATES.inProgress;
-      renderLibrary();
+      appState.activeReadingId = item.id;
       document.getElementById('reading-page-kicker').textContent = `${item.kicker} · ${IS_ARGENTINA ? 'generación en curso' : 'geração em andamento'}`;
       document.getElementById('reading-page-title').textContent = item.title;
       document.getElementById('reading-page-birth').innerHTML = '';
       document.getElementById('reading-page-warning').innerHTML = '';
-      document.getElementById('reading-page-toc').hidden = true;
-      document.getElementById('reading-page-toc').innerHTML = '';
-      document.getElementById('reading-page-body').innerHTML = `<p>${IS_ARGENTINA ? 'Estamos leyendo tu cielo a partir de los datos guardados. Este momento lleva solo unos instantes.' : 'Estamos lendo seu céu a partir dos dados salvos. Este momento leva só alguns instantes.'}</p>`;
+      const tocNode = document.getElementById('reading-page-toc');
+      tocNode.hidden = true;
+      tocNode.innerHTML = '';
+      document.getElementById('reading-page-body').innerHTML = renderGeneratingProgress(reading);
+      const pdfLink = document.getElementById('reading-page-pdf');
+      if (pdfLink) { pdfLink.hidden = true; pdfLink.removeAttribute('href'); }
       navigateToReading(item.id);
       showReadingView();
+    }
+    function showReadyNotification(item) {
+      const notifs = document.getElementById('ready-notifications');
+      if (!notifs) return;
+      notifs.querySelector(`[data-ready-for="${CSS.escape(item.id)}"]`)?.remove();
+      const msg = IS_ARGENTINA ? `Tu ${escapeHtml(item.title)} está lista.` : `Seu ${escapeHtml(item.title)} está pronto!`;
+      const cta = IS_ARGENTINA ? 'Ver ahora →' : 'Abrir agora →';
+      const dismiss = IS_ARGENTINA ? 'Dispensar' : 'Dispensar';
+      const div = document.createElement('div');
+      div.className = 'ready-notification';
+      div.dataset.readyFor = item.id;
+      div.innerHTML = `<p>✦ ${msg}</p><div class="notif-actions"><button class="button small" type="button" data-read="${escapeHtml(item.id)}">${cta}</button><button class="button ghost small" type="button" data-dismiss-notification="${escapeHtml(item.id)}" aria-label="${dismiss}">×</button></div>`;
+      notifs.prepend(div);
+      setTimeout(() => { if (div.isConnected) div.remove(); }, 30000);
+    }
+    async function generateReading(item) {
+      if (!appState.apiAvailable || !appState.authenticated) { showStaticReading(item); return; }
+      if (!profileComplete()) { appState.pendingContentId = item.id; showToast('Complete seus dados de nascimento para gerar esta leitura.'); openDialog('profile-dialog'); return; }
+      const reading = appState.readings.get(item.id);
+      if (reading?.status === 'ready' || reading?.status === 'fallback') { showReading(item, reading); return; }
+      // Já está gerando: leva o usuário à tela de progresso (ele decide ir lá).
+      if (appState.pollingContentIds.has(item.id)) { showReadingProgress(item); return; }
+      item.state = ACCESS_STATES.inProgress;
+      renderLibrary();
+      // Não navega automaticamente — o usuário continua no dashboard enquanto
+      // gera. Se quiser acompanhar, pode clicar no card em progresso.
       try {
         const data = await apiRequest(`/api/me/readings/${encodeURIComponent(item.id)}/generate`, { method: 'POST', body: '{}' });
         if (data.reading && data.reading.status === 'in_progress') {
-          // /generate agora responde na hora (202) e a geração roda em
-          // background no servidor — sem isso o cliente ficava esperando a
-          // requisição travada até 60s (timeout do proxy) num mapa demorado.
-          // O portal faz polling em /api/me/readings até sair de
-          // "in_progress".
           appState.readings.set(item.id, data.reading);
-          await pollReadingUntilDone(item);
+          // Fire-and-forget: poll roda em background, dashboard fica visível.
+          pollReadingUntilDone(item);
         } else if (data.reading) {
-          appState.readings.set(item.id, data.reading); item.state = ACCESS_STATES.available; showReading(item, data.reading);
+          // Cache hit (200): leitura já pronta — exibe direto (usuário clicou para ver).
+          appState.readings.set(item.id, data.reading);
+          item.state = ACCESS_STATES.available;
+          showReading(item, data.reading);
         }
       } catch (error) {
         item.state = fallbackState(item); renderLibrary();
-        showLibraryView();
         if (error.status === 422) { appState.pendingContentId = item.id; openDialog('profile-dialog'); }
-        else if (error.status === 403) { await refreshPrivateData(); showToast('Este conteúdo ainda não está liberado para sua conta.'); }
+        else if (error.status === 403) { await refreshPrivateData(); showToast(IS_ARGENTINA ? 'Este contenido todavía no está disponible para tu cuenta.' : 'Este conteúdo ainda não está liberado para sua conta.'); }
         else showToast(error.message);
       }
     }
@@ -1431,29 +1490,49 @@
     const GENERATE_POLL_MAX_ATTEMPTS = 60; // ~2.5min de teto: cobre folgadamente o pior caso seccionado
     function sleep(ms) { return new Promise((resolve) => setTimeout(resolve, ms)); }
     async function pollReadingUntilDone(item) {
-      for (let attempt = 0; attempt < GENERATE_POLL_MAX_ATTEMPTS; attempt++) {
-        await sleep(GENERATE_POLL_INTERVAL_MS);
-        let data;
-        try {
-          data = await apiRequest('/api/me/readings');
-        } catch (error) {
-          showToast(error.message);
+      if (appState.pollingContentIds.has(item.id)) return; // duplo-poll guard
+      appState.pollingContentIds.add(item.id);
+      try {
+        for (let attempt = 0; attempt < GENERATE_POLL_MAX_ATTEMPTS; attempt++) {
+          await sleep(GENERATE_POLL_INTERVAL_MS);
+          let data;
+          try {
+            data = await apiRequest('/api/me/readings');
+          } catch (error) {
+            showToast(error.message);
+            return;
+          }
+          const reading = (data.readings || []).find((r) => r.content_id === item.id);
+          if (reading) {
+            appState.readings.set(item.id, reading);
+            // Atualiza barra de progresso se o usuário estiver na tela desta leitura.
+            const readingViewVisible = !document.getElementById('reading-view').hidden;
+            if (appState.activeReadingId === item.id && readingViewVisible) {
+              document.getElementById('reading-page-body').innerHTML = renderGeneratingProgress(reading);
+            }
+          }
+          if (!reading || reading.status === 'in_progress') continue;
+
+          // Geração concluída (ready ou fallback).
+          item.state = ACCESS_STATES.available;
+          const readingViewVisible = !document.getElementById('reading-view').hidden;
+          const userIsWatching = appState.activeReadingId === item.id && readingViewVisible;
+          if (userIsWatching) {
+            // Usuário está na tela de progresso — exibe o conteúdo diretamente.
+            showReading(item, reading);
+          } else {
+            // Usuário está no dashboard ou em outra aba — notifica sem sequestrar.
+            renderLibrary();
+            showReadyNotification(item);
+          }
           return;
         }
-        const reading = (data.readings || []).find((r) => r.content_id === item.id);
-        if (!reading || reading.status === 'in_progress') continue;
-        appState.readings.set(item.id, reading);
-        item.state = ACCESS_STATES.available;
-        showReading(item, reading);
-        return;
+        // Excedeu o teto de polling: item continua in_progress; usuário pode tentar de novo.
+        renderLibrary();
+        showToast(IS_ARGENTINA ? 'La generación está demorando más de lo esperado. Intentá de nuevo en unos instantes.' : 'A geração está demorando mais que o esperado. Tente novamente em alguns instantes.');
+      } finally {
+        appState.pollingContentIds.delete(item.id);
       }
-      // Excedeu o teto de polling: não trava o cliente pra sempre — devolve
-      // pra biblioteca com aviso, e uma nova tentativa de geração cria um
-      // novo job (reading_is_current só aceita status ready/fallback).
-      item.state = ACCESS_STATES.inProgress;
-      renderLibrary();
-      showLibraryView();
-      showToast(IS_ARGENTINA ? 'La generación está demorando más de lo esperado. Intentá de nuevo en unos instantes.' : 'A geração está demorando mais que o esperado. Tente novamente em alguns instantes.');
     }
     function renderAscendantWarning(reading) {
       // reading.birth_time_assumed/ascendant_warning vêm do backend (mesmo
@@ -1540,6 +1619,7 @@
       document.getElementById('reading-view').hidden = true;
       document.getElementById('dashboard-view').hidden = false;
       if (location.hash.startsWith('#/leitura/')) history.replaceState(null, '', location.pathname + location.search + '#entregaveis');
+      appState.activeReadingId = null;
     }
     function navigateToReading(contentId) {
       const target = `#/leitura/${encodeURIComponent(contentId)}`;
@@ -1570,6 +1650,8 @@
         openDialog('upgrade-dialog'); return;
       }
       if (item.state === ACCESS_STATES.pending) { showToast('Seu acesso está sendo confirmado. Tente novamente em instantes.'); return; }
+      // Card em progresso: o usuário quer acompanhar — leva à tela de progresso.
+      if (item.state === ACCESS_STATES.inProgress) { showReadingProgress(item); return; }
       generateReading(item);
     }
     async function refreshPrivateData() {
@@ -1627,6 +1709,7 @@
       if (target.matches('[data-dialog]')) openDialog(target.dataset.dialog);
       if (target.matches('.dialog-close')) target.closest('dialog')?.close();
       if (target.matches('[data-read]')) openReading(LIBRARY_ITEMS.find((item) => item.id === target.dataset.read));
+      if (target.matches('[data-dismiss-notification]')) { document.querySelector(`[data-ready-for="${CSS.escape(target.dataset.dismissNotification)}"]`)?.remove(); }
       if (target.matches('[data-daily-action]')) handleDailyAction(target.dataset.dailyAction);
       if (target.matches('[data-print]')) { showToast('Preparando uma versão para impressão…'); window.print(); }
       if (target.matches('[data-print-reading-page]')) { showToast(`Preparando “${target.dataset.printTitle || 'leitura'}” para impressão…`); window.print(); }
