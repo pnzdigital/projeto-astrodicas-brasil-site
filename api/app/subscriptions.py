@@ -31,6 +31,7 @@ from uuid import uuid4
 from fastapi import APIRouter, Cookie, Depends, HTTPException, Request
 from pydantic import BaseModel, EmailStr, Field
 from sqlalchemy import select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from . import mercadopago as mp
@@ -232,36 +233,40 @@ def start_trial(body: TrialBody, db: Session = Depends(get_db)) -> dict:
             raise HTTPException(status_code=409, detail=message("already_subscribed", locale))
 
     is_new_account = user is None
-    if not user:
-        placeholder_password = secrets.token_urlsafe(9)
-        user = User(email=email, password_hash=hash_password(placeholder_password), name=body.name, locale=locale)
-        db.add(user)
+    try:
+        if not user:
+            placeholder_password = secrets.token_urlsafe(9)
+            user = User(email=email, password_hash=hash_password(placeholder_password), name=body.name, locale=locale)
+            db.add(user)
+            db.flush()
+
+        trial_ends_at = _now() + timedelta(days=TRIAL_DAYS)
+        subscription = Subscription(
+            user_id=user.id,
+            provider="none",   # sem cartão, sem provedor externo
+            external_id=str(uuid4()),
+            product_id=PRODUCT_ID,
+            status="trialing",
+            amount_minor=pricing.amount_minor(PRODUCT_ID, locale),
+            currency=pricing.currency_for(locale),
+            locale=locale,
+            market=pricing.market_for(locale),
+            trial_ends_at=trial_ends_at,
+            current_period_end=trial_ends_at,
+        )
+        db.add(subscription)
         db.flush()
+        sync_entitlements(db, subscription)
 
-    trial_ends_at = _now() + timedelta(days=TRIAL_DAYS)
-    subscription = Subscription(
-        user_id=user.id,
-        provider="none",   # sem cartão, sem provedor externo
-        external_id=str(uuid4()),
-        product_id=PRODUCT_ID,
-        status="trialing",
-        amount_minor=pricing.amount_minor(PRODUCT_ID, locale),
-        currency=pricing.currency_for(locale),
-        locale=locale,
-        market=pricing.market_for(locale),
-        trial_ends_at=trial_ends_at,
-        current_period_end=trial_ends_at,
-    )
-    db.add(subscription)
-    db.flush()
-    sync_entitlements(db, subscription)
+        temp_password = None
+        if is_new_account:
+            temp_password = secrets.token_urlsafe(9)
+            user.password_hash = hash_password(temp_password)
 
-    temp_password = None
-    if is_new_account:
-        temp_password = secrets.token_urlsafe(9)
-        user.password_hash = hash_password(temp_password)
-
-    db.commit()
+        db.commit()
+    except IntegrityError:
+        db.rollback()
+        raise HTTPException(status_code=409, detail=message("already_subscribed", locale))
 
     # E-mail depois do commit: acesso garantido independente do provedor de e-mail.
     delivery = send_trial_started(

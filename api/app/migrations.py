@@ -84,6 +84,7 @@ def ensure_schema() -> None:
 
     _relax_order_user_id(inspector, existing_tables)
     _rename_product_ids(existing_tables)
+    _ensure_unique_indices(existing_tables)
 
 
 # Renomeação dos product_id internos: plano_lua → diario_astral e variantes.
@@ -114,6 +115,26 @@ def _rename_product_ids(existing_tables: set[str]) -> None:
                     )
             except Exception as exc:  # pragma: no cover
                 logger.warning("Rename product_id %s→%s em %s: %s", old_id, new_id, table, exc)
+
+
+_NEW_INDICES: list[tuple[str, str, list[str]]] = [
+    # Garante 1 subscription por (user, produto) — impede race condition em start_trial.
+    ("site_subscriptions", "uq_site_subscription_user_product", ["user_id", "product_id"]),
+]
+
+
+def _ensure_unique_indices(existing_tables: set[str]) -> None:
+    for table, index_name, columns in _NEW_INDICES:
+        if table not in existing_tables:
+            continue
+        cols = ", ".join(columns)
+        sql = f"CREATE UNIQUE INDEX IF NOT EXISTS {index_name} ON {table} ({cols})"
+        try:
+            with engine.begin() as connection:
+                connection.execute(text(sql))
+            logger.info("Índice único %s criado em %s.", index_name, table)
+        except Exception as exc:
+            logger.warning("Não foi possível criar índice %s em %s: %s", index_name, table, exc)
 
 
 def _relax_order_user_id(inspector, existing_tables: set[str]) -> None:

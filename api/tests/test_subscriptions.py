@@ -121,6 +121,26 @@ def test_um_trial_por_email(client):
     assert segunda.status_code == 409
 
 
+def test_trial_simultaneos_sem_500(client, monkeypatch):
+    """Race condition: duas requisições simultâneas para o mesmo e-mail.
+
+    Exatamente uma deve retornar 200, a outra 409. Nenhuma deve retornar 500.
+    Reproduz C2/C8b do relatório de simulação — IntegrityError no banco vira
+    409, não 500.
+    """
+    import concurrent.futures
+
+    monkeypatch.setattr(subscriptions, "send_trial_started", lambda **kw: {"sent": True})
+
+    with concurrent.futures.ThreadPoolExecutor(max_workers=2) as pool:
+        futures = [pool.submit(client.post, "/api/trial/start", json=TRIAL_BR) for _ in range(2)]
+        results = [f.result() for f in futures]
+
+    codes = sorted(r.status_code for r in results)
+    assert 500 not in [r.status_code for r in results], "nenhuma deve retornar 500"
+    assert codes == [200, 409], f"esperado [200, 409], obtido {codes}"
+
+
 def test_trial_nao_exige_cartao(client, monkeypatch):
     """card_token_id ignorado — trial não toca o Mercado Pago."""
     chamou_mp = []

@@ -115,7 +115,10 @@ class Subscription(Base):
     """
 
     __tablename__ = "site_subscriptions"
-    __table_args__ = (UniqueConstraint("provider", "external_id", name="uq_site_subscription_provider_external"),)
+    __table_args__ = (
+        UniqueConstraint("provider", "external_id", name="uq_site_subscription_provider_external"),
+        UniqueConstraint("user_id", "product_id", name="uq_site_subscription_user_product"),
+    )
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=lambda: str(uuid4()))
     user_id: Mapped[str] = mapped_column(ForeignKey("site_users.id", ondelete="CASCADE"), index=True)
