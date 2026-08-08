@@ -16,8 +16,8 @@
     ['Astrologia calculada', 'Astrología calculada'],
     ['Mapa Astral Completo', 'Carta Astral Completa'],
     ['Mapa Astral', 'Carta Astral'],
-    ['Plano Lua Premium', 'Plan Luna Premium'],
-    ['Plano Lua', 'Plan Luna'],
+    ['Diário Astral Completo', 'Diario Astral Completo'],
+    ['Diário Astral', 'Diario Astral'],
     ['Mapa do Amor', 'Mapa del Amor'],
     ['Mapa da Prosperidade', 'Mapa de la Prosperidad'],
     ['Calendário Lunar', 'Calendario Lunar'],
@@ -60,7 +60,7 @@
   ];
 
   var v1 = [
-    ['Plano Lua — seu horóscopo calculado no seu mapa astral | AstroDicas', 'Plan Luna — tu horóscopo calculado sobre tu carta natal | AstroDicas'],
+    ['Diário Astral — seu horóscopo calculado no seu mapa astral | AstroDicas', 'Diario Astral — tu horóscopo calculado sobre tu carta natal | AstroDicas'],
     ['Horóscopo diário calculado em cima do SEU mapa astral, entregue no site e no seu e-mail. Mapa Astral Completo de brinde na primeira assinatura.', 'Horóscopo diario calculado sobre TU carta natal, disponible en el sitio y en tu e-mail. Carta Astral Completa de regalo con la primera suscripción.'],
     ['O horóscopo que você', 'El horóscopo que leés'],
     ['lê por aí foi escrito', 'por ahí fue escrito'],
@@ -137,7 +137,7 @@
     ['Avisos antecipados de lua nova, lua cheia e retrógrados', 'Avisos anticipados de luna nueva, luna llena y retrógrados'],
     ['Sua área no site com tudo salvo pra sempre', 'Tu área en el sitio con todo guardado para siempre'],
     ['Cancelamento em 1 clique, sem multa e sem ligação', 'Cancelación en un clic, sin multa ni llamadas'],
-    ['Assinar o Plano Lua agora', 'Suscribirme a Plan Luna ahora'],
+    ['Ativar o Diário Astral agora', 'Activar el Diario Astral ahora'],
     ['Acesso liberado em segundos', 'Acceso habilitado en segundos'],
     ['Garantia de 7 dias.', 'Garantía de 7 días.'],
     ['Recebe o mapa, lê os horóscopos da semana. Se não parecer escrito pra você, devolvemos tudo — e o mapa fica com você mesmo assim.', 'Recibís la carta y leés los horóscopos de la semana. Si no parece escrito para vos, te devolvemos todo; la carta sigue siendo tuya.'],
@@ -260,17 +260,17 @@
     ['Avisos de lua e retrógrados', 'Avisos de luna y retrógrados'],
     ['Calendário Lunar + Guia dos Retrógrados', 'Calendario Lunar + Guía de los Retrógrados'],
     ['Suporte prioritário', 'Soporte prioritario'],
-    ['QUERO O PLANO LUA', 'QUIERO PLAN LUNA'],
+    ['QUERO O DIÁRIO ASTRAL', 'QUIERO EL DIARIO ASTRAL'],
     ['Você recebe no e-mail o acesso à sua área, já com o mapa liberado. Sem senha pra inventar.', 'Recibís por e-mail el acceso a tu área con la carta ya habilitada. Sin inventar contraseñas.'],
     ['Completo', 'Completo'],
-    ['1 mês inteiro do Plano Lua + todos os bônus', '1 mes completo de Plan Luna + todos los bonus'],
+    ['1 mês inteiro do Diário Astral + todos os bônus', '1 mes completo del Diario Astral + todos los bonus'],
     ['Pagamento único · sem recorrência', 'Pago único · sin recurrencia'],
-    ['1 mês do Plano Lua completo', '1 mes de Plan Luna completo'],
+    ['1 mês do Diário Astral completo', '1 mes del Diario Astral completo'],
     ['— horóscopo diário, Mapa Astral e Guia do Mês', '— horóscopo diario, Carta Astral y Guía del Mes'],
     ['Previsão personalizada da semana, todo domingo', 'Previsión personalizada de la semana, cada domingo'],
     ['Avisos de lua nova, cheia e retrógrados', 'Avisos de luna nueva, llena y retrógrados'],
     ['Calendário Lunar do ano', 'Calendario Lunar del año'],
-    ['Quero o Premium', 'Quiero Premium'],
+    ['Quero o Completo', 'Quiero el Completo'],
     ['Pagamento único, sem assinatura', 'Pago único, sin suscripción'],
     ['Você paga uma vez só. Bônus valendo', 'Pagás una sola vez. Bonus por un valor de'],
     ['liberados junto com o acesso e seus pra sempre.', 'habilitados junto con el acceso y tuyos para siempre.'],
@@ -301,9 +301,9 @@
     ['O cálculo é astronômico e exato: efemérides reais, posição planetária na data, hora e coordenadas do seu nascimento. A interpretação segue a tradição astrológica, escrita em português claro. Cada dia é recalculado sobre o seu mapa — não é texto reaproveitado.', 'El cálculo es astronómico y exacto: efemérides reales y posición planetaria según la fecha, la hora y las coordenadas de tu nacimiento. La interpretación sigue la tradición astrológica y está escrita en español claro. Cada día se recalcula sobre tu carta; no es texto reutilizado.'],
     ['Como funciona o brinde de todo mês?', '¿Cómo funciona el regalo de cada mes?'],
     ['Todo dia 1º você recebe o Guia do Mês: um PDF calculado no seu mapa com os trânsitos daquele mês, o calendário lunar e os melhores dias pra decisões de amor, dinheiro e trabalho. Não é o mesmo pra todo mundo — é feito pro seu nascimento, igual o horóscopo. Fica salvo na sua área e é seu pra sempre, mesmo se cancelar depois.', 'Cada día 1 recibís la Guía del Mes: un PDF calculado sobre tu carta con los tránsitos de ese mes, el calendario lunar y los mejores días para decisiones de amor, dinero y trabajo. No es igual para todos: está hecho para tu nacimiento, como el horóscopo. Queda guardado en tu área y es tuyo para siempre, incluso si cancelás después.'],
-    ['Qual a diferença do Plano Lua pro Premium?', '¿Cuál es la diferencia entre Plan Luna y Premium?'],
-    ['O Plano Lua é assinatura mensal: horóscopo diário, Mapa Astral Completo e o Guia do Mês, todo mês, enquanto você quiser. O Premium é', 'Plan Luna es una suscripción mensual: horóscopo diario, Carta Astral Completa y Guía del Mes mientras quieras. Premium es un'],
-    [': você leva 1 mês inteiro do Plano Lua mais a previsão semanal, os avisos de lua e retrógrados e os 5 bônus (Mapa do Amor, Mapa da Prosperidade, Calendário Lunar, Guia dos Retrógrados e Manual do Ascendente) — sem assinatura e sem cobrança recorrente.', ': recibís 1 mes completo de Plan Luna, la previsión semanal, avisos de luna y retrógrados y 5 bonus (Mapa del Amor, Mapa de la Prosperidad, Calendario Lunar, Guía de los Retrógrados y Manual del Ascendente), sin suscripción ni cobros recurrentes.'],
+    ['Qual a diferença do Diário Astral pro Completo?', '¿Cuál es la diferencia entre Diario Astral y Completo?'],
+    ['O Diário Astral é 30 dias de acesso: horóscopo diário, Mapa Astral Completo e o Guia do Mês. O Completo é', 'El Diario Astral es 30 días de acceso: horóscopo diario, Carta Astral Completa y Guía del Mes. El Completo es'],
+    [': você leva 30 dias do Diário Astral mais a previsão semanal, os avisos de lua e retrógrados e os 5 bônus (Mapa do Amor, Mapa da Prosperidade, Calendário Lunar, Guia dos Retrógrados e Manual do Ascendente) — tudo seu pra sempre, sem cobrança recorrente.', ': recibís 30 días del Diario Astral, la previsión semanal, avisos de luna y retrógrados y 5 bonus (Mapa del Amor, Mapa de la Prosperidad, Calendario Lunar, Guía de los Retrógrados y Manual del Ascendente), todo tuyo para siempre, sin cobros recurrentes.'],
     ['E se eu não gostar?', '¿Y si no me gusta?'],
     ['Você tem 7 dias de garantia incondicional. Pede o reembolso e devolvemos 100% — sem perguntas, sem burocracia.', 'Tenés 7 días de garantía incondicional. Pedís el reembolso y te devolvemos el 100%, sin preguntas ni burocracia.'],
     ['Meus dados ficam guardados?', '¿Guardan mis datos?'],
@@ -326,23 +326,23 @@
     ['Conteúdo de astrologia com finalidade de autoconhecimento e entretenimento. Não substitui orientação médica, psicológica, jurídica ou financeira.', 'Contenido de astrología con fines de autoconocimiento y entretenimiento. No reemplaza orientación médica, psicológica, jurídica ni financiera.'],
     ['QUERO MEU MAPA E HORÓSCOPO', 'QUIERO MI CARTA Y HORÓSCOPO'],
     ['ESPERE! Vai deixar tudo isso pra trás?', '¡ESPERÁ! ¿Vas a dejar todo esto atrás?'],
-    ['Só com o Plano Lua você', 'Solamente con Plan Luna'],
+    ['Só com o Diário Astral você', 'Solamente con el Diario Astral'],
     ['NÃO leva', 'NO recibís'],
     ['O Premium sai por', 'Premium cuesta'],
     ['. Só agora:', '. Solamente ahora:'],
     ['pagamento único · todos os bônus juntos valem', 'pago único · todos los bonus juntos valen'],
-    ['SIM! QUERO O PREMIUM POR ARS ', '¡SÍ! QUIERO PREMIUM POR ARS '],
-    ['SIM! QUERO O PREMIUM POR', '¡SÍ! QUIERO PREMIUM POR'],
-    ['Não, continuar só com o Plano Lua', 'No, continuar solamente con Plan Luna'],
+    ['SIM! QUERO O COMPLETO POR ARS ', '¡SÍ! QUIERO EL COMPLETO POR ARS '],
+    ['SIM! QUERO O COMPLETO POR', '¡SÍ! QUIERO EL COMPLETO POR'],
+    ['Não, continuar só com o Diário Astral', 'No, continuar solamente con el Diario Astral'],
     ['Peraí! Antes de você ir', '¡Esperá! Antes de que te vayas'],
-    ['Deixa eu fazer o menor preço que já fiz do Plano Lua:', 'Quiero ofrecerte el precio más bajo que hicimos para Plan Luna:'],
+    ['Deixa eu fazer o menor preço que já fiz do Diário Astral:', 'Quiero ofrecerte el precio más bajo que hicimos para el Diario Astral:'],
     ['Horóscopo diário calculado no SEU mapa', 'Horóscopo diario calculado sobre TU carta'],
     ['Mapa Astral Completo em PDF, de brinde', 'Carta Astral Completa en PDF, de regalo'],
     ['De', 'De'],
     ['por só', 'por solamente'],
     ['preço travado enquanto você for assinante — cancela quando quiser', 'precio congelado mientras seas suscriptora · cancelá cuando quieras'],
-    ['QUERO O PLANO LUA POR ARS ', 'QUIERO PLAN LUNA POR ARS '],
-    ['QUERO O PLANO LUA POR', 'QUIERO PLAN LUNA POR'],
+    ['QUERO O DIÁRIO ASTRAL POR ARS ', 'QUIERO EL DIARIO ASTRAL POR ARS '],
+    ['QUERO O DIÁRIO ASTRAL POR', 'QUIERO EL DIARIO ASTRAL POR'],
     ['Cancela quando quiser, sem multa', 'Cancelá cuando quieras, sin multa'],
     ['Não, prefiro perder essa condição', 'No, prefiero perder esta condición'],
     ['Slot do vídeo', 'Espacio para el video'],
@@ -389,14 +389,14 @@
   function apply() {
     document.title = page === 'v2'
       ? 'Tu Horóscopo Personalizado + Carta Astral Completa | AstroDicas'
-      : 'Plan Luna — tu horóscopo calculado sobre tu carta natal | AstroDicas';
+      : 'Diario Astral — tu horóscopo calculado sobre tu carta natal | AstroDicas';
     var description = document.querySelector('meta[name="description"]');
     if (description) description.content = page === 'v2'
       ? 'Horóscopo diario calculado sobre tu carta natal. Carta Astral Completa de regalo y una guía nueva cada mes.'
       : 'Horóscopo diario calculado sobre tu carta natal, disponible en el sitio y en tu e-mail. Carta Astral Completa de regalo.';
     var ogTitle = document.querySelector('meta[property="og:title"]');
     var ogDescription = document.querySelector('meta[property="og:description"]');
-    if (ogTitle) ogTitle.content = page === 'v2' ? 'Tu horóscopo, no el de tu signo' : 'Plan Luna — tu horóscopo, no el de tu signo';
+    if (ogTitle) ogTitle.content = page === 'v2' ? 'Tu horóscopo, no el de tu signo' : 'Diario Astral — tu horóscopo, no el de tu signo';
     if (ogDescription) ogDescription.content = page === 'v2'
       ? 'Horóscopo diario calculado sobre tu carta natal. Carta Astral Completa de regalo.'
       : 'Horóscopo diario calculado sobre tu carta natal. Carta Astral Completa de regalo.';
