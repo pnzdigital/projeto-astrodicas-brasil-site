@@ -18,7 +18,7 @@ from sqlalchemy.orm import Session
 from .db import Base, SessionLocal, engine, get_db
 from .astrology import resolve_coordinates
 from .mailer import send_purchase_confirmation
-from . import admin, checkout, entitlements, ggcheckout, horoscope_free, migrations, preview, pricing, renewal, security, sessions, subscriptions
+from . import admin, checkout, entitlements, ggcheckout, horoscope_free, migrations, preview, pricing, renewal, security, sessions, subscriptions, worker as _worker
 from .ratelimit import auth_rate_limit, password_reset_rate_limit, webhook_rate_limit
 from .engine import generate_reading, sections_for
 from .pdf_export import build_pdf
@@ -614,7 +614,7 @@ def _run_generation_job(reading_id: str, content_id: str, title: str, user_id: s
 
 
 @app.post("/api/me/readings/{content_id}/generate", status_code=status.HTTP_202_ACCEPTED)
-def generate(content_id: str, request: Request, response: Response, background_tasks: BackgroundTasks, site_session: str | None = Cookie(default=None), db: Session = Depends(get_db)) -> dict:
+def generate(content_id: str, request: Request, response: Response, background_tasks: BackgroundTasks | None = None, site_session: str | None = Cookie(default=None), db: Session = Depends(get_db)) -> dict:
     user = current_user(site_session, db, accept_language=request.headers.get("accept-language"))
     profile = db.get(Profile, user.id)
     if not profile or not profile.birth_date or not profile.birth_city:
@@ -669,11 +669,10 @@ def generate(content_id: str, request: Request, response: Response, background_t
     db.commit()
     db.refresh(reading)
     response.status_code = status.HTTP_202_ACCEPTED
-    # A resposta volta AGORA, com status "in_progress" — a geração de verdade
-    # roda depois, em background (ver `_run_generation_job`). O portal já
-    # sabia lidar com `status === 'in_progress'` (ACCESS_STATES.inProgress) e
-    # agora passa a fazer polling em /api/me/readings até `ready`/`fallback`.
-    background_tasks.add_task(_run_generation_job, reading.id, content_id, reading.title, user.id, user.locale, user.name)
+    # A resposta volta AGORA, com status "in_progress". A geração roda no
+    # worker separado (ver worker.py) que consome a tabela generation_jobs.
+    # O portal já faz polling em /api/me/readings até `ready`/`fallback`.
+    _worker.enqueue_generation_job(db, reading.id, content_id, user.id, locale, user.name)
     return {"reading": reading_to_dict(reading, user.locale)}
 
 

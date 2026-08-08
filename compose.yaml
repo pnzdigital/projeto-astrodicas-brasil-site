@@ -31,6 +31,21 @@ services:
     ports:
       - "8000:8000"
 
+  worker:
+    build:
+      context: ./api
+    command: ["python", "-m", "app.worker"]
+    environment:
+      DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:-astrodicas}@db:5432/${POSTGRES_DB:-astrodicas}
+      MINIMAX_API_KEY: ${MINIMAX_API_KEY:-}
+      MINIMAX_MAX_CONCURRENCY: ${MINIMAX_MAX_CONCURRENCY:-8}
+      JOB_VISIBILITY_TIMEOUT_MINUTES: ${JOB_VISIBILITY_TIMEOUT_MINUTES:-10}
+      SITE_SECRET_KEY: ${SITE_SECRET_KEY:?set SITE_SECRET_KEY in the environment}
+    depends_on:
+      db:
+        condition: service_healthy
+    stop_grace_period: 5m
+
   portal:
     build:
       context: .
