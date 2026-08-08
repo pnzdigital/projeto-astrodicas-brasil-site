@@ -685,6 +685,8 @@
           </aside>
         </section>
 
+        <section id="daily-history" hidden aria-label="Horóscopos anteriores"></section>
+
         <div class="section-head" id="entregaveis">
           <h2>Minha biblioteca</h2>
           <a href="#" data-toast="Todos os seus conteúdos já estão visíveis aqui.">04 conteúdos ativos</a>
@@ -1054,6 +1056,7 @@
       });
       renderLibrary();
       renderDailyHoroscope();
+      renderDailyHistory();
       // Retoma polling para leituras em progresso sem poll ativo (ex: aba fechada e reaberta).
       LIBRARY_ITEMS.forEach((item) => {
         if (item.state === ACCESS_STATES.inProgress && !appState.pollingContentIds.has(item.id)) {
@@ -1150,6 +1153,23 @@
         : `<span class="tag">${IS_ARGENTINA ? 'lectura personalizada' : 'leitura personalizada'}</span>`;
       setCta(IS_ARGENTINA ? 'Leer lectura completa →' : 'Ler leitura completa →', false);
       heroCta.dataset.dailyAction = 'open'; cta.dataset.dailyAction = 'open';
+    }
+    function renderDailyHistory() {
+      const container = document.getElementById('daily-history');
+      if (!container) return;
+      if (!appState.authenticated) { container.hidden = true; return; }
+      const item = LIBRARY_ITEMS.find((e) => e.id === 'site:content:horoscopo_diario');
+      if (!item) { container.hidden = true; return; }
+      const current = appState.readings.get(item.id);
+      const past = (appState.allReadings || [])
+        .filter((r) => r.content_id === 'site:content:horoscopo_diario' && r.id !== current?.id && r.status !== 'in_progress' && (r.status === 'ready' || (r.status === 'fallback' && r.body_html)))
+        .slice(0, 10);
+      if (past.length === 0) { container.hidden = true; return; }
+      container.hidden = false;
+      const fmtDate = (iso) => { if (!iso) return ''; const d = new Date(iso); return `${String(d.getDate()).padStart(2, '0')}<br>${d.toLocaleDateString(IS_ARGENTINA ? 'es-AR' : 'pt-BR', { month: 'short' }).toUpperCase().replace('.', '').slice(0, 3)}`; };
+      container.innerHTML = `
+        <div class="section-head"><h2>${IS_ARGENTINA ? 'Lecturas anteriores' : 'Horóscopos anteriores'}</h2></div>
+        <div class="delivery-list">${past.map((r) => `<div class="delivery" style="align-items:center"><time class="delivery-date" datetime="${r.created_at}">${fmtDate(r.created_at)}</time><div><strong>${r.title || (IS_ARGENTINA ? 'Horóscopo del día' : 'Horóscopo do dia')}</strong><span>${excerptFromHtml(r.body_html, 60) || (IS_ARGENTINA ? 'Lectura personalizada' : 'Leitura personalizada')}</span></div><button class="button ghost small" type="button" data-historical-reading="${r.id}" style="margin-left:auto;flex-shrink:0">${IS_ARGENTINA ? 'Abrir →' : 'Abrir →'}</button></div>`).join('')}</div>`;
     }
     async function handleDailyAction(action) {
       const item = LIBRARY_ITEMS.find((entry) => entry.id === 'site:content:horoscopo_diario');
@@ -1715,6 +1735,7 @@
       if (target.matches('[data-read]')) openReading(LIBRARY_ITEMS.find((item) => item.id === target.dataset.read));
       if (target.matches('[data-dismiss-notification]')) { document.querySelector(`[data-ready-for="${CSS.escape(target.dataset.dismissNotification)}"]`)?.remove(); }
       if (target.matches('[data-daily-action]')) handleDailyAction(target.dataset.dailyAction);
+      if (target.matches('[data-historical-reading]')) { const r = (appState.allReadings || []).find((e) => e.id === target.dataset.historicalReading); const hi = LIBRARY_ITEMS.find((e) => e.id === 'site:content:horoscopo_diario'); if (r && hi) showReading(hi, r); }
       if (target.matches('[data-print]')) { showToast('Preparando uma versão para impressão…'); window.print(); }
       if (target.matches('[data-print-reading-page]')) { showToast(`Preparando “${target.dataset.printTitle || 'leitura'}” para impressão…`); window.print(); }
       if (target.matches('[data-back-to-library]')) { event.preventDefault(); history.pushState(null, '', location.pathname + location.search + '#entregaveis'); showLibraryView(); }
