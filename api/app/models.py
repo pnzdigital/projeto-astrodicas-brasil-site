@@ -164,6 +164,12 @@ class Reading(Base):
     generated_at: Mapped[str] = mapped_column(String(40), default="")
     input_snapshot: Mapped[dict] = mapped_column(JSON, default=dict)
     error_message: Mapped[str] = mapped_column(Text, default="")
+    # Progresso por seção: sections_total é preenchido antes de chamar a engine,
+    # sections_done é incrementado conforme cada seção termina. O front lê esses
+    # campos via GET /api/me/readings para exibir uma barra de progresso real
+    # (não um spinner genérico) durante a espera.
+    sections_done: Mapped[int] = mapped_column(Integer, default=0)
+    sections_total: Mapped[int] = mapped_column(Integer, default=0)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now_utc)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now_utc, onupdate=now_utc)
     user: Mapped[User] = relationship(back_populates="readings")

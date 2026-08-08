@@ -51,6 +51,9 @@ NEW_COLUMNS: dict[str, tuple[tuple[str, str, str], ...]] = {
         ("generated_at", "VARCHAR(40)", "''"),
         ("input_snapshot", "JSON", ""),
         ("error_message", "TEXT", "''"),
+        # Progresso por seção — exposto para o front exibir barra real durante geração.
+        ("sections_done", "INTEGER", "0"),
+        ("sections_total", "INTEGER", "0"),
     ),
 }
 

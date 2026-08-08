@@ -872,6 +872,7 @@ def _generate_section(
 
 def _generate_reading_sections(
     content_id: str, title: str, profile, locale: str, customer_name: str, expected_sections: list[tuple[str, str]],
+    on_section_done=None,
 ) -> list[dict] | None:
     """Gera todas as seções esperadas em paralelo (pool limitado) e devolve a
     lista já ordenada, ou ``None`` se NENHUMA seção saiu — nesse caso o
@@ -897,12 +898,14 @@ def _generate_reading_sections(
             section, fell_back = future.result()
             results[idx] = section
             fell_back_any = fell_back_any or fell_back
+            if on_section_done:
+                on_section_done()
     if all(r is None for r in results):
         return None
     return results, fell_back_any  # type: ignore[return-value]
 
 
-def generate_reading(content_id: str, title: str, profile, locale: str = "pt-BR", customer_name: str = "") -> ReadingResult:
+def generate_reading(content_id: str, title: str, profile, locale: str = "pt-BR", customer_name: str = "", on_section_done=None) -> ReadingResult:
     # Mesmo flag da prévia grátis (commit 913fcd8): quando a hora não veio,
     # marcamos aqui para a UI renderizar o aviso ao lado do Ascendente
     # calculado. Sem isso, o cliente pagaria pela leitura completa e leria um
@@ -918,7 +921,7 @@ def generate_reading(content_id: str, title: str, profile, locale: str = "pt-BR"
         # Seção-a-seção, concorrente, com retry por seção (ver
         # ``_generate_reading_sections`` / ``_generate_section``) — substitui a
         # antiga chamada única de 7000 tokens para os 15 (ou 14) blocos.
-        outcome = _generate_reading_sections(content_id, title, profile, locale, customer_name, expected_sections)
+        outcome = _generate_reading_sections(content_id, title, profile, locale, customer_name, expected_sections, on_section_done=on_section_done)
         if outcome is not None:
             sections, fell_back_any = outcome
             generated = _sections_to_html(sections)
