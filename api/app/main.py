@@ -633,10 +633,27 @@ def generate(content_id: str, request: Request, response: Response, background_t
         msg = "Este conteúdo ainda não está liberado para sua conta." if locale == "pt-BR" else "Este contenido todavía no está disponible para tu cuenta."
         raise HTTPException(status_code=403, detail=msg)
     existing = db.scalar(select(Reading).where(Reading.user_id == user.id, Reading.content_id == content_id, Reading.status.in_(["ready", "fallback"])).order_by(Reading.created_at.desc()))
-    if existing and reading_is_current(existing, content_id, snapshot, locale):
+    if existing and existing.status == "ready" and reading_is_current(existing, content_id, snapshot, locale):
         # Já pronta: nada para gerar, devolve 200 de verdade (não 202).
         response.status_code = status.HTTP_200_OK
         return {"reading": reading_to_dict(existing, user.locale)}
+    # Fallback não é leitura pronta — tenta de novo. Limite: 3 por 24h para
+    # evitar loop de regeneração cara se o LLM continuar falhando.
+    if existing and existing.status == "fallback":
+        cutoff = datetime.now(timezone.utc) - timedelta(hours=24)
+        recent = db.scalars(
+            select(Reading)
+            .where(
+                Reading.user_id == user.id,
+                Reading.content_id == content_id,
+                Reading.status == "fallback",
+                Reading.created_at > cutoff,
+            )
+            .limit(3)
+        ).all()
+        if len(recent) >= 3:
+            response.status_code = status.HTTP_200_OK
+            return {"reading": reading_to_dict(existing, user.locale)}
     reading = Reading(
         user_id=user.id,
         content_id=content_id,

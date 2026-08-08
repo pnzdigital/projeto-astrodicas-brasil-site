@@ -106,12 +106,11 @@ def test_generate_requires_profile_then_returns_ready_reading(client):
     assert reading["warning"]
     assert "Touro" in reading["body_html"]
 
-    # A second call with the same (still current) profile snapshot finds the
-    # already-ready reading and returns it synchronously with 200 — no new
-    # generation job is queued.
-    same = client.post("/api/me/readings/site:content:horoscopo_diario/generate")
-    assert same.status_code == 200
-    assert same.json()["reading"]["id"] == reading["id"]
+    # Fallback NÃO é leitura pronta — a próxima chamada tenta de novo (202).
+    # Só para após 3 fallbacks em 24h para evitar loop de regeneração cara.
+    retry = client.post("/api/me/readings/site:content:horoscopo_diario/generate")
+    assert retry.status_code == 202, retry.text
+    assert retry.json()["reading"]["status"] == "in_progress"
 
 
 @pytest.mark.asyncio
