@@ -72,6 +72,6 @@ def test_webhook_route_still_rejects_in_production_even_with_allow_insecure_dev(
         monkeypatch.setenv("ALLOW_INSECURE_DEV", "1")
         response = client.post(
             "/api/webhooks/cakto",
-            json={"event_id": "evt-prod-check", "email": "a@b.com", "product_id": "site:plano_lua"},
+            json={"event_id": "evt-prod-check", "email": "a@b.com", "product_id": "site:diario_astral"},
         )
         assert response.status_code == 503

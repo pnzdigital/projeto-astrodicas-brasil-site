@@ -4,13 +4,13 @@ from app import pricing
 
 
 def test_all_brl_prices_match_readme():
-    assert pricing.amount_minor("site:plano_lua", "pt-BR") == 2790  # R$ 27,90/mês
-    assert pricing.amount_minor("site:oferta_plano_lua_premium", "pt-BR") == 9700  # R$ 97,00 único
+    assert pricing.amount_minor("site:diario_astral", "pt-BR") == 2790  # R$ 27,90/mês
+    assert pricing.amount_minor("site:diario_astral_completo", "pt-BR") == 9700  # R$ 97,00 único
 
 
 def test_all_ars_prices_match_readme():
-    assert pricing.format_amount(pricing.amount_minor("site:plano_lua", "es-AR"), "ARS") == "ARS 9.900"
-    assert pricing.format_amount(pricing.amount_minor("site:oferta_plano_lua_premium", "es-AR"), "ARS") == "ARS 34.900"
+    assert pricing.format_amount(pricing.amount_minor("site:diario_astral", "es-AR"), "ARS") == "ARS 9.900"
+    assert pricing.format_amount(pricing.amount_minor("site:diario_astral_completo", "es-AR"), "ARS") == "ARS 34.900"
 
 
 def test_every_sku_without_an_override_converts_at_the_same_rate():
@@ -34,7 +34,7 @@ def test_title_for_unknown_product_falls_back_to_id():
 
 
 def test_is_known_product():
-    assert pricing.is_known_product("site:plano_lua") is True
+    assert pricing.is_known_product("site:diario_astral") is True
     assert pricing.is_known_product("site:nope") is False
 
 
@@ -55,9 +55,9 @@ def test_format_amount_ars_with_cents():
 
 
 def test_granted_products_bundle_includes_purchased_item():
-    granted = pricing.granted_products("site:oferta_plano_lua_premium")
-    assert "site:oferta_plano_lua_premium" in granted
-    assert "site:plano_lua" in granted
+    granted = pricing.granted_products("site:diario_astral_completo")
+    assert "site:diario_astral_completo" in granted
+    assert "site:diario_astral" in granted
     assert "site:mapa_astral" in granted
 
 

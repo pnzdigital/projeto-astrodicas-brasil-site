@@ -53,7 +53,7 @@ def _fallbacks_in_db(db_session, user_email: str, content_id: str) -> list[Readi
 def test_mapa_astral_fallback_tenta_de_novo_nas_tres_primeiras_vezes(client, db_session):
     """Cada chamada com fallback existente cria nova tentativa (202) até o limite."""
     email = "retry-mapa@example.com"
-    _setup(client, db_session, email, ["site:oferta_plano_lua_premium"])
+    _setup(client, db_session, email, ["site:diario_astral_completo"])
 
     for i in range(3):
         r = _generate(client, MAPA)
@@ -75,7 +75,7 @@ def test_mapa_astral_fallback_antigo_mais_de_24h_permite_nova_tentativa(client, 
     from app.models import User
 
     email = "retry-antigo@example.com"
-    _setup(client, db_session, email, ["site:oferta_plano_lua_premium"])
+    _setup(client, db_session, email, ["site:diario_astral_completo"])
 
     # Gera 3 fallbacks e força o created_at para > 24h atrás
     for _ in range(3):
@@ -98,7 +98,7 @@ def test_mapa_astral_fallback_antigo_mais_de_24h_permite_nova_tentativa(client, 
 def test_horoscopo_fallback_de_hoje_tenta_de_novo_ate_limite(client, db_session):
     """Fallback do horóscopo de hoje → retry; amanhã resolveria sozinho pelo tempo."""
     email = "retry-horo@example.com"
-    _setup(client, db_session, email, ["site:plano_lua"])
+    _setup(client, db_session, email, ["site:diario_astral"])
 
     for i in range(3):
         r = _generate(client, HORO)

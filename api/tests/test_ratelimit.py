@@ -173,12 +173,12 @@ def test_checkout_order_and_webhook_have_independent_buckets(monkeypatch, client
     # O bucket do checkout estourado não deve afetar o bucket do webhook (chaves diferentes).
     first_webhook = client.post(
         "/api/webhooks/cakto",
-        json={"event_id": "evt-rl-1", "email": "a@b.com", "product_id": "site:plano_lua"},
+        json={"event_id": "evt-rl-1", "email": "a@b.com", "product_id": "site:diario_astral"},
     )
     assert first_webhook.status_code == 200
     second_webhook = client.post(
         "/api/webhooks/cakto",
-        json={"event_id": "evt-rl-2", "email": "a@b.com", "product_id": "site:plano_lua"},
+        json={"event_id": "evt-rl-2", "email": "a@b.com", "product_id": "site:diario_astral"},
     )
     assert second_webhook.status_code == 429
     assert "Retry-After" in second_webhook.headers

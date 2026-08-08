@@ -28,8 +28,8 @@ from app.models import Entitlement, Order, User, WebhookEvent
 
 GG_SECRET = "gg-secret-de-teste-32-bytes-min!"
 GG_PRODUCT_ID = "gg-uuid-plano-lua"
-GG_PRODUCT_MAP_JSON = json.dumps({GG_PRODUCT_ID: "site:plano_lua"})
-GG_CHECKOUT_URLS_JSON = json.dumps({"site:plano_lua": "https://checkout.gg.test/plano-lua"})
+GG_PRODUCT_MAP_JSON = json.dumps({GG_PRODUCT_ID: "site:diario_astral"})
+GG_CHECKOUT_URLS_JSON = json.dumps({"site:diario_astral": "https://checkout.gg.test/plano-lua"})
 
 
 def _gg_payload(
@@ -122,7 +122,7 @@ def test_paid_libera_acesso_e_envia_email(client, sent_emails):
     body = response.json()
     assert body["ok"] is True
     assert body["status"] == "paid"
-    assert body["product_id"] == "site:plano_lua"
+    assert body["product_id"] == "site:diario_astral"
 
     # Verifica entitlement no banco
     db = SessionLocal()
@@ -132,7 +132,7 @@ def test_paid_libera_acesso_e_envia_email(client, sent_emails):
         entitlement = db.scalar(
             select(Entitlement).where(
                 Entitlement.user_id == user.id,
-                Entitlement.product_id == "site:plano_lua",
+                Entitlement.product_id == "site:diario_astral",
             )
         )
         assert entitlement is not None
@@ -157,7 +157,7 @@ def test_paid_cria_order_com_amount_do_pricing(client, sent_emails):
     try:
         order = db.scalar(select(Order).where(Order.external_id == "pay-amount"))
         assert order is not None
-        assert order.amount_minor == pricing.amount_minor("site:plano_lua", "pt-BR")
+        assert order.amount_minor == pricing.amount_minor("site:diario_astral", "pt-BR")
         assert order.currency == "BRL"
         assert order.provider == "ggcheckout"
         assert order.locale == "pt-BR"
@@ -295,7 +295,7 @@ def test_produto_nao_mapeado_nao_persiste_evento_e_permite_retentativa(
         headers={"x-secret": GG_SECRET},
     )
     assert resp2.status_code == 200
-    assert resp2.json().get("product_id") == "site:plano_lua"
+    assert resp2.json().get("product_id") == "site:diario_astral"
 
     # Acesso liberado
     db = SessionLocal()
@@ -305,7 +305,7 @@ def test_produto_nao_mapeado_nao_persiste_evento_e_permite_retentativa(
         ent = db.scalar(
             select(Entitlement).where(
                 Entitlement.user_id == user.id,
-                Entitlement.product_id == "site:plano_lua",
+                Entitlement.product_id == "site:diario_astral",
             )
         )
         assert ent is not None and ent.status == "available"
@@ -329,7 +329,7 @@ def test_order_br_sem_url_retorna_503_com_mensagem_clara(client, monkeypatch):
     monkeypatch.delenv("GG_CHECKOUT_URLS", raising=False)
     response = client.post(
         "/api/checkout/order",
-        json={"product_id": "site:plano_lua", "email": "sem-url@cliente.com", "locale": "pt-BR"},
+        json={"product_id": "site:diario_astral", "email": "sem-url@cliente.com", "locale": "pt-BR"},
     )
     assert response.status_code == 503
     assert "checkout" in response.json()["detail"].lower()
@@ -348,7 +348,7 @@ def test_order_br_sem_url_loga_erro(client, monkeypatch, caplog):
 def test_order_br_com_url_retorna_init_point_com_email_e_ref(client):
     response = client.post(
         "/api/checkout/order",
-        json={"product_id": "site:plano_lua", "email": "oi@cliente.com.br", "name": "Oi", "locale": "pt-BR"},
+        json={"product_id": "site:diario_astral", "email": "oi@cliente.com.br", "name": "Oi", "locale": "pt-BR"},
     )
     assert response.status_code == 200, response.text
     body = response.json()
@@ -362,7 +362,7 @@ def test_order_br_url_json_invalido_retorna_503(client, monkeypatch):
     monkeypatch.setenv("GG_CHECKOUT_URLS", "nao-e-json")
     response = client.post(
         "/api/checkout/order",
-        json={"product_id": "site:plano_lua", "email": "bad@cliente.com", "locale": "pt-BR"},
+        json={"product_id": "site:diario_astral", "email": "bad@cliente.com", "locale": "pt-BR"},
     )
     assert response.status_code == 503
 
@@ -379,7 +379,7 @@ def _mp_env(monkeypatch):
 def test_argentina_continua_usando_mercadopago(client):
     response = client.post(
         "/api/checkout/order",
-        json={"product_id": "site:oferta_plano_lua_premium", "email": "garcia@cliente.ar", "locale": "es-AR"},
+        json={"product_id": "site:diario_astral_completo", "email": "garcia@cliente.ar", "locale": "es-AR"},
     )
     assert response.status_code == 200, response.text
     body = response.json()

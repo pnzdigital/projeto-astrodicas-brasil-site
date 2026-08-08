@@ -27,7 +27,7 @@ def _make_weekly_reading(target_iso_week: str, created_at: datetime | None = Non
     r = Reading(
         user_id="fake",
         content_id=CONTENT_SEMANAL,
-        product_id="site:plano_lua",
+        product_id="site:diario_astral",
         status="ready",
         title="Previsão da semana",
         input_snapshot={**_SNAPSHOT_BASE, "target_iso_week": target_iso_week},
@@ -185,7 +185,7 @@ def test_leitura_semanal_sem_target_iso_week_no_snapshot_nao_e_current(monkeypat
     r = Reading(
         user_id="fake",
         content_id=CONTENT_SEMANAL,
-        product_id="site:plano_lua",
+        product_id="site:diario_astral",
         status="ready",
         title="Previsão antiga",
         input_snapshot=_SNAPSHOT_BASE,  # sem target_iso_week
@@ -213,7 +213,7 @@ def test_calendario_lunar_ultimo_dia_do_mes_21h_local_ainda_e_current(monkeypatc
     r = Reading(
         user_id="fake",
         content_id=CONTENT_LUNAR,
-        product_id="site:plano_lua",
+        product_id="site:diario_astral",
         status="ready",
         title="Calendário Lunar",
         input_snapshot=snapshot,
@@ -238,7 +238,7 @@ def test_calendario_lunar_virou_mes_local_nao_e_current(monkeypatch):
     r = Reading(
         user_id="fake",
         content_id=CONTENT_LUNAR,
-        product_id="site:plano_lua",
+        product_id="site:diario_astral",
         status="ready",
         title="Calendário Lunar",
         input_snapshot=snapshot,

@@ -58,7 +58,7 @@ def renewal_emails_fail(monkeypatch):
 
 @pytest.fixture()
 def renewal_url(monkeypatch):
-    monkeypatch.setenv("GG_CHECKOUT_URLS", '{"site:plano_lua": "https://gg.test/plano-lua", "site:oferta_plano_lua_exit": "https://gg.test/oferta-exit"}')
+    monkeypatch.setenv("GG_CHECKOUT_URLS", '{"site:diario_astral": "https://gg.test/plano-lua", "site:diario_astral_oferta_saida": "https://gg.test/oferta-exit"}')
 
 
 def _make_user(db, email: str = "lua@test.com") -> User:
@@ -71,7 +71,7 @@ def _make_user(db, email: str = "lua@test.com") -> User:
 def _make_entitlement(db, user: User, expires_at=None, status="available") -> Entitlement:
     ent = Entitlement(
         user_id=user.id,
-        product_id="site:plano_lua",
+        product_id="site:diario_astral",
         status=status,
         source="site",
         expires_at=expires_at,
@@ -84,8 +84,8 @@ def _make_entitlement(db, user: User, expires_at=None, status="available") -> En
 # ── Concessão com prazo (fulfill_order) ───────────────────────────────────────
 
 GG_SECRET = "gg-secret-de-teste-32-bytes-min!"
-GG_PRODUCT_MAP = '{"gg-lua": "site:plano_lua", "gg-exit": "site:oferta_plano_lua_exit"}'
-GG_CHECKOUT_URLS = '{"site:plano_lua": "https://gg.test/lua", "site:oferta_plano_lua_exit": "https://gg.test/exit"}'
+GG_PRODUCT_MAP = '{"gg-lua": "site:diario_astral", "gg-exit": "site:diario_astral_oferta_saida"}'
+GG_CHECKOUT_URLS = '{"site:diario_astral": "https://gg.test/lua", "site:diario_astral_oferta_saida": "https://gg.test/exit"}'
 
 
 @pytest.fixture(autouse=True)
@@ -122,7 +122,7 @@ def test_plano_lua_recebe_expires_at_30_dias(client, _supress_purchase_email):
         user = db.scalar(select(User).where(User.email == "prazo@test.com"))
         ent = db.scalar(select(Entitlement).where(
             Entitlement.user_id == user.id,
-            Entitlement.product_id == "site:plano_lua",
+            Entitlement.product_id == "site:diario_astral",
         ))
         assert ent.expires_at is not None
         expires_aware = ent.expires_at if ent.expires_at.tzinfo else ent.expires_at.replace(tzinfo=timezone.utc)
@@ -145,7 +145,7 @@ def test_renovacao_estende_a_partir_do_vencimento_atual(client, _supress_purchas
         user = db.scalar(select(User).where(User.email == "renova@test.com"))
         ent = db.scalar(select(Entitlement).where(
             Entitlement.user_id == user.id,
-            Entitlement.product_id == "site:plano_lua",
+            Entitlement.product_id == "site:diario_astral",
         ))
         expires_1 = ent.expires_at if ent.expires_at.tzinfo else ent.expires_at.replace(tzinfo=timezone.utc)
     finally:
@@ -162,7 +162,7 @@ def test_renovacao_estende_a_partir_do_vencimento_atual(client, _supress_purchas
         user = db.scalar(select(User).where(User.email == "renova@test.com"))
         ent = db.scalar(select(Entitlement).where(
             Entitlement.user_id == user.id,
-            Entitlement.product_id == "site:plano_lua",
+            Entitlement.product_id == "site:diario_astral",
         ))
         expires_2 = ent.expires_at if ent.expires_at.tzinfo else ent.expires_at.replace(tzinfo=timezone.utc)
     finally:
@@ -187,7 +187,7 @@ def test_oferta_exit_carrega_prazo_no_plano_lua(client, _supress_purchase_email)
         user = db.scalar(select(User).where(User.email == "exit@test.com"))
         ent = db.scalar(select(Entitlement).where(
             Entitlement.user_id == user.id,
-            Entitlement.product_id == "site:plano_lua",
+            Entitlement.product_id == "site:diario_astral",
         ))
         assert ent is not None
         assert ent.expires_at is not None
@@ -312,7 +312,7 @@ def test_sem_url_renovacao_nao_envia_lembrete(db_session, renewal_emails, monkey
 
 
 def test_sem_url_winback_nao_envia_winback(db_session, renewal_emails, monkeypatch):
-    monkeypatch.setenv("GG_CHECKOUT_URLS", '{"site:plano_lua": "https://gg.test/lua"}')
+    monkeypatch.setenv("GG_CHECKOUT_URLS", '{"site:diario_astral": "https://gg.test/lua"}')
     user = _make_user(db_session)
     _make_entitlement(db_session, user, expires_at=NOW - timedelta(days=3))
 
@@ -387,7 +387,7 @@ def test_access_expoe_days_remaining_e_needs_renewal(client):
         user = db.scalar(select(User).where(User.email == "access@test.com"))
         db.add(Entitlement(
             user_id=user.id,
-            product_id="site:plano_lua",
+            product_id="site:diario_astral",
             status="available",
             expires_at=NOW + timedelta(days=5),
         ))
@@ -398,7 +398,7 @@ def test_access_expoe_days_remaining_e_needs_renewal(client):
     r = client.get("/api/me/access")
     assert r.status_code == 200
     ents = r.json()["entitlements"]
-    lua = next(e for e in ents if e["product_id"] == "site:plano_lua")
+    lua = next(e for e in ents if e["product_id"] == "site:diario_astral")
 
     assert 4 <= lua["days_remaining"] <= 5
     assert lua["needs_renewal"] is False
@@ -414,7 +414,7 @@ def test_access_vencido_needs_renewal_true(client):
         user = db.scalar(select(User).where(User.email == "vencido2@test.com"))
         db.add(Entitlement(
             user_id=user.id,
-            product_id="site:plano_lua",
+            product_id="site:diario_astral",
             status="available",
             expires_at=NOW - timedelta(days=2),
         ))
@@ -423,7 +423,7 @@ def test_access_vencido_needs_renewal_true(client):
         db.close()
 
     r = client.get("/api/me/access")
-    lua = next(e for e in r.json()["entitlements"] if e["product_id"] == "site:plano_lua")
+    lua = next(e for e in r.json()["entitlements"] if e["product_id"] == "site:diario_astral")
     assert lua["days_remaining"] == 0
     assert lua["needs_renewal"] is True
     assert lua["active"] is False

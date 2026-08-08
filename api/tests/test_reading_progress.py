@@ -166,7 +166,7 @@ def test_generate_202_response_includes_progress_fields(db_session, monkeypatch)
 def test_content_without_sections_keeps_counters_zero(db_session, monkeypatch):
     """Content IDs sem seções definidas (ex: horoscopo_diario antes da engine
     retornar) mantêm sections_done e sections_total em 0."""
-    user_id = _setup_paid_user(db_session, "progress-nosec@example.com", product_id="site:plano_lua")
+    user_id = _setup_paid_user(db_session, "progress-nosec@example.com", product_id="site:diario_astral")
 
     monkeypatch.setattr(main, "generate_reading", lambda *a, **kw: ReadingResult(body_html="<p>OK</p>", source="minimax"))
 

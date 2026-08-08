@@ -40,7 +40,7 @@ def _register_with_profile(client, email="lua@example.com", locale="pt-BR", birt
 def _grant_plano_lua(client, email):
     granted = client.post(
         "/api/webhooks/cakto",
-        json={"event_id": f"evt-{email}", "email": email, "product_id": "site:plano_lua"},
+        json={"event_id": f"evt-{email}", "email": email, "product_id": "site:diario_astral"},
     )
     assert granted.status_code == 200, granted.text
 
@@ -153,7 +153,7 @@ def test_cancelada_com_leitura_de_hoje_ja_gerada_perde_acesso_mesmo_assim(client
     assert gerada.status_code == 202
     assert len(calls) == 1
 
-    entitlement = db_session.query(Entitlement).filter(Entitlement.product_id == "site:plano_lua").one()
+    entitlement = db_session.query(Entitlement).filter(Entitlement.product_id == "site:diario_astral").one()
     entitlement.status = "revoked"
     db_session.add(entitlement)
     db_session.commit()
@@ -185,7 +185,7 @@ def test_virada_de_dia_21h_as_meia_noite_usa_o_dia_da_assinante_nao_do_servidor(
     reading = Reading(
         user_id="fake-user",
         content_id=CONTENT_ID,
-        product_id="site:plano_lua",
+        product_id="site:diario_astral",
         status="ready",
         title="Horóscopo diário",
         input_snapshot={"birth_date": "1990-05-20"},

@@ -25,7 +25,7 @@ def test_user_b_readings_never_include_user_a_readings(client, monkeypatch):
     )
     client.post(
         "/api/webhooks/cakto",
-        json={"event_id": "evt-isolamento-a", "email": "isolamento-a@example.com", "product_id": "site:plano_lua"},
+        json={"event_id": "evt-isolamento-a", "email": "isolamento-a@example.com", "product_id": "site:diario_astral"},
     )
     generated = client.post("/api/me/readings/site:content:horoscopo_diario/generate")
     # /generate is async now: a freshly-queued generation answers 202.

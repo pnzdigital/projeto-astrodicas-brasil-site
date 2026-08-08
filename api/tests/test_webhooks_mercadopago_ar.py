@@ -102,7 +102,7 @@ def test_pedido_novo_aponta_a_preferencia_para_a_rota_argentina(client, monkeypa
     response = client.post(
         "/api/checkout/order",
         json={
-            "product_id": "site:oferta_plano_lua_premium",
+            "product_id": "site:diario_astral_completo",
             "email": "ar@cliente.com",
             "name": "Cliente AR",
             "locale": "es-AR",

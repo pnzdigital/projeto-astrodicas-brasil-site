@@ -13,24 +13,24 @@ def _label(product_id: str) -> str:
 
 
 def test_plano_lua_has_its_own_ar_price():
-    assert _label("site:plano_lua") == "ARS 9.900"
+    assert _label("site:diario_astral") == "ARS 9.900"
 
 
 def test_premium_has_its_own_ar_price():
-    assert _label("site:oferta_plano_lua_premium") == "ARS 34.900"
+    assert _label("site:diario_astral_completo") == "ARS 34.900"
 
 
 def test_exit_offer_undercuts_the_plan():
-    assert _label("site:oferta_plano_lua_exit") == "ARS 8.900"
-    lua = pricing.amount_minor("site:plano_lua", "es-AR")
-    exit_offer = pricing.amount_minor("site:oferta_plano_lua_exit", "es-AR")
+    assert _label("site:diario_astral_oferta_saida") == "ARS 8.900"
+    lua = pricing.amount_minor("site:diario_astral", "es-AR")
+    exit_offer = pricing.amount_minor("site:diario_astral_oferta_saida", "es-AR")
     assert exit_offer < lua, "uma oferta de saída mais cara que o plano não é oferta"
 
 
 def test_brazil_is_untouched_by_the_ar_decision():
-    assert pricing.amount_minor("site:plano_lua", "pt-BR") == 2790
-    assert pricing.amount_minor("site:oferta_plano_lua_premium", "pt-BR") == 9700
-    assert pricing.amount_minor("site:oferta_plano_lua_exit", "pt-BR") == 2090
+    assert pricing.amount_minor("site:diario_astral", "pt-BR") == 2790
+    assert pricing.amount_minor("site:diario_astral_completo", "pt-BR") == 9700
+    assert pricing.amount_minor("site:diario_astral_oferta_saida", "pt-BR") == 2090
 
 
 def test_products_without_an_override_still_convert_from_brl():
@@ -45,5 +45,5 @@ def test_every_override_points_at_a_real_product():
 
 
 def test_checkout_amount_follows_the_override():
-    assert pricing.amount_units("site:plano_lua", "es-AR") == 9900.0
-    assert pricing.amount_units("site:oferta_plano_lua_premium", "es-AR") == 34900.0
+    assert pricing.amount_units("site:diario_astral", "es-AR") == 9900.0
+    assert pricing.amount_units("site:diario_astral_completo", "es-AR") == 34900.0

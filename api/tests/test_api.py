@@ -50,7 +50,7 @@ def test_webhook_is_verified_idempotent_and_grants_access(client, monkeypatch):
     payload = {
         "event_id": "evt-1",
         "email": "ana@example.com",
-        "product_id": "site:plano_lua",
+        "product_id": "site:diario_astral",
         "external_id": "order-1",
     }
     raw = json.dumps(payload, separators=(",", ":")).encode()
@@ -75,7 +75,7 @@ def test_generate_requires_profile_then_returns_ready_reading(client):
     payload = {
         "event_id": "evt-generate",
         "email": "ana@example.com",
-        "product_id": "site:plano_lua",
+        "product_id": "site:diario_astral",
     }
     granted = client.post("/api/webhooks/cakto", json=payload)
     assert granted.status_code == 200, granted.text

@@ -16,7 +16,7 @@ def _cakto_payload(event_id: str = "evt-1") -> dict:
     return {
         "event_id": event_id,
         "email": "buyer@example.com",
-        "product_id": "site:plano_lua",
+        "product_id": "site:diario_astral",
         "status": "paid",
         "amount_minor": 1990,
         "currency": "BRL",

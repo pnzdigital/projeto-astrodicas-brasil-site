@@ -72,7 +72,7 @@ def test_trial_start_retorna_trialing_com_prazo(client):
         sub = _assinatura(db)
         assert sub.status == "trialing"
         assert sub.provider == "none"
-        assert sub.product_id == "site:plano_lua"
+        assert sub.product_id == "site:diario_astral"
     finally:
         db.close()
 
@@ -84,12 +84,12 @@ def test_trial_concede_apenas_horoscopo(client):
     db = SessionLocal()
     try:
         ent_plano = db.scalar(
-            select(Entitlement).where(Entitlement.product_id == "site:plano_lua")
+            select(Entitlement).where(Entitlement.product_id == "site:diario_astral")
         )
         ent_mapa = db.scalar(
             select(Entitlement).where(Entitlement.product_id == "site:mapa_astral")
         )
-        assert ent_plano is not None, "trial deve conceder site:plano_lua"
+        assert ent_plano is not None, "trial deve conceder site:diario_astral"
         assert ent_plano.expires_at is not None, "trial tem prazo"
         assert ent_mapa is None, "mapa_astral NÃO deve existir durante o trial"
     finally:
@@ -159,9 +159,9 @@ def _cria_assinatura_ar_pending(preapproval_id: str = "preapproval-1") -> str:
             user_id=user.id,
             provider="mercadopago",
             external_id=preapproval_id,
-            product_id="site:plano_lua",
+            product_id="site:diario_astral",
             status="pending",
-            amount_minor=amount_minor("site:plano_lua", "es-AR"),
+            amount_minor=amount_minor("site:diario_astral", "es-AR"),
             currency="ARS",
             locale="es-AR",
             market="AR",
@@ -381,7 +381,7 @@ def test_cancelar_mantem_acesso_ate_fim_do_prazo(client, monkeypatch):
 
     db = SessionLocal()
     try:
-        ent = db.scalar(select(Entitlement).where(Entitlement.product_id == "site:plano_lua"))
+        ent = db.scalar(select(Entitlement).where(Entitlement.product_id == "site:diario_astral"))
         assert _aware(ent.expires_at) == prazo_antes
     finally:
         db.close()

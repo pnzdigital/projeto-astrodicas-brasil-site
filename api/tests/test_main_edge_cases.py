@@ -83,6 +83,6 @@ def test_generate_paid_content_without_entitlement_returns_403(client):
 def test_webhook_unknown_provider_returns_404(client):
     response = client.post(
         "/api/webhooks/stripe",
-        json={"event_id": "evt-1", "email": "a@b.com", "product_id": "site:plano_lua"},
+        json={"event_id": "evt-1", "email": "a@b.com", "product_id": "site:diario_astral"},
     )
     assert response.status_code == 404

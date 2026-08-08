@@ -89,12 +89,12 @@ MARKETS = [("pt-BR", "BRL"), ("es-AR", "ARS")]
 
 # Content IDs que cada produto libera (etapa 6/7)
 PRODUCT_CONTENT_IDS: dict[str, list[str]] = {
-    "site:plano_lua": ["site:content:horoscopo_diario", "site:content:guia_do_mes"],
+    "site:diario_astral": ["site:content:horoscopo_diario", "site:content:guia_do_mes"],
     "site:mapa_astral": ["site:content:mapa_astral_completo"],
     "site:mapa_amor_sinastria": ["site:content:mapa_do_amor_sinastria"],
     "site:mapa_carreira": ["site:content:mapa_da_carreira"],
     "site:mapa_prosperidade": ["site:content:mapa_da_prosperidade"],
-    "site:oferta_plano_lua_premium": [
+    "site:diario_astral_completo": [
         "site:content:previsao_semanal",
         "site:content:calendario_lunar",
         "site:content:guia_dos_retrogrados",
@@ -106,16 +106,16 @@ PRODUCT_CONTENT_IDS: dict[str, list[str]] = {
     "site:combo_amor_carreira": ["site:content:mapa_do_amor_sinastria", "site:content:mapa_da_carreira"],
     "site:combo_amor_prosperidade": ["site:content:mapa_do_amor_sinastria", "site:content:mapa_da_prosperidade"],
     "site:combo_carreira_prosperidade": ["site:content:mapa_da_carreira", "site:content:mapa_da_prosperidade"],
-    "site:combo_plano_lua_mapa_astral": ["site:content:horoscopo_diario", "site:content:mapa_astral_completo"],
-    "site:combo_plano_lua_mapa_amor": ["site:content:horoscopo_diario", "site:content:mapa_do_amor_sinastria"],
-    "site:combo_plano_lua_mapa_prosperidade": ["site:content:horoscopo_diario", "site:content:mapa_da_prosperidade"],
-    "site:oferta_plano_lua_premium_bump": [
+    "site:combo_diario_astral_mapa_astral": ["site:content:horoscopo_diario", "site:content:mapa_astral_completo"],
+    "site:combo_diario_astral_mapa_amor": ["site:content:horoscopo_diario", "site:content:mapa_do_amor_sinastria"],
+    "site:combo_diario_astral_mapa_prosperidade": ["site:content:horoscopo_diario", "site:content:mapa_da_prosperidade"],
+    "site:diario_astral_completo_bump": [
         "site:content:previsao_semanal",
         "site:content:calendario_lunar",
         "site:content:guia_dos_retrogrados",
         "site:content:manual_do_ascendente",
     ],
-    "site:oferta_plano_lua_exit": ["site:content:horoscopo_diario"],
+    "site:diario_astral_oferta_saida": ["site:content:horoscopo_diario"],
 }
 
 
@@ -213,7 +213,7 @@ def _set_profile_no_time(client: TestClient) -> None:
 
 def test_etapa1_login_cria_sessao(client: TestClient):
     """Login com uma conta criada pela compra (não há mais /api/auth/register) seta cookie de sessão."""
-    email = _email("site:plano_lua", "pt-BR")
+    email = _email("site:diario_astral", "pt-BR")
     _create_account(email, "SenhaForte123!", "pt-BR")
     r = client.post("/api/auth/login", json={"email": email, "password": "SenhaForte123!", "locale": "pt-BR"})
     assert r.status_code == 200
@@ -236,11 +236,11 @@ def test_etapa2_login_sessao_autentica(client: TestClient):
 
 def test_etapa3_checkout_valor_exato_do_catalogo(client: TestClient):
     """Amount enviado ao Mercado Pago é exatamente o do catálogo em runtime."""
-    email = _email("site:oferta_plano_lua_premium", "es-AR")
+    email = _email("site:diario_astral_completo", "es-AR")
     _register_login(client, email, "es-AR")
-    order = _create_order(client, "site:oferta_plano_lua_premium", email, "es-AR")
-    expected_minor = pricing.amount_minor("site:oferta_plano_lua_premium", "es-AR")
-    expected_units = pricing.amount_units("site:oferta_plano_lua_premium", "es-AR")
+    order = _create_order(client, "site:diario_astral_completo", email, "es-AR")
+    expected_minor = pricing.amount_minor("site:diario_astral_completo", "es-AR")
+    expected_units = pricing.amount_units("site:diario_astral_completo", "es-AR")
     assert order["amount_minor"] == expected_minor, (
         f"amount_minor {order['amount_minor']} != catálogo {expected_minor}"
     )
@@ -290,13 +290,13 @@ def test_etapa4_webhook_aprovado_assinatura_valida(client: TestClient):
 
 
 def test_etapa5_bundles_premium_libera_todos_itens(client: TestClient):
-    """site:oferta_plano_lua_premium libera 4 itens (bundle)."""
-    email = _email("site:oferta_plano_lua_premium", "pt-BR")
+    """site:diario_astral_completo libera 4 itens (bundle)."""
+    email = _email("site:diario_astral_completo", "pt-BR")
     _register_login(client, email, "pt-BR")
-    order = _create_order(client, "site:oferta_plano_lua_premium", email, "pt-BR")
-    _call_webhook(client, order, email, "site:oferta_plano_lua_premium", 9700, "BRL")
+    order = _create_order(client, "site:diario_astral_completo", email, "pt-BR")
+    _call_webhook(client, order, email, "site:diario_astral_completo", 9700, "BRL")
 
-    expected = set(pricing.granted_products("site:oferta_plano_lua_premium"))
+    expected = set(pricing.granted_products("site:diario_astral_completo"))
     r = client.get("/api/me/access")
     granted = {e["product_id"] for e in r.json()["entitlements"]}
     assert granted == expected, f"{granted} != {expected}"
@@ -349,7 +349,7 @@ def test_etapa7_sem_hora_gera_aviso_ascendente(client: TestClient):
 
 def test_etapa8_nao_comprador_recebe_403(client: TestClient):
     """Usuário logado sem compras recebe 403 ao tentar gerar conteúdo."""
-    email = _email("site:plano_lua", "pt-BR")
+    email = _email("site:diario_astral", "pt-BR")
     _register_login(client, email, "pt-BR")
     # Preenche perfil (geração valida profile antes de entitlement)
     client.put(

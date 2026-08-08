@@ -51,8 +51,8 @@ def test_argentine_price_is_the_brazilian_price_converted():
     ratio_combo = pricing.amount_minor("site:combo_mapa_astral_amor", "es-AR") / pricing.amount_minor("site:combo_mapa_astral_amor", "pt-BR")
     assert ratio_mapa == ratio_combo
     # Preços próprios do mercado AR.
-    assert pricing.format_amount(pricing.amount_minor("site:plano_lua", "es-AR"), "ARS") == "ARS 9.900"
-    assert pricing.format_amount(pricing.amount_minor("site:oferta_plano_lua_premium", "es-AR"), "ARS") == "ARS 34.900"
+    assert pricing.format_amount(pricing.amount_minor("site:diario_astral", "es-AR"), "ARS") == "ARS 9.900"
+    assert pricing.format_amount(pricing.amount_minor("site:diario_astral_completo", "es-AR"), "ARS") == "ARS 34.900"
 
 
 def test_catalog_endpoint_serves_each_market(client):
@@ -65,7 +65,7 @@ def test_catalog_endpoint_serves_each_market(client):
     assert ar["checkout"]["provider"] == "mercadopago"
     assert ar["checkout"]["transparent"] is False
     assert ar["checkout"]["redirect"] is True
-    lua_ar = next(p for p in ar["products"] if p["product_id"] == "site:plano_lua")
+    lua_ar = next(p for p in ar["products"] if p["product_id"] == "site:diario_astral")
     assert lua_ar["price_label"] == "ARS 9.900"
 
 
@@ -83,12 +83,12 @@ def test_order_uses_server_price_and_opens_a_checkout_pro_preference(client, mon
 
     response = client.post(
         "/api/checkout/order",
-        json={"product_id": "site:oferta_plano_lua_premium", "email": "Cliente@Example.com", "name": "Cliente Teste", "locale": "es-AR"},
+        json={"product_id": "site:diario_astral_completo", "email": "Cliente@Example.com", "name": "Cliente Teste", "locale": "es-AR"},
     )
     assert response.status_code == 200, response.text
     body = response.json()
     assert body["amount"] == 34900.0
-    assert body["amount_minor"] == pricing.PRICES_ARS_MINOR["site:oferta_plano_lua_premium"]
+    assert body["amount_minor"] == pricing.PRICES_ARS_MINOR["site:diario_astral_completo"]
     assert body["currency"] == "ARS"
     assert body["redirect"] is True
     assert body["init_point"] == "https://www.mercadopago.com/checkout/pref-1"
@@ -122,7 +122,7 @@ def test_payment_route_is_gone_and_returns_410(client):
 def test_merchant_order_approved_creates_account_grants_bundle_and_emails(client, monkeypatch, sent_emails):
     order = client.post(
         "/api/checkout/order",
-        json={"product_id": "site:oferta_plano_lua_premium", "email": "nova@cliente.com", "name": "Nova Cliente", "locale": "es-AR"},
+        json={"product_id": "site:diario_astral_completo", "email": "nova@cliente.com", "name": "Nova Cliente", "locale": "es-AR"},
     ).json()
 
     response = _complete_order_via_webhook(client, monkeypatch, order["order_id"])
@@ -143,7 +143,7 @@ def test_merchant_order_approved_creates_account_grants_bundle_and_emails(client
 def test_purchase_conversion_only_exposes_confirmed_order(client, monkeypatch, sent_emails):
     order = client.post(
         "/api/checkout/order",
-        json={"product_id": "site:oferta_plano_lua_premium", "email": "pixel@cliente.com", "locale": "es-AR"},
+        json={"product_id": "site:diario_astral_completo", "email": "pixel@cliente.com", "locale": "es-AR"},
     ).json()
 
     pending = client.get(f"/api/checkout/order/{order['order_id']}/conversion")
@@ -157,7 +157,7 @@ def test_purchase_conversion_only_exposes_confirmed_order(client, monkeypatch, s
     assert conversion.json() == {
         "event_id": f"site-purchase-{order['order_id']}",
         "order_id": order["order_id"],
-        "content_ids": ["site:oferta_plano_lua_premium"],
+        "content_ids": ["site:diario_astral_completo"],
         "content_name": "Diario Astral Completo",
         "content_type": "product",
         "num_items": 1,
@@ -195,7 +195,7 @@ def test_webhook_notification_verifies_signature_and_is_idempotent(client, monke
     monkeypatch.setenv("MP_WEBHOOK_SECRET", "clave-secreta")
     order = client.post(
         "/api/checkout/order",
-        json={"product_id": "site:plano_lua", "email": "hook@cliente.com", "locale": "es-AR"},
+        json={"product_id": "site:diario_astral", "email": "hook@cliente.com", "locale": "es-AR"},
     ).json()
     monkeypatch.setattr(
         mercadopago,
@@ -222,7 +222,7 @@ def test_order_rejected_when_mp_not_enabled_for_ar(client, monkeypatch):
     monkeypatch.delenv("MP_ACCESS_TOKEN", raising=False)
     response = client.post(
         "/api/checkout/order",
-        json={"product_id": "site:plano_lua", "email": "a@b.com", "locale": "es-AR"},
+        json={"product_id": "site:diario_astral", "email": "a@b.com", "locale": "es-AR"},
     )
     assert response.status_code == 503
 
@@ -375,7 +375,7 @@ def test_generation_works_for_every_paid_content(client, monkeypatch):
             "partner_country": "AR",
         },
     )
-    for product_id in ("site:oferta_plano_lua_premium", "site:mapa_carreira"):
+    for product_id in ("site:diario_astral_completo", "site:mapa_carreira"):
         client.post("/api/webhooks/cakto", json={"event_id": f"evt-{product_id}", "email": "ficticia@example.com", "product_id": product_id})
 
     contents = [

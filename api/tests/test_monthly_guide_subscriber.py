@@ -43,7 +43,7 @@ def _register_with_profile(client, email="lua@example.com", locale="pt-BR", birt
 def _grant_plano_lua(client, email):
     granted = client.post(
         "/api/webhooks/cakto",
-        json={"event_id": f"evt-{email}", "email": email, "product_id": "site:plano_lua"},
+        json={"event_id": f"evt-{email}", "email": email, "product_id": "site:diario_astral"},
     )
     assert granted.status_code == 200, granted.text
 
@@ -147,7 +147,7 @@ def test_virada_de_mes_perto_da_meia_noite_usa_o_mes_da_assinante_nao_do_servido
         reading = Reading(
             user_id="fake-user",
             content_id=CONTENT_ID,
-            product_id="site:plano_lua",
+            product_id="site:diario_astral",
             status="ready",
             title="Guia do mês",
             input_snapshot={"birth_date": "1990-05-20"},

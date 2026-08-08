@@ -55,7 +55,7 @@ def test_checkout_order_survives_pre_existing_orders_table_missing_new_columns(c
     response = client.post(
         "/api/checkout/order",
         json={
-            "product_id": "site:oferta_plano_lua_premium",
+            "product_id": "site:diario_astral_completo",
             "email": "cliente@example.com",
             "name": "Cliente Real",
             "locale": "pt-BR",

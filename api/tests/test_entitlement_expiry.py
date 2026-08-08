@@ -26,7 +26,7 @@ def _usuario(db, **entitlement_kwargs) -> User:
     db.add(user)
     db.flush()
     db.add(Profile(user_id=user.id, birth_date=datetime(1990, 7, 15).date(), birth_city="São Paulo"))
-    db.add(Entitlement(user_id=user.id, product_id="site:plano_lua", status="available", **entitlement_kwargs))
+    db.add(Entitlement(user_id=user.id, product_id="site:diario_astral", status="available", **entitlement_kwargs))
     db.commit()
     return user
 
@@ -37,26 +37,26 @@ def test_compra_avulsa_nao_vence(db_session):
 
     assert concedido.expires_at is None
     assert entitlements.is_active(concedido)
-    assert entitlements.active(db_session, user.id, "site:plano_lua")
+    assert entitlements.active(db_session, user.id, "site:diario_astral")
 
 
 def test_entitlement_vencido_perde_o_acesso(db_session):
     user = _usuario(db_session, expires_at=AGORA - timedelta(minutes=1))
 
-    assert entitlements.active(db_session, user.id, "site:plano_lua") is None
+    assert entitlements.active(db_session, user.id, "site:diario_astral") is None
 
 
 def test_entitlement_dentro_do_prazo_mantem_o_acesso(db_session):
     user = _usuario(db_session, expires_at=AGORA + timedelta(days=3))
 
-    assert entitlements.active(db_session, user.id, "site:plano_lua")
+    assert entitlements.active(db_session, user.id, "site:diario_astral")
 
 
 def test_expires_at_ingenuo_e_tratado_como_utc(db_session):
     """SQLite devolve datetime sem tzinfo; comparar direto levantaria TypeError."""
     ingenuo = Entitlement(
         user_id="qualquer",
-        product_id="site:plano_lua",
+        product_id="site:diario_astral",
         status="available",
         expires_at=(AGORA + timedelta(days=1)).replace(tzinfo=None),
     )
@@ -65,7 +65,7 @@ def test_expires_at_ingenuo_e_tratado_como_utc(db_session):
 
 
 def test_entitlement_revogado_nao_vale_mesmo_sem_prazo():
-    revogado = Entitlement(user_id="qualquer", product_id="site:plano_lua", status="revoked")
+    revogado = Entitlement(user_id="qualquer", product_id="site:diario_astral", status="revoked")
 
     assert entitlements.is_active(revogado) is False
 
@@ -87,7 +87,7 @@ def test_o_gate_da_leitura_recusa_entitlement_vencido(client):
         db.add(
             Entitlement(
                 user_id=user.id,
-                product_id="site:plano_lua",
+                product_id="site:diario_astral",
                 status="available",
                 expires_at=AGORA - timedelta(days=1),
             )

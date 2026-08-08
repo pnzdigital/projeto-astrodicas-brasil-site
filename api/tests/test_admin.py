@@ -48,7 +48,7 @@ def seed_orders():
                 user_id=user.id,
                 provider="mercadopago",
                 external_id="ext-2",
-                product_id="site:plano_lua",
+                product_id="site:diario_astral",
                 status="paid",
                 amount_minor=2790 * 310,
                 currency="ARS",
