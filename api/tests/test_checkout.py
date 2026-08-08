@@ -42,7 +42,7 @@ def _complete_order_via_webhook(client, monkeypatch, order_id, payment_status="a
 
 
 def test_argentine_price_is_the_brazilian_price_converted():
-    """A conversão vale para o catálogo geral. Plano Lua, Premium e a oferta de
+    """A conversão vale para o catálogo geral. Diário Astral, Completo e a oferta de
     saída têm preço argentino próprio, definido comercialmente — esses estão em
     test_pricing_ar_overrides."""
     assert pricing.amount_minor("site:mapa_astral", "pt-BR") == 4700
@@ -158,7 +158,7 @@ def test_purchase_conversion_only_exposes_confirmed_order(client, monkeypatch, s
         "event_id": f"site-purchase-{order['order_id']}",
         "order_id": order["order_id"],
         "content_ids": ["site:oferta_plano_lua_premium"],
-        "content_name": "Círculo Completo",
+        "content_name": "Diario Astral Completo",
         "content_type": "product",
         "num_items": 1,
         "value": 34900.0,

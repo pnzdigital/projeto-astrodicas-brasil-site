@@ -277,8 +277,8 @@ TITLE: dict[str, str] = {
 # O que fica do outro lado do cadastro. A UI usa para montar a oferta sem
 # inventar o que o produto entrega.
 LOCKED_LABEL: dict[str, str] = {
-    "pt-BR": "Este é o horóscopo de hoje. Os próximos dias, o mapa astral completo e as leituras interpretadas fazem parte do Plano Lua.",
-    "es-AR": "Este es el horóscopo de hoy. Los próximos días, la carta natal completa y las lecturas interpretadas forman parte del Plan Luna.",
+    "pt-BR": "Este é o horóscopo de hoje. Os próximos dias, o mapa astral completo e as leituras interpretadas fazem parte do Diário Astral.",
+    "es-AR": "Este es el horóscopo de hoy. Los próximos días, la carta natal completa y las lecturas interpretadas forman parte del Diario Astral.",
 }
 
 

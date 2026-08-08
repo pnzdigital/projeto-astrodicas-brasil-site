@@ -1,4 +1,4 @@
-"""Horóscopo diário da ASSINANTE do Plano Lua — a promessa central do plano
+"""Horóscopo diário da ASSINANTE do Diário Astral — a promessa central do plano
 ("horóscopo personalizado todos os dias, calculado sobre sua carta").
 
 Não é uma rota nova: ``POST /api/me/readings/{content_id}/generate`` já lida

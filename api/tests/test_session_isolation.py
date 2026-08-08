@@ -66,7 +66,7 @@ def test_entitlement_for_one_product_does_not_unlock_unrelated_paid_content(clie
         "/api/me/profile",
         json={"birth_date": "1990-05-20", "birth_time": "12:30:00", "birth_city": "Recife", "birth_country": "BR"},
     )
-    # Compra só o Mapa da Carreira: não deve abrir Mapa Astral nem Plano Lua.
+    # Compra só o Mapa da Carreira: não deve abrir Mapa Astral nem Diário Astral.
     client.post(
         "/api/webhooks/cakto",
         json={"event_id": "evt-produto-unico", "email": "produto-unico@example.com", "product_id": "site:mapa_carreira"},

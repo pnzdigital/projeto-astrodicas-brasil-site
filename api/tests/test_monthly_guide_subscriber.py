@@ -1,4 +1,4 @@
-"""Guia do Mês da ASSINANTE do Plano Lua ("os movimentos astrales que vêm"),
+"""Guia do Mês da ASSINANTE do Diário Astral ("os movimentos astrales que vêm"),
 vendido na copy do plano e antes disso zero backend.
 
 Mesma rota genérica de ``test_daily_horoscope_subscriber.py``

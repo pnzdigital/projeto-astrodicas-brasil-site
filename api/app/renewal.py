@@ -1,4 +1,4 @@
-"""Lembretes de renovação/trial e recuperação pós-vencimento do Círculo da Lua.
+"""Lembretes de renovação/trial e recuperação pós-vencimento do Diário Astral.
 
 Sem agendador in-process: morre no redeploy. O cron externo (Coolify) chama
 POST /api/tasks/renewal-reminders com o secret em x-task-secret.

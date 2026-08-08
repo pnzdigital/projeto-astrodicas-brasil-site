@@ -1,4 +1,4 @@
-"""Círculo da Lua — trial sem cartão e fluxo de assinatura paga (AR).
+"""Diário Astral — trial sem cartão e fluxo de assinatura paga (AR).
 
 O que estes testes protegem:
 

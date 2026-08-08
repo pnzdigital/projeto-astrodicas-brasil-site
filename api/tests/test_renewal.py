@@ -1,7 +1,7 @@
-"""Testes do módulo renewal.py — lembretes de renovação e winback do Plano Lua.
+"""Testes do módulo renewal.py — lembretes de renovação e winback do Diário Astral.
 
 Cobre:
-- Plano Lua compra avulsa recebe expires_at = now + 30 dias
+- Diário Astral compra avulsa recebe expires_at = now + 30 dias
 - Renovação estende a partir do vencimento atual, não de hoje
 - oferta_plano_lua_exit também carrega prazo no plano_lua
 - Outros produtos (mapa_astral) continuam vitalícios

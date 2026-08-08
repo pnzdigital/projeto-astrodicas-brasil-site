@@ -1,4 +1,4 @@
-"""Círculo da Lua por assinatura, abrindo com 3 dias grátis sem cartão.
+"""Diário Astral por assinatura, abrindo com 3 dias grátis sem cartão.
 
 O funil: a pessoa lê o horóscopo do dia grátis (``horoscope_free``), recebe
 a oferta e entra com nome + e-mail. O trial nasce localmente — sem MP,

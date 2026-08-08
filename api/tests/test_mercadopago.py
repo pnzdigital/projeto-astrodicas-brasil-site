@@ -79,7 +79,7 @@ def test_create_payment_includes_identification_and_notification_url(monkeypatch
     monkeypatch.setattr(mp, "_request", fake_request)
     mp.create_payment(
         amount=97.0,
-        description="Plano Lua Premium",
+        description="Diário Astral Completo",
         order_id="order-1",
         payer_email="a@b.com",
         form_data={

@@ -92,7 +92,7 @@ def test_send_purchase_confirmation_without_password(mock_resend_key, monkeypatc
         result = send_purchase_confirmation(
             "buyer@test.com",
             "Ana Costa",
-            "Plano Lua Premium",
+            "Diário Astral Completo",
             "R$ 99,90",
             locale="pt-BR",
         )
@@ -108,7 +108,7 @@ def test_send_purchase_confirmation_without_password(mock_resend_key, monkeypatc
         assert body["to"] == "buyer@test.com"
         assert "confirmada" in body["subject"]
         assert "Ana Costa" in body["html"]
-        assert "Plano Lua Premium" in body["html"]
+        assert "Diário Astral Completo" in body["html"]
         assert "R$ 99,90" in body["html"]
         assert "senha temporária" not in body["html"].lower()
 

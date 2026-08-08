@@ -751,10 +751,10 @@
   <dialog id="upgrade-dialog" aria-labelledby="upgrade-title">
     <div class="dialog-inner">
       <button class="dialog-close" type="button" aria-label="Fechar">×</button>
-      <p class="eyebrow">Upgrade do Plano Lua</p>
+      <p class="eyebrow">Upgrade do Diário Astral</p>
       <h2 id="upgrade-title">Mais duas lentes para ler seu céu.</h2>
       <p>Desbloqueie o Mapa do Amor e o Mapa da Prosperidade. O acesso aparece imediatamente no seu portal após a confirmação.</p>
-      <div class="dialog-actions"><button class="button ghost small dialog-close" type="button">Agora não</button><button class="button small" type="button" data-checkout-upgrade data-checkout-key="plano_lua_premium" data-offer-title="Plano Lua Premium">Ir para checkout →</button></div>
+      <div class="dialog-actions"><button class="button ghost small dialog-close" type="button">Agora não</button><button class="button small" type="button" data-checkout-upgrade data-checkout-key="plano_lua_premium" data-offer-title="Diário Astral Premium">Ir para checkout →</button></div>
     </div>
   </dialog>
 
@@ -858,13 +858,13 @@
     });
     const CONTENT_COPY = Object.freeze({
       'site:content:boas_vindas': { icon: '✦', kicker: 'Primeira leitura', meta: 'Leitura · 5 min', reading: '<p>Este é o seu espaço para ler o céu com calma. Comece por uma leitura, volte quando quiser e deixe as perguntas certas aparecerem no caminho.</p><h3>Como usar seu portal</h3><ul><li>Abra uma leitura por vez.</li><li>Salve o que quiser revisitar.</li><li>O PDF é opcional: a experiência principal acontece aqui.</li></ul>' },
-      'site:content:horoscopo_diario': { icon: '☽', kicker: 'Plano Lua', meta: 'Atualizado hoje · leitura personalizada', reading: '<p>Hoje você pode sentir que está carregando mais do que contou para alguém. Há uma parte sua tentando manter tudo sob controle, enquanto outra já percebeu que uma escolha precisa ser feita. Antes de responder no automático, observe onde seu corpo relaxa — essa é a pista mais honesta do seu dia.</p><p>Nas relações, o céu favorece uma conversa direta, mas não uma conversa dura. Diga o que você precisa sem transformar sua necessidade em cobrança. Quem realmente está disponível para você vai entender melhor quando você trocar a explicação interminável por uma frase simples, dita no momento certo.</p><p>No trabalho e nos planos pessoais, escolha uma prioridade que possa ser concluída, não uma lista que sirva apenas para provar o quanto você aguenta. O movimento de hoje é pequeno e decisivo: proteger sua energia, terminar o que importa e deixar o restante esperar. À noite, anote o que se repetiu — ali está o tema que seu mapa está pedindo para você olhar com mais carinho.</p>' },
-      'site:content:guia_do_mes': { icon: '◌', kicker: 'Plano Lua', meta: 'Julho · 12 min', reading: '<p>Este mês pede presença nas pequenas decisões. Use as mudanças do céu como um convite para ajustar o ritmo, não como uma lista de regras.</p><h3>Prática do mês</h3><ul><li>Escolha uma palavra-guia.</li><li>Reserve um espaço sem notificações por semana.</li><li>Registre o que se repete nos seus dias.</li></ul>' },
+      'site:content:horoscopo_diario': { icon: '☽', kicker: 'Diário Astral', meta: 'Atualizado hoje · leitura personalizada', reading: '<p>Hoje você pode sentir que está carregando mais do que contou para alguém. Há uma parte sua tentando manter tudo sob controle, enquanto outra já percebeu que uma escolha precisa ser feita. Antes de responder no automático, observe onde seu corpo relaxa — essa é a pista mais honesta do seu dia.</p><p>Nas relações, o céu favorece uma conversa direta, mas não uma conversa dura. Diga o que você precisa sem transformar sua necessidade em cobrança. Quem realmente está disponível para você vai entender melhor quando você trocar a explicação interminável por uma frase simples, dita no momento certo.</p><p>No trabalho e nos planos pessoais, escolha uma prioridade que possa ser concluída, não uma lista que sirva apenas para provar o quanto você aguenta. O movimento de hoje é pequeno e decisivo: proteger sua energia, terminar o que importa e deixar o restante esperar. À noite, anote o que se repetiu — ali está o tema que seu mapa está pedindo para você olhar com mais carinho.</p>' },
+      'site:content:guia_do_mes': { icon: '◌', kicker: 'Diário Astral', meta: 'Julho · 12 min', reading: '<p>Este mês pede presença nas pequenas decisões. Use as mudanças do céu como um convite para ajustar o ritmo, não como uma lista de regras.</p><h3>Prática do mês</h3><ul><li>Escolha uma palavra-guia.</li><li>Reserve um espaço sem notificações por semana.</li><li>Registre o que se repete nos seus dias.</li></ul>' },
       'site:content:mapa_astral_completo': { icon: '✦', kicker: 'Leitura principal', meta: 'Leitura · 28 min', reading: '<p>Seu mapa natal é a fotografia simbólica do céu no instante em que você chegou ao mundo. Explore cada camada no seu ritmo e volte sempre que uma fase pedir novas palavras.</p><h3>Você vai encontrar</h3><ul><li>Tríade principal e temperamento.</li><li>Casas, planetas e aspectos de destaque.</li><li>Perguntas para observar na vida real.</li></ul>' },
       'site:content:mapa_do_amor_sinastria': { icon: '♡', kicker: 'Leitura avulsa', meta: 'Desbloqueie para ler', reading: '<p>Uma leitura para compreender a dinâmica entre duas pessoas com delicadeza e profundidade — sem transformar vínculo em sentença.</p>' },
       'site:content:mapa_da_carreira': { icon: '✧', kicker: 'Leitura avulsa', meta: 'Desbloqueie para ler', reading: '<p>Seu mapa também fala sobre trabalho, visibilidade e a maneira como você constrói algo que importa.</p>' },
       'site:content:mapa_da_prosperidade': { icon: '◇', kicker: 'Leitura avulsa', meta: 'Desbloqueie para ler', reading: '<p>Prosperidade é relação: com tempo, recursos, prazer e segurança. Esta leitura abre novas perguntas para suas escolhas.</p>' },
-      'site:content:previsao_semanal': { icon: '◷', kicker: 'Plano Lua', meta: 'Domingo · automático', reading: '<p>A previsão semanal combina os movimentos do céu com o seu mapa. Ela chega no domingo e fica disponível nesta biblioteca durante todo o ciclo.</p><h3>Como usar</h3><ul><li>Leia no início da semana.</li><li>Marque o tema que mais ressoa.</li><li>Retorne no fim para observar o que mudou.</li></ul>' },
+      'site:content:previsao_semanal': { icon: '◷', kicker: 'Diário Astral', meta: 'Domingo · automático', reading: '<p>A previsão semanal combina os movimentos do céu com o seu mapa. Ela chega no domingo e fica disponível nesta biblioteca durante todo o ciclo.</p><h3>Como usar</h3><ul><li>Leia no início da semana.</li><li>Marque o tema que mais ressoa.</li><li>Retorne no fim para observar o que mudou.</li></ul>' },
       'site:content:calendario_lunar': { icon: '☾', kicker: 'Bônus Premium', meta: 'Incluído no Premium', reading: '<p>Um calendário para acompanhar luas novas, cheias e os momentos de recolhimento e expansão do ano.</p>' },
       'site:content:guia_dos_retrogrados': { icon: '↺', kicker: 'Bônus Premium', meta: 'Incluído no Premium', reading: '<p>Retrogradações são convites para rever. Use este guia para atravessar cada fase com menos pressa e mais contexto.</p>' },
       'site:content:manual_do_ascendente': { icon: '↑', kicker: 'Bônus Premium', meta: 'Incluído no Premium', reading: '<p>Seu Ascendente fala sobre a primeira impressão, o corpo e a forma como você encontra o mundo. Uma leitura para voltar muitas vezes.</p>' },
@@ -890,44 +890,44 @@
     }));
 
     const OFFER_COPY_BR = Object.freeze({
-      'site:plano_lua': ['Assinatura', 'Plano Lua', 'Horóscopo personalizado, Mapa Astral e Guia do Mês na sua área.', 'R$ 27,90', '/mês · cancela quando quiser', 'Conhecer Plano Lua'],
+      'site:plano_lua': ['Assinatura', 'Diário Astral', 'Horóscopo personalizado, Mapa Astral e Guia do Mês na sua área.', 'R$ 27,90', '/mês · cancela quando quiser', 'Conhecer Diário Astral'],
       'site:mapa_astral': ['Leitura avulsa', 'Mapa Astral Completo', 'A leitura natal completa para guardar, revisitar e compartilhar quando quiser.', 'A partir de R$ 47,00', 'acesso permanente', 'Ver Mapa Astral'],
       'site:mapa_amor_sinastria': ['Leitura avulsa', 'Mapa do Amor · Sinastria', 'Duas histórias, uma leitura cuidadosa sobre encontro, desejo e parceria.', 'A partir de R$ 47,00', 'acesso permanente', 'Ver Mapa do Amor'],
       'site:mapa_carreira': ['Leitura avulsa', 'Mapa da Carreira', 'Talentos e direção para tomar decisões profissionais com mais presença.', 'A partir de R$ 47,00', 'acesso permanente', 'Ver Mapa da Carreira'],
       'site:mapa_prosperidade': ['Leitura avulsa', 'Mapa da Prosperidade', 'Uma nova lente para recursos, merecimento e os planos que você sustenta.', 'A partir de R$ 47,00', 'acesso permanente', 'Ver Prosperidade'],
-      'site:oferta_plano_lua_premium': ['Pagamento único', 'Plano Lua Premium', 'Um mês do Plano Lua + Amor, Prosperidade, calendário, retrógrados e Ascendente.', 'R$ 97,00', 'uma vez · acesso aos bônus', 'Desbloquear tudo'],
+      'site:oferta_plano_lua_premium': ['Pagamento único', 'Diário Astral Premium', 'Um mês do Diário Astral + Amor, Prosperidade, calendário, retrógrados e Ascendente.', 'R$ 97,00', 'uma vez · acesso aos bônus', 'Desbloquear tudo'],
       'site:combo_mapa_astral_amor': ['Combinação', 'Mapa Astral + Mapa do Amor', 'Seu mapa natal completo e uma leitura dos seus encontros.', 'R$ 79,00', 'pagamento único', 'Conhecer combinação'],
       'site:combo_mapa_astral_carreira': ['Combinação', 'Mapa Astral + Mapa da Carreira', 'Identidade e direção profissional na mesma experiência.', 'R$ 79,00', 'pagamento único', 'Conhecer combinação'],
       'site:combo_mapa_astral_prosperidade': ['Combinação', 'Mapa Astral + Mapa da Prosperidade', 'Seu céu natal e os caminhos de abundância que ele revela.', 'R$ 79,00', 'pagamento único', 'Conhecer combinação'],
       'site:combo_amor_carreira': ['Combinação', 'Mapa do Amor + Mapa da Carreira', 'Relações e direção profissional em duas leituras complementares.', 'R$ 79,00', 'pagamento único', 'Conhecer combinação'],
       'site:combo_amor_prosperidade': ['Combinação', 'Mapa do Amor + Mapa da Prosperidade', 'Relações e recursos vistos em duas leituras complementares.', 'R$ 79,00', 'pagamento único', 'Conhecer combinação'],
       'site:combo_carreira_prosperidade': ['Combinação', 'Mapa da Carreira + Mapa da Prosperidade', 'Trabalho, talento e abundância em uma jornada única.', 'R$ 79,00', 'pagamento único', 'Conhecer combinação'],
-      'site:combo_plano_lua_mapa_astral': ['Combinação', 'Plano Lua + Mapa Astral', 'Acompanhamento mensal e seu mapa completo em uma só compra.', 'R$ 67,00', 'pagamento único', 'Conhecer combinação'],
-      'site:combo_plano_lua_mapa_amor': ['Combinação', 'Plano Lua + Mapa do Amor', 'Seu céu diário e uma leitura especial para os relacionamentos.', 'R$ 67,00', 'pagamento único', 'Conhecer combinação'],
-      'site:combo_plano_lua_mapa_prosperidade': ['Combinação', 'Plano Lua + Mapa da Prosperidade', 'Seu acompanhamento diário e uma leitura para prosperar.', 'R$ 67,00', 'pagamento único', 'Conhecer combinação'],
+      'site:combo_plano_lua_mapa_astral': ['Combinação', 'Diário Astral + Mapa Astral', 'Acompanhamento mensal e seu mapa completo em uma só compra.', 'R$ 67,00', 'pagamento único', 'Conhecer combinação'],
+      'site:combo_plano_lua_mapa_amor': ['Combinação', 'Diário Astral + Mapa do Amor', 'Seu céu diário e uma leitura especial para os relacionamentos.', 'R$ 67,00', 'pagamento único', 'Conhecer combinação'],
+      'site:combo_plano_lua_mapa_prosperidade': ['Combinação', 'Diário Astral + Mapa da Prosperidade', 'Seu acompanhamento diário e uma leitura para prosperar.', 'R$ 67,00', 'pagamento único', 'Conhecer combinação'],
     });
     const OFFER_COPY_AR = Object.freeze({
-      'site:plano_lua': ['Suscripción', 'Plan Luna', 'Horóscopo personalizado, Mapa Astral y Guía del Mes en tu área.', 'ARS 9.900', '/mes · cancela cuando quieras', 'Conocer Plan Luna'],
+      'site:plano_lua': ['Suscripción', 'Diario Astral', 'Horóscopo personalizado, Mapa Astral y Guía del Mes en tu área.', 'ARS 9.900', '/mes · cancela cuando quieras', 'Conocer Diario Astral'],
       'site:mapa_astral': ['Lectura individual', 'Mapa Astral Completo', 'Una lectura profunda para guardar y volver a consultar.', 'Desde ARS 14.570', 'acceso permanente', 'Ver Mapa Astral'],
       'site:mapa_amor_sinastria': ['Lectura individual', 'Mapa del Amor · Sinastría', 'Dos historias y una lectura cuidadosa sobre el encuentro.', 'Desde ARS 14.570', 'acceso permanente', 'Ver Mapa del Amor'],
       'site:mapa_carreira': ['Lectura individual', 'Mapa de la Carrera', 'Talentos y dirección para tus próximas decisiones profesionales.', 'Desde ARS 14.570', 'acceso permanente', 'Ver Mapa de la Carrera'],
       'site:mapa_prosperidade': ['Lectura individual', 'Mapa de la Prosperidad', 'Una nueva mirada sobre recursos, merecimiento y abundancia.', 'Desde ARS 14.570', 'acceso permanente', 'Ver Prosperidad'],
-      'site:oferta_plano_lua_premium': ['Pago único', 'Plan Luna Premium', 'Un mes de Plan Luna más todos los bonus de lectura.', 'ARS 34.900', 'una vez · acceso a los bonus', 'Desbloquear todo'],
+      'site:oferta_plano_lua_premium': ['Pago único', 'Diario Astral Premium', 'Un mes de Diario Astral más todos los bonus de lectura.', 'ARS 34.900', 'una vez · acceso a los bonus', 'Desbloquear todo'],
       'site:combo_mapa_astral_amor': ['Combinación', 'Mapa Astral + Mapa del Amor', 'Tu mapa natal y una lectura de tus encuentros.', 'ARS 24.490', 'pago único', 'Conocer combinación'],
       'site:combo_mapa_astral_carreira': ['Combinación', 'Mapa Astral + Mapa de la Carrera', 'Identidad y dirección profesional en una sola experiencia.', 'ARS 24.490', 'pago único', 'Conocer combinación'],
       'site:combo_mapa_astral_prosperidade': ['Combinación', 'Mapa Astral + Mapa de la Prosperidad', 'Tu cielo natal y los caminos de abundancia que revela.', 'ARS 24.490', 'pago único', 'Conocer combinación'],
       'site:combo_amor_carreira': ['Combinación', 'Mapa del Amor + Mapa de la Carrera', 'Relaciones y dirección profesional en una experiencia.', 'ARS 24.490', 'pago único', 'Conocer combinación'],
       'site:combo_amor_prosperidade': ['Combinación', 'Mapa del Amor + Mapa de la Prosperidad', 'Relaciones y recursos en dos lecturas complementarias.', 'ARS 24.490', 'pago único', 'Conocer combinación'],
       'site:combo_carreira_prosperidade': ['Combinación', 'Mapa de la Carrera + Prosperidad', 'Trabajo, talento y abundancia en una jornada única.', 'ARS 24.490', 'pago único', 'Conocer combinación'],
-      'site:combo_plano_lua_mapa_astral': ['Combinación', 'Plan Luna + Mapa Astral', 'Acompañamiento mensual y tu mapa completo.', 'ARS 20.770', 'pago único', 'Conocer combinación'],
-      'site:combo_plano_lua_mapa_amor': ['Combinación', 'Plan Luna + Mapa del Amor', 'Tu cielo diario y una lectura para tus relaciones.', 'ARS 20.770', 'pago único', 'Conocer combinación'],
-      'site:combo_plano_lua_mapa_prosperidade': ['Combinación', 'Plan Luna + Prosperidad', 'Acompañamiento diario y una lectura para prosperar.', 'ARS 20.770', 'pago único', 'Conocer combinación'],
+      'site:combo_plano_lua_mapa_astral': ['Combinación', 'Diario Astral + Mapa Astral', 'Acompañamiento mensual y tu mapa completo.', 'ARS 20.770', 'pago único', 'Conocer combinación'],
+      'site:combo_plano_lua_mapa_amor': ['Combinación', 'Diario Astral + Mapa del Amor', 'Tu cielo diario y una lectura para tus relaciones.', 'ARS 20.770', 'pago único', 'Conocer combinación'],
+      'site:combo_plano_lua_mapa_prosperidade': ['Combinación', 'Diario Astral + Prosperidad', 'Acompañamiento diario y una lectura para prosperar.', 'ARS 20.770', 'pago único', 'Conocer combinación'],
     });
     const OFFER_COPY = IS_ARGENTINA ? OFFER_COPY_AR : OFFER_COPY_BR;
     let LIBRARY_ITEMS = FALLBACK_LIBRARY_ITEMS;
     let OFFERS = Object.entries(OFFER_COPY).map(([id, [kicker, title, description, price, cadence, button]]) => ({ id, checkoutKey: id, kicker, title, description, price, cadence, button }));
     /* legacy demo data retained for reference; the portal uses the normalized catalog above.
-      { id: 'site:horoscopo-diario', title: 'Horóscopo diário', kicker: 'Plano Lua', icon: '☽', description: 'Uma leitura breve calculada sobre o seu mapa natal.', meta: 'Atualizado hoje', unlocked: true, reading: '<p>O céu de hoje favorece escolhas simples e conversas sem rodeios. Repare no que seu corpo já sabe antes de pedir opinião para todo mundo.</p><h3>Para levar com você</h3><ul><li>Escolha uma prioridade possível.</li><li>Proteja sua energia antes de explicar tudo.</li><li>Deixe o resto encontrar o próprio ritmo.</li></ul>' },
+      { id: 'site:horoscopo-diario', title: 'Horóscopo diário', kicker: 'Diário Astral', icon: '☽', description: 'Uma leitura breve calculada sobre o seu mapa natal.', meta: 'Atualizado hoje', unlocked: true, reading: '<p>O céu de hoje favorece escolhas simples e conversas sem rodeios. Repare no que seu corpo já sabe antes de pedir opinião para todo mundo.</p><h3>Para levar com você</h3><ul><li>Escolha uma prioridade possível.</li><li>Proteja sua energia antes de explicar tudo.</li><li>Deixe o resto encontrar o próprio ritmo.</li></ul>' },
       { id: 'site:mapa-astral', title: 'Mapa Astral Completo', kicker: 'Leitura principal', icon: '✦', description: 'Sol, Lua, Ascendente, casas, planetas e aspectos em uma leitura contínua.', meta: 'Leitura · 28 min', unlocked: true, reading: '<p>Seu mapa natal é a fotografia simbólica do céu no instante em que você chegou ao mundo. Explore cada camada no seu ritmo e volte sempre que uma fase pedir novas palavras.</p><h3>Você vai encontrar</h3><ul><li>Tríade principal e temperamento.</li><li>Casas, planetas e aspectos de destaque.</li><li>Perguntas para observar na vida real.</li></ul>' },
       { id: 'site:guia-do-mes', title: 'Guia do mês', kicker: 'Novo conteúdo', icon: '◌', description: 'Ritual editorial com os principais movimentos e uma prática para o mês.', meta: 'Julho · 12 min', unlocked: true, reading: '<p>Este mês pede presença nas pequenas decisões. Use as mudanças do céu como um convite para ajustar o ritmo, não como uma lista de regras.</p><h3>Prática do mês</h3><ul><li>Escolha uma palavra-guia.</li><li>Reserve um espaço sem notificações por semana.</li><li>Registre o que se repete nos seus dias.</li></ul>' },
       { id: 'site:previsao-semanal', title: 'Previsão da semana', kicker: 'Próximo envio', icon: '◷', description: 'Uma lente personalizada para atravessar a semana com mais clareza.', meta: 'Domingo · automático', unlocked: true, reading: '<p>A previsão semanal combina os movimentos do céu com o seu mapa. Ela chega no domingo e fica disponível nesta biblioteca durante todo o ciclo.</p><h3>Como usar</h3><ul><li>Leia no início da semana.</li><li>Marque o tema que mais ressoa.</li><li>Retorne no fim para observar o que mudou.</li></ul>' },
@@ -941,8 +941,8 @@
 
     /* legacy offer list
       const OFFERS = [
-      { id: 'site:plano-lua', checkoutKey: 'plano_lua', kicker: 'Assinatura', title: 'Plano Lua', description: 'Horóscopo diário no seu mapa, Mapa Astral Completo e um Guia do Mês novo.', price: 'R$ 27,90', cadence: '/mês · cancela quando quiser', button: 'Conhecer Plano Lua' },
-      { id: 'site:plano-lua-premium', checkoutKey: 'plano_lua_premium', kicker: 'Pagamento único', title: 'Plano Lua Premium', description: 'Um mês do Plano Lua + Amor, Prosperidade, calendário, retrógrados e Ascendente.', price: 'R$ 97,00', cadence: 'uma vez · acesso aos bônus', button: 'Desbloquear tudo' },
+      { id: 'site:plano-lua', checkoutKey: 'plano_lua', kicker: 'Assinatura', title: 'Diário Astral', description: 'Horóscopo diário no seu mapa, Mapa Astral Completo e um Guia do Mês novo.', price: 'R$ 27,90', cadence: '/mês · cancela quando quiser', button: 'Conhecer Diário Astral' },
+      { id: 'site:plano-lua-premium', checkoutKey: 'plano_lua_premium', kicker: 'Pagamento único', title: 'Diário Astral Premium', description: 'Um mês do Diário Astral + Amor, Prosperidade, calendário, retrógrados e Ascendente.', price: 'R$ 97,00', cadence: 'uma vez · acesso aos bônus', button: 'Desbloquear tudo' },
       { id: 'site:mapa-astral-avulso', checkoutKey: 'mapa_astral', kicker: 'Leitura avulsa', title: 'Mapa Astral Completo', description: 'A leitura natal completa para guardar, revisitar e compartilhar quando quiser.', price: 'A partir de R$ 47,00', cadence: 'acesso permanente', button: 'Ver Mapa Astral' },
       { id: 'site:mapa-amor', checkoutKey: 'mapa_amor', kicker: 'Leitura avulsa', title: 'Mapa do Amor · Sinastria', description: 'Duas histórias, uma leitura cuidadosa sobre encontro, desejo e parceria.', price: 'A partir de R$ 47,00', cadence: 'acesso permanente', button: 'Ver Mapa do Amor' },
       { id: 'site:mapa-carreira-oferta', checkoutKey: 'mapa_carreira', kicker: 'Leitura avulsa', title: 'Mapa da Carreira', description: 'Talentos e direção para tomar decisões profissionais com mais presença.', price: 'A partir de R$ 47,00', cadence: 'acesso permanente', button: 'Ver Mapa da Carreira' },
@@ -1074,7 +1074,7 @@
     // Horóscopo diário é o motivo dela abrir o site todo dia — por isso mora
     // fixo no hero + no card "seu momento agora", não escondido dentro da
     // biblioteca genérica. Estados honestos: sem dados de nascimento, sem
-    // Plano Lua ativo, gerando (202 assíncrono + polling) e falha de verdade
+    // Diário Astral ativo, gerando (202 assíncrono + polling) e falha de verdade
     // (sem cair em caixa em branco).
     function renderDailyHoroscope() {
       const heroKicker = document.getElementById('hero-kicker');
@@ -1106,16 +1106,16 @@
         return;
       }
       if (!entitlement || entitlement.status !== 'available') {
-        heroKicker.textContent = IS_ARGENTINA ? 'Contenido del Plan Luna' : 'Conteúdo do Plano Lua';
+        heroKicker.textContent = IS_ARGENTINA ? 'Contenido del Diario Astral' : 'Conteúdo do Diário Astral';
         heroStatus.textContent = IS_ARGENTINA
-          ? 'El horóscopo diario es parte del Plan Luna: una lectura nueva todos los días, calculada sobre tu mapa.'
-          : 'O horóscopo diário é parte do Plano Lua: uma leitura nova todo dia, calculada sobre o seu mapa.';
+          ? 'El horóscopo diario es parte del Diario Astral: una lectura nueva todos los días, calculada sobre tu mapa.'
+          : 'O horóscopo diário é parte do Diário Astral: uma leitura nova todo dia, calculada sobre o seu mapa.';
         headline.textContent = IS_ARGENTINA ? 'Tu horóscopo de hoy está a un paso.' : 'Seu horóscopo de hoje está a um passo.';
         body.textContent = IS_ARGENTINA
-          ? 'Al activar el Plan Luna, esta lectura se genera automáticamente todos los días para vos.'
-          : 'Ao ativar o Plano Lua, essa leitura passa a ser gerada automaticamente todos os dias para você.';
+          ? 'Al activar el Diario Astral, esta lectura se genera automáticamente todos los días para vos.'
+          : 'Ao ativar o Diário Astral, essa leitura passa a ser gerada automaticamente todos os dias para você.';
         tags.innerHTML = '';
-        setCta(IS_ARGENTINA ? 'Conocer Plan Luna →' : 'Conhecer Plano Lua →', false);
+        setCta(IS_ARGENTINA ? 'Conocer Diario Astral →' : 'Conhecer Diário Astral →', false);
         heroCta.dataset.dailyAction = 'plan'; cta.dataset.dailyAction = 'plan';
         return;
       }
@@ -1299,9 +1299,9 @@
         'Ainda não preenchidos': 'Todavía no completados',
         'Modo demonstração: o portal continua navegável sem uma sessão.': 'Modo demostración: el portal sigue navegable sin una sesión.',
         'Acesso conectado ao portal web.': 'Acceso conectado al portal web.',
-        'Plano Lua': 'Plan Luna',
-        'Upgrade do Plano Lua': 'Mejorar de Plan Luna',
-        'Mejorar do Plan Luna': 'Mejorar de Plan Luna',
+        'Diário Astral': 'Diario Astral',
+        'Upgrade do Diário Astral': 'Mejorar de Diario Astral',
+        'Mejorar do Diario Astral': 'Mejorar de Diario Astral',
         'Produtos disponíveis para compra': 'Productos disponibles para comprar',
         'Calendário lunar de agosto': 'Calendario lunar de agosto',
         'novo': 'nuevo',
@@ -1380,8 +1380,8 @@
       trigger.hidden = false;
       if (sub.in_trial) {
         status.innerHTML = IS_ARGENTINA
-          ? `Prueba gratis · activa hasta <strong>${accessUntil || '—'}</strong>. Recién después se cobra el Plan Luna.`
-          : `Teste grátis · ativo até <strong>${accessUntil || '—'}</strong>. Só depois disso o Plano Lua é cobrado.`;
+          ? `Prueba gratis · activa hasta <strong>${accessUntil || '—'}</strong>. Recién después se cobra el Diario Astral.`
+          : `Teste grátis · ativo até <strong>${accessUntil || '—'}</strong>. Só depois disso o Diário Astral é cobrado.`;
       } else if (sub.status === 'pending') {
         status.textContent = IS_ARGENTINA ? 'Esperando la confirmación de Mercado Pago.' : 'Aguardando a confirmação do Mercado Pago.';
       } else {
