@@ -95,13 +95,12 @@ test('InitiateCheckout dispara ao clicar no CTA do Plano Lua (pt-BR)', async () 
   assert.ok(ic, 'InitiateCheckout não disparou ao clicar no CTA');
 });
 
-test('es-AR: submit do form de trial dispara StartTrial antes do redirect pro Checkout Pro', () => {
-  // Sem cartão/Brick no front: o trial só envia nome/e-mail e redireciona pro
-  // init_point do Checkout Pro. StartTrial dispara no submit, antes do fetch.
+test('es-AR: submit do form de trial dispara StartTrial e redireciona pro portal', () => {
+  // Trial cria acesso local (sem Mercado Pago): redireciona pro PORTAL após status=trialing.
   const trialBlock = html.slice(html.indexOf('function wireTrialCard'), html.lastIndexOf('</script>'));
   assert.match(trialBlock, /fbq\('track', 'StartTrial'/, 'StartTrial não dispara no submit do form de trial');
   assert.match(trialBlock, /\/api\/trial\/start/, 'submit do trial não chama /api/trial/start');
-  assert.match(trialBlock, /data\.init_point/, 'submit do trial não redireciona pro init_point');
+  assert.match(trialBlock, /window\.location\.href\s*=\s*PORTAL/, 'submit do trial não redireciona pro PORTAL');
 });
 
 // ── storefront.html: ViewContent na vitrine ─────────────────────────────────
@@ -135,6 +134,31 @@ test('storefront.html dispara ViewContent na chegada', async () => {
 
   const vc = fbqCalls.find((c) => c[1] === 'ViewContent');
   assert.ok(vc, 'ViewContent não disparou no storefront');
+  assert.equal(vc[2].content_language, 'pt-BR');
+});
+
+// ── sales.html: ViewContent na landing page ──────────────────────────────────
+
+const salesHtml = readFileSync(pathResolve(here, 'sales.html'), 'utf8');
+
+test('sales.html dispara ViewContent na chegada', async () => {
+  const { window } = parseHTML(salesHtml);
+  window.location = { pathname: '/sales.html', search: '', href: 'http://localhost/sales.html' };
+  window.scrollTo = () => {};
+  const fbqCalls = [];
+  window.fbq = (...args) => fbqCalls.push(args);
+
+  const scriptBody = salesHtml.match(/<script type="module">([\s\S]*?)<\/script>/)[1];
+  const AsyncFunction = Object.getPrototypeOf(async function () {}).constructor;
+  try {
+    await new AsyncFunction('window', 'document', 'fetch', 'location', scriptBody)(
+      window, window.document, window.fetch, window.location,
+    );
+  } catch (_) {}
+  await new Promise((r) => setTimeout(r, 20));
+
+  const vc = fbqCalls.find((c) => c[1] === 'ViewContent');
+  assert.ok(vc, 'ViewContent não disparou no sales.html');
   assert.equal(vc[2].content_language, 'pt-BR');
 });
 

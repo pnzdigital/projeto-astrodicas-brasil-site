@@ -32,6 +32,7 @@
     const params = new URLSearchParams(location.search);
     const variant = params.get('variant') || (location.pathname.includes('oferta-lua-2') ? 'br-v2' : 'br-v1');
     const isEs = variant.startsWith('es-') || location.pathname.startsWith('/es/');
+    if (window.fbq) fbq('track', 'ViewContent', { content_name: 'sales', content_language: isEs ? 'es-AR' : 'pt-BR' });
     if (variant === 'es-v2' && location.pathname === '/sales.html') history.replaceState({}, '', '/es/oferta-lua-2');
     const copy = {
       'br-v1': { topbar:'Uma leitura do céu que começa no seu mapa — não em um horóscopo genérico.', header:'Diário Astral · canal web', kicker:'Seu céu, todos os dias', headline:'Você lê horóscopo todo dia e raramente se reconhece no que lê.', lede:'O Diário Astral calcula o céu de hoje no seu mapa natal — horóscopo feito para você, não para 1 de 12 signos.', oldPrice:'R$ 67', price:'R$ 27,90', priceNote:'/mês · cancela quando quiser', priceSub:'Acesso imediato à área web, com cancelamento simples.', cta:'Entrar no Diário Astral →', offerCta:'Quero minha primeira leitura →', product:'site:diario_astral' },
