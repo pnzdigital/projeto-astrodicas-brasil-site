@@ -33,21 +33,21 @@ export const CONTENT_TYPES = Object.freeze({
 
 // IDs de produto do site. Nunca reutilizar os IDs equivalentes do Telegram.
 export const PRODUCTS = Object.freeze({
-  PLANO_LUA: "site:plano_lua",
+  PLANO_LUA: "site:diario_astral",
   MAPA_ASTRAL: "site:mapa_astral",
   MAPA_AMOR: "site:mapa_amor_sinastria",
   MAPA_CARREIRA: "site:mapa_carreira",
   MAPA_PROSPERIDADE: "site:mapa_prosperidade",
-  OFERTA_PLANO_LUA_PREMIUM: "site:oferta_plano_lua_premium",
+  OFERTA_PLANO_LUA_PREMIUM: "site:diario_astral_completo",
   COMBO_ASTRAL_AMOR: "site:combo_mapa_astral_amor",
   COMBO_ASTRAL_CARREIRA: "site:combo_mapa_astral_carreira",
   COMBO_ASTRAL_PROSPERIDADE: "site:combo_mapa_astral_prosperidade",
   COMBO_AMOR_CARREIRA: "site:combo_amor_carreira",
   COMBO_AMOR_PROSPERIDADE: "site:combo_amor_prosperidade",
   COMBO_CARREIRA_PROSPERIDADE: "site:combo_carreira_prosperidade",
-  COMBO_PLANO_LUA_ASTRAL: "site:combo_plano_lua_mapa_astral",
-  COMBO_PLANO_LUA_AMOR: "site:combo_plano_lua_mapa_amor",
-  COMBO_PLANO_LUA_PROSPERIDADE: "site:combo_plano_lua_mapa_prosperidade",
+  COMBO_PLANO_LUA_ASTRAL: "site:combo_diario_astral_mapa_astral",
+  COMBO_PLANO_LUA_AMOR: "site:combo_diario_astral_mapa_amor",
+  COMBO_PLANO_LUA_PROSPERIDADE: "site:combo_diario_astral_mapa_prosperidade",
 });
 
 export const CONTENT = Object.freeze({

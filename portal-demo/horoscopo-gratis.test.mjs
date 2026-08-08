@@ -69,7 +69,7 @@ test('oferta pt-BR não tem formulário de trial nem chama /api/trial/start', ()
 });
 
 test('oferta pt-BR aponta para o checkout existente do Plano Lua', () => {
-  assert.match(html, /checkout\?product=site:plano_lua/);
+  assert.match(html, /checkout\?product=site:diario_astral/);
 });
 
 test('oferta es-AR usa formulário de trial e chama /api/trial/start', () => {

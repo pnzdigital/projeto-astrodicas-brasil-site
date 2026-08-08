@@ -37,8 +37,8 @@ Obrigatórias marcar com ⚠️.
 | `TRIAL_DAYS` | Não | `3` (padrão) | Tamanho do teste grátis do Plano Lua; só vale para assinaturas novas |
 | `CAKTO_WEBHOOK_SECRET` | ⚠️ (se Cakto ligado) | Painel Cakto > Webhooks > Chave secreta | 403 webhook rejeitado; pedido não confirma |
 | `GG_CHECKOUT_SECRET` | ⚠️ (se GG Checkout ligado) | Painel GG > Webhooks > Chave secreta | 503 no webhook; pedido não confirma e acesso não é liberado |
-| `GG_CHECKOUT_URLS` | ⚠️ (se GG Checkout ligado) | JSON `{"site:plano_lua": "https://..."}` com URLs de checkout por produto | 503 em `/api/checkout/order` BR; checkout não abre |
-| `GG_PRODUCT_MAP` | ⚠️ (se GG Checkout ligado) | JSON `{"gg-uuid": "site:plano_lua"}` mapeando UID do produto GG ao nosso product_id | 422 no webhook; produto não mapeado e acesso não é liberado |
+| `GG_CHECKOUT_URLS` | ⚠️ (se GG Checkout ligado) | JSON `{"site:diario_astral": "https://..."}` com URLs de checkout por produto | 503 em `/api/checkout/order` BR; checkout não abre |
+| `GG_PRODUCT_MAP` | ⚠️ (se GG Checkout ligado) | JSON `{"gg-uuid": "site:diario_astral"}` mapeando UID do produto GG ao nosso product_id | 422 no webhook; produto não mapeado e acesso não é liberado |
 | `RESEND_API_KEY` | Não | Painel Resend > API keys | Confirmação e reset de senha por e-mail falham silenciosamente |
 | `MAIL_FROM` | Não | `AstroDicas <naoresponda@pnzdigital.com.br>` | Remetente padrão nos e-mails |
 | `MINIMAX_API_KEY` | Não | Painel MiniMax > Credenciais | Leituras usam fallback editorial local (OK) |
@@ -128,8 +128,8 @@ Obrigatórias marcar com ⚠️.
    - Painel GG > Webhooks > Criar
    - URL: `https://astrodicas.pnzdigital.com.br/api/webhooks/ggcheckout`
    - Guardar **Chave secreta** → `GG_CHECKOUT_SECRET` env
-   - `GG_CHECKOUT_URLS` → JSON com URL de checkout por produto: `{"site:plano_lua": "https://checkout.gg.com/..."}`
-   - `GG_PRODUCT_MAP` → JSON com UUID GG por produto: `{"gg-uuid-do-produto": "site:plano_lua"}`
+   - `GG_CHECKOUT_URLS` → JSON com URL de checkout por produto: `{"site:diario_astral": "https://checkout.gg.com/..."}`
+   - `GG_PRODUCT_MAP` → JSON com UUID GG por produto: `{"gg-uuid-do-produto": "site:diario_astral"}`
 
 2. **Testar:**
    ```bash

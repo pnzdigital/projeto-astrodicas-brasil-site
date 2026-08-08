@@ -24,7 +24,7 @@ assert.match(argentina, /defaultProvider:\s*"mercado_pago"/);
 assert.match(argentina, /locale:\s*"es-AR"/);
 assert.match(html, /window\.location\.pathname\.startsWith\('\/es\/'\)/);
 assert.equal((html.match(/<script type="module">/g) || []).length, 1);
-for (const marker of ['id="catalog"', 'id="chats"', 'id="journal"', 'portal-config-ar.js', 'site:combo_plano_lua_mapa_prosperidade']) {
+for (const marker of ['id="catalog"', 'id="chats"', 'id="journal"', 'portal-config-ar.js', 'site:combo_diario_astral_mapa_prosperidade']) {
   assert.ok(storefront.includes(marker), `missing storefront marker: ${marker}`);
 }
 console.log('portal smoke checks: ok');

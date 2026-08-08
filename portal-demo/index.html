@@ -873,16 +873,16 @@
     });
     const FALLBACK_LIBRARY_ITEMS = [
       { id: 'site:content:boas_vindas', productId: null, title: 'Boas-vindas ao seu céu', description: 'Um pequeno ritual para começar a explorar sua área AstroDicas.' },
-      { id: 'site:content:horoscopo_diario', productId: 'site:plano_lua', title: 'Horóscopo diário', description: 'Uma leitura breve calculada sobre o seu mapa natal.' },
-      { id: 'site:content:guia_do_mes', productId: 'site:plano_lua', title: 'Guia do mês', description: 'Ritual editorial com os principais movimentos e uma prática para o mês.' },
+      { id: 'site:content:horoscopo_diario', productId: 'site:diario_astral', title: 'Horóscopo diário', description: 'Uma leitura breve calculada sobre o seu mapa natal.' },
+      { id: 'site:content:guia_do_mes', productId: 'site:diario_astral', title: 'Guia do mês', description: 'Ritual editorial com os principais movimentos e uma prática para o mês.' },
       { id: 'site:content:mapa_astral_completo', productId: 'site:mapa_astral', title: 'Mapa Astral Completo', description: 'Sol, Lua, Ascendente, casas, planetas e aspectos em uma leitura contínua.' },
       { id: 'site:content:mapa_do_amor_sinastria', productId: 'site:mapa_amor_sinastria', title: 'Mapa do Amor · Sinastria', description: 'Encontre os pontos de encontro, desejo e cuidado entre dois mapas.' },
       { id: 'site:content:mapa_da_carreira', productId: 'site:mapa_carreira', title: 'Mapa da Carreira', description: 'Talentos, direção e escolhas profissionais vistos pelo seu céu.' },
       { id: 'site:content:mapa_da_prosperidade', productId: 'site:mapa_prosperidade', title: 'Mapa da Prosperidade', description: 'Uma leitura sobre recursos, merecimento e a forma como você sustenta seus planos.' },
-      { id: 'site:content:previsao_semanal', productId: 'site:oferta_plano_lua_premium', title: 'Previsão da semana', description: 'Uma lente personalizada para atravessar a semana com mais clareza.' },
-      { id: 'site:content:calendario_lunar', productId: 'site:oferta_plano_lua_premium', title: 'Calendário lunar', description: 'As fases do ano organizadas para você planejar, pausar e recomeçar.' },
-      { id: 'site:content:guia_dos_retrogrados', productId: 'site:oferta_plano_lua_premium', title: 'Guia dos retrógrados', description: 'O que revisar, recalibrar e observar quando os planetas parecem voltar.' },
-      { id: 'site:content:manual_do_ascendente', productId: 'site:oferta_plano_lua_premium', title: 'Manual do Ascendente', description: 'A presença que chega antes das palavras — e como cuidar dela.' },
+      { id: 'site:content:previsao_semanal', productId: 'site:diario_astral_completo', title: 'Previsão da semana', description: 'Uma lente personalizada para atravessar a semana com mais clareza.' },
+      { id: 'site:content:calendario_lunar', productId: 'site:diario_astral_completo', title: 'Calendário lunar', description: 'As fases do ano organizadas para você planejar, pausar e recomeçar.' },
+      { id: 'site:content:guia_dos_retrogrados', productId: 'site:diario_astral_completo', title: 'Guia dos retrógrados', description: 'O que revisar, recalibrar e observar quando os planetas parecem voltar.' },
+      { id: 'site:content:manual_do_ascendente', productId: 'site:diario_astral_completo', title: 'Manual do Ascendente', description: 'A presença que chega antes das palavras — e como cuidar dela.' },
     ].map((item) => ({
       ...item,
       ...CONTENT_COPY[item.id],
@@ -892,38 +892,38 @@
     }));
 
     const OFFER_COPY_BR = Object.freeze({
-      'site:plano_lua': ['Assinatura', 'Diário Astral', 'Horóscopo personalizado, Mapa Astral e Guia do Mês na sua área.', 'R$ 27,90', '/mês · cancela quando quiser', 'Conhecer Diário Astral'],
+      'site:diario_astral': ['Assinatura', 'Diário Astral', 'Horóscopo personalizado, Mapa Astral e Guia do Mês na sua área.', 'R$ 27,90', '/mês · cancela quando quiser', 'Conhecer Diário Astral'],
       'site:mapa_astral': ['Leitura avulsa', 'Mapa Astral Completo', 'A leitura natal completa para guardar, revisitar e compartilhar quando quiser.', 'A partir de R$ 47,00', 'acesso permanente', 'Ver Mapa Astral'],
       'site:mapa_amor_sinastria': ['Leitura avulsa', 'Mapa do Amor · Sinastria', 'Duas histórias, uma leitura cuidadosa sobre encontro, desejo e parceria.', 'A partir de R$ 47,00', 'acesso permanente', 'Ver Mapa do Amor'],
       'site:mapa_carreira': ['Leitura avulsa', 'Mapa da Carreira', 'Talentos e direção para tomar decisões profissionais com mais presença.', 'A partir de R$ 47,00', 'acesso permanente', 'Ver Mapa da Carreira'],
       'site:mapa_prosperidade': ['Leitura avulsa', 'Mapa da Prosperidade', 'Uma nova lente para recursos, merecimento e os planos que você sustenta.', 'A partir de R$ 47,00', 'acesso permanente', 'Ver Prosperidade'],
-      'site:oferta_plano_lua_premium': ['Pagamento único', 'Diário Astral Premium', 'Um mês do Diário Astral + Amor, Prosperidade, calendário, retrógrados e Ascendente.', 'R$ 97,00', 'uma vez · acesso aos bônus', 'Desbloquear tudo'],
+      'site:diario_astral_completo': ['Pagamento único', 'Diário Astral Premium', 'Um mês do Diário Astral + Amor, Prosperidade, calendário, retrógrados e Ascendente.', 'R$ 97,00', 'uma vez · acesso aos bônus', 'Desbloquear tudo'],
       'site:combo_mapa_astral_amor': ['Combinação', 'Mapa Astral + Mapa do Amor', 'Seu mapa natal completo e uma leitura dos seus encontros.', 'R$ 79,00', 'pagamento único', 'Conhecer combinação'],
       'site:combo_mapa_astral_carreira': ['Combinação', 'Mapa Astral + Mapa da Carreira', 'Identidade e direção profissional na mesma experiência.', 'R$ 79,00', 'pagamento único', 'Conhecer combinação'],
       'site:combo_mapa_astral_prosperidade': ['Combinação', 'Mapa Astral + Mapa da Prosperidade', 'Seu céu natal e os caminhos de abundância que ele revela.', 'R$ 79,00', 'pagamento único', 'Conhecer combinação'],
       'site:combo_amor_carreira': ['Combinação', 'Mapa do Amor + Mapa da Carreira', 'Relações e direção profissional em duas leituras complementares.', 'R$ 79,00', 'pagamento único', 'Conhecer combinação'],
       'site:combo_amor_prosperidade': ['Combinação', 'Mapa do Amor + Mapa da Prosperidade', 'Relações e recursos vistos em duas leituras complementares.', 'R$ 79,00', 'pagamento único', 'Conhecer combinação'],
       'site:combo_carreira_prosperidade': ['Combinação', 'Mapa da Carreira + Mapa da Prosperidade', 'Trabalho, talento e abundância em uma jornada única.', 'R$ 79,00', 'pagamento único', 'Conhecer combinação'],
-      'site:combo_plano_lua_mapa_astral': ['Combinação', 'Diário Astral + Mapa Astral', 'Acompanhamento mensal e seu mapa completo em uma só compra.', 'R$ 67,00', 'pagamento único', 'Conhecer combinação'],
-      'site:combo_plano_lua_mapa_amor': ['Combinação', 'Diário Astral + Mapa do Amor', 'Seu céu diário e uma leitura especial para os relacionamentos.', 'R$ 67,00', 'pagamento único', 'Conhecer combinação'],
-      'site:combo_plano_lua_mapa_prosperidade': ['Combinação', 'Diário Astral + Mapa da Prosperidade', 'Seu acompanhamento diário e uma leitura para prosperar.', 'R$ 67,00', 'pagamento único', 'Conhecer combinação'],
+      'site:combo_diario_astral_mapa_astral': ['Combinação', 'Diário Astral + Mapa Astral', 'Acompanhamento mensal e seu mapa completo em uma só compra.', 'R$ 67,00', 'pagamento único', 'Conhecer combinação'],
+      'site:combo_diario_astral_mapa_amor': ['Combinação', 'Diário Astral + Mapa do Amor', 'Seu céu diário e uma leitura especial para os relacionamentos.', 'R$ 67,00', 'pagamento único', 'Conhecer combinação'],
+      'site:combo_diario_astral_mapa_prosperidade': ['Combinação', 'Diário Astral + Mapa da Prosperidade', 'Seu acompanhamento diário e uma leitura para prosperar.', 'R$ 67,00', 'pagamento único', 'Conhecer combinação'],
     });
     const OFFER_COPY_AR = Object.freeze({
-      'site:plano_lua': ['Suscripción', 'Diario Astral', 'Horóscopo personalizado, Mapa Astral y Guía del Mes en tu área.', 'ARS 9.900', '/mes · cancela cuando quieras', 'Conocer Diario Astral'],
+      'site:diario_astral': ['Suscripción', 'Diario Astral', 'Horóscopo personalizado, Mapa Astral y Guía del Mes en tu área.', 'ARS 9.900', '/mes · cancela cuando quieras', 'Conocer Diario Astral'],
       'site:mapa_astral': ['Lectura individual', 'Mapa Astral Completo', 'Una lectura profunda para guardar y volver a consultar.', 'Desde ARS 14.570', 'acceso permanente', 'Ver Mapa Astral'],
       'site:mapa_amor_sinastria': ['Lectura individual', 'Mapa del Amor · Sinastría', 'Dos historias y una lectura cuidadosa sobre el encuentro.', 'Desde ARS 14.570', 'acceso permanente', 'Ver Mapa del Amor'],
       'site:mapa_carreira': ['Lectura individual', 'Mapa de la Carrera', 'Talentos y dirección para tus próximas decisiones profesionales.', 'Desde ARS 14.570', 'acceso permanente', 'Ver Mapa de la Carrera'],
       'site:mapa_prosperidade': ['Lectura individual', 'Mapa de la Prosperidad', 'Una nueva mirada sobre recursos, merecimiento y abundancia.', 'Desde ARS 14.570', 'acceso permanente', 'Ver Prosperidad'],
-      'site:oferta_plano_lua_premium': ['Pago único', 'Diario Astral Premium', 'Un mes de Diario Astral más todos los bonus de lectura.', 'ARS 34.900', 'una vez · acceso a los bonus', 'Desbloquear todo'],
+      'site:diario_astral_completo': ['Pago único', 'Diario Astral Premium', 'Un mes de Diario Astral más todos los bonus de lectura.', 'ARS 34.900', 'una vez · acceso a los bonus', 'Desbloquear todo'],
       'site:combo_mapa_astral_amor': ['Combinación', 'Mapa Astral + Mapa del Amor', 'Tu mapa natal y una lectura de tus encuentros.', 'ARS 24.490', 'pago único', 'Conocer combinación'],
       'site:combo_mapa_astral_carreira': ['Combinación', 'Mapa Astral + Mapa de la Carrera', 'Identidad y dirección profesional en una sola experiencia.', 'ARS 24.490', 'pago único', 'Conocer combinación'],
       'site:combo_mapa_astral_prosperidade': ['Combinación', 'Mapa Astral + Mapa de la Prosperidad', 'Tu cielo natal y los caminos de abundancia que revela.', 'ARS 24.490', 'pago único', 'Conocer combinación'],
       'site:combo_amor_carreira': ['Combinación', 'Mapa del Amor + Mapa de la Carrera', 'Relaciones y dirección profesional en una experiencia.', 'ARS 24.490', 'pago único', 'Conocer combinación'],
       'site:combo_amor_prosperidade': ['Combinación', 'Mapa del Amor + Mapa de la Prosperidad', 'Relaciones y recursos en dos lecturas complementarias.', 'ARS 24.490', 'pago único', 'Conocer combinación'],
       'site:combo_carreira_prosperidade': ['Combinación', 'Mapa de la Carrera + Prosperidad', 'Trabajo, talento y abundancia en una jornada única.', 'ARS 24.490', 'pago único', 'Conocer combinación'],
-      'site:combo_plano_lua_mapa_astral': ['Combinación', 'Diario Astral + Mapa Astral', 'Acompañamiento mensual y tu mapa completo.', 'ARS 20.770', 'pago único', 'Conocer combinación'],
-      'site:combo_plano_lua_mapa_amor': ['Combinación', 'Diario Astral + Mapa del Amor', 'Tu cielo diario y una lectura para tus relaciones.', 'ARS 20.770', 'pago único', 'Conocer combinación'],
-      'site:combo_plano_lua_mapa_prosperidade': ['Combinación', 'Diario Astral + Prosperidad', 'Acompañamiento diario y una lectura para prosperar.', 'ARS 20.770', 'pago único', 'Conocer combinación'],
+      'site:combo_diario_astral_mapa_astral': ['Combinación', 'Diario Astral + Mapa Astral', 'Acompañamiento mensual y tu mapa completo.', 'ARS 20.770', 'pago único', 'Conocer combinación'],
+      'site:combo_diario_astral_mapa_amor': ['Combinación', 'Diario Astral + Mapa del Amor', 'Tu cielo diario y una lectura para tus relaciones.', 'ARS 20.770', 'pago único', 'Conocer combinación'],
+      'site:combo_diario_astral_mapa_prosperidade': ['Combinación', 'Diario Astral + Prosperidad', 'Acompañamiento diario y una lectura para prosperar.', 'ARS 20.770', 'pago único', 'Conocer combinación'],
     });
     const OFFER_COPY = IS_ARGENTINA ? OFFER_COPY_AR : OFFER_COPY_BR;
     let LIBRARY_ITEMS = FALLBACK_LIBRARY_ITEMS;
@@ -1022,7 +1022,7 @@
     function checkoutUrl(key) {
       const config = window.PORTAL_CONFIG || {};
       const provider = config.checkout?.defaultProvider || 'cakto';
-      const aliases = { plano_lua: 'site:plano_lua', plano_lua_premium: 'site:oferta_plano_lua_premium', mapa_astral: 'site:mapa_astral', mapa_amor: 'site:mapa_amor_sinastria', mapa_carreira: 'site:mapa_carreira', mapa_prosperidade: 'site:mapa_prosperidade', combo_mapas: 'site:combo_mapa_astral_amor' };
+      const aliases = { plano_lua: 'site:diario_astral', plano_lua_premium: 'site:diario_astral_completo', mapa_astral: 'site:mapa_astral', mapa_amor: 'site:mapa_amor_sinastria', mapa_carreira: 'site:mapa_carreira', mapa_prosperidade: 'site:mapa_prosperidade', combo_mapas: 'site:combo_mapa_astral_amor' };
       return config.checkout?.providers?.[provider]?.checkoutUrls?.[aliases[key] || key] || '';
     }
     function startCheckout(key, title) {

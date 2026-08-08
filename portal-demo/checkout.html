@@ -122,7 +122,7 @@
     const isEs = location.pathname.startsWith('/es');
     const locale = isEs ? 'es-AR' : 'pt-BR';
     const copy = COPY[locale];
-    const productId = params.get('product') || (isEs ? 'site:oferta_plano_lua_premium' : 'site:oferta_plano_lua_premium');
+    const productId = params.get('product') || (isEs ? 'site:diario_astral_completo' : 'site:diario_astral_completo');
     const notice = document.getElementById('notice');
     const form = document.getElementById('identity-form');
     const continueButton = document.getElementById('continue-button');

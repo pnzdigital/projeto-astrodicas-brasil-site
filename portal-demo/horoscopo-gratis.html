@@ -248,11 +248,11 @@
     const result = document.getElementById('result');
 
     let priceLabel = copy.priceFallback;
-    let checkoutUrl = es ? null : `${es ? '/es' : ''}/checkout?product=site:plano_lua`;
+    let checkoutUrl = es ? null : `${es ? '/es' : ''}/checkout?product=site:diario_astral`;
     fetch(`${API}/api/catalog?locale=${encodeURIComponent(locale)}`)
       .then((r) => r.ok ? r.json() : null)
       .then((data) => {
-        const product = data?.products?.find((p) => p.product_id === 'site:plano_lua');
+        const product = data?.products?.find((p) => p.product_id === 'site:diario_astral');
         if (product?.price_label) priceLabel = product.price_label;
         const priceEl = document.getElementById('offer-price');
         if (priceEl) priceEl.textContent = priceLabel;

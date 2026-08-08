@@ -7,39 +7,39 @@
 import base from "./portal-config.js";
 
 const ARS_PRICES = Object.freeze({
-  "site:plano_lua": "ARS 9.900 / mes",
+  "site:diario_astral": "ARS 9.900 / mes",
   "site:mapa_astral": "ARS 14.570",
   "site:mapa_amor_sinastria": "ARS 14.570",
   "site:mapa_carreira": "ARS 14.570",
   "site:mapa_prosperidade": "ARS 14.570",
-  "site:oferta_plano_lua_premium": "ARS 34.900",
+  "site:diario_astral_completo": "ARS 34.900",
   "site:combo_mapa_astral_amor": "ARS 24.490",
   "site:combo_mapa_astral_carreira": "ARS 24.490",
   "site:combo_mapa_astral_prosperidade": "ARS 24.490",
   "site:combo_amor_carreira": "ARS 24.490",
   "site:combo_amor_prosperidade": "ARS 24.490",
   "site:combo_carreira_prosperidade": "ARS 24.490",
-  "site:combo_plano_lua_mapa_astral": "ARS 20.770",
-  "site:combo_plano_lua_mapa_amor": "ARS 20.770",
-  "site:combo_plano_lua_mapa_prosperidade": "ARS 20.770",
+  "site:combo_diario_astral_mapa_astral": "ARS 20.770",
+  "site:combo_diario_astral_mapa_amor": "ARS 20.770",
+  "site:combo_diario_astral_mapa_prosperidade": "ARS 20.770",
 });
 
 const PRODUCT_COPY = Object.freeze({
-  "site:plano_lua": ["Plan Luna", "Horóscopo personalizado, Mapa Astral y Guía del Mes en tu área."],
+  "site:diario_astral": ["Plan Luna", "Horóscopo personalizado, Mapa Astral y Guía del Mes en tu área."],
   "site:mapa_astral": ["Mapa Astral Completo", "Una lectura profunda del dibujo único de tu cielo natal."],
   "site:mapa_amor_sinastria": ["Mapa del Amor / Sinastría", "Compatibilidad, patrones afectivos y lenguaje del encuentro."],
   "site:mapa_carreira": ["Mapa de la Carrera", "Talentos, ambientes y próximos pasos profesionales."],
   "site:mapa_prosperidade": ["Mapa de la Prosperidad", "Tu relación con el dinero, la abundancia y las oportunidades de crecimiento."],
-  "site:oferta_plano_lua_premium": ["Plan Luna Premium", "Un mes de Plan Luna más Amor, Prosperidad, calendario, retrógrados y Ascendente."],
+  "site:diario_astral_completo": ["Plan Luna Premium", "Un mes de Plan Luna más Amor, Prosperidad, calendario, retrógrados y Ascendente."],
   "site:combo_mapa_astral_amor": ["Mapa Astral + Mapa del Amor", "Tu mapa natal completo y una lectura de tus encuentros."],
   "site:combo_mapa_astral_carreira": ["Mapa Astral + Mapa de la Carrera", "Identidad y dirección profesional en una misma experiencia."],
   "site:combo_mapa_astral_prosperidade": ["Mapa Astral + Mapa de la Prosperidad", "Tu cielo natal y los caminos de abundancia que revela."],
   "site:combo_amor_carreira": ["Mapa del Amor + Mapa de la Carrera", "Relaciones y dirección profesional en dos lecturas complementarias."],
   "site:combo_amor_prosperidade": ["Mapa del Amor + Mapa de la Prosperidad", "Vínculos y recursos vistos desde dos lecturas complementarias."],
   "site:combo_carreira_prosperidade": ["Mapa de la Carrera + Mapa de la Prosperidad", "Trabajo, talento y abundancia en un mismo recorrido."],
-  "site:combo_plano_lua_mapa_astral": ["Plan Luna + Mapa Astral", "Acompañamiento diario y tu carta natal completa."],
-  "site:combo_plano_lua_mapa_amor": ["Plan Luna + Mapa del Amor", "Tu cielo diario y una lectura especial para tus vínculos."],
-  "site:combo_plano_lua_mapa_prosperidade": ["Plan Luna + Mapa de la Prosperidad", "Acompañamiento diario y una lectura sobre tus recursos."],
+  "site:combo_diario_astral_mapa_astral": ["Plan Luna + Mapa Astral", "Acompañamiento diario y tu carta natal completa."],
+  "site:combo_diario_astral_mapa_amor": ["Plan Luna + Mapa del Amor", "Tu cielo diario y una lectura especial para tus vínculos."],
+  "site:combo_diario_astral_mapa_prosperidade": ["Plan Luna + Mapa de la Prosperidad", "Acompañamiento diario y una lectura sobre tus recursos."],
 });
 
 const CONTENT_COPY = Object.freeze({
