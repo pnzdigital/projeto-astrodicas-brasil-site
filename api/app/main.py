@@ -753,13 +753,17 @@ async def webhook(provider: str, body: WebhookBody, request: Request, db: Sessio
 
 def content_product(content_id: str) -> str | None:
     return {
+        # trial + pago: horóscopo diário desbloqueado durante os 3 dias grátis
         "site:content:horoscopo_diario": "site:plano_lua",
-        "site:content:guia_do_mes": "site:plano_lua",
+        # pós-pagamento (site:mapa_astral = brinde do 1º mês, concedido após
+        # primeira cobrança confirmada — não durante o trial)
+        "site:content:guia_do_mes": "site:mapa_astral",
         "site:content:mapa_astral_completo": "site:mapa_astral",
+        "site:content:previsao_semanal": "site:mapa_astral",
+        # Círculo Completo (pagamento único / oferta premium)
         "site:content:mapa_do_amor_sinastria": "site:mapa_amor_sinastria",
         "site:content:mapa_da_carreira": "site:mapa_carreira",
         "site:content:mapa_da_prosperidade": "site:mapa_prosperidade",
-        "site:content:previsao_semanal": "site:oferta_plano_lua_premium",
         "site:content:calendario_lunar": "site:oferta_plano_lua_premium",
         "site:content:guia_dos_retrogrados": "site:oferta_plano_lua_premium",
         "site:content:manual_do_ascendente": "site:oferta_plano_lua_premium",

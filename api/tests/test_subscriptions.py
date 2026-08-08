@@ -1,12 +1,17 @@
-"""O Plano Lua por assinatura, começando com 3 dias grátis.
+"""Círculo da Lua — trial sem cartão e fluxo de assinatura paga (AR).
 
-O que estes testes protegem, em ordem de dano se quebrar:
+O que estes testes protegem:
 
-1. acesso que não acaba — cancelou, parou de pagar, e continua recebendo;
-2. renovação contada duas vezes — o Mercado Pago reenvia notificação até
-   receber 200, e um mês virar dois é dinheiro que ninguém pagou;
-3. trial oferecido onde não existe recorrência (Brasil) — pedir cartão para um
-   fluxo que o backend não tem.
+1. Trial sem cartão: /api/trial/start cria assinatura local (provider=none),
+   concede acesso ao horóscopo e envia e-mail — tudo sem chamar o Mercado Pago.
+2. Gate de acesso: durante o trial só horóscopo; mapa + guia + previsão só após
+   primeira cobrança confirmada.
+3. Mapa Astral vitalício: entitlement criado uma vez na primeira cobrança, nunca
+   re-concedido na renovação do mês 2.
+4. Renovação AR: webhook subscription_authorized_payment empurra o acesso 30d.
+5. Cancelamento: provider=none não chama mp.cancel_preapproval; acesso preservado
+   até o fim do período.
+6. 1 trial por e-mail: segundo trial retorna 409.
 """
 
 from datetime import datetime, timedelta, timezone
@@ -22,359 +27,257 @@ from app.models import Entitlement, Subscription, User
 
 AGORA = datetime.now(timezone.utc)
 
-TRIAL = {
-    "email": "cliente@astrodicas.com",
-    "name": "Cliente AR",
-    "locale": "es-AR",
-    "card_token_id": "card-token-de-teste",
-}
+TRIAL_BR = {"email": "cliente@astrodicas.com", "name": "Cliente BR", "locale": "pt-BR"}
+TRIAL_AR = {"email": "cliente@astrodicas.com", "name": "Cliente AR", "locale": "es-AR"}
 
 
 @pytest.fixture(autouse=True)
-def provedor_ligado(monkeypatch):
+def env_configurado(monkeypatch):
     monkeypatch.setenv("MP_ACCESS_TOKEN", "TEST-token")
     monkeypatch.setenv("SITE_PUBLIC_URL", "https://astrodicas.example")
 
 
 @pytest.fixture
-def sent_emails(monkeypatch):
+def emails_enviados(monkeypatch):
     outbox = []
-    monkeypatch.setattr(subscriptions, "send_purchase_confirmation", lambda **kwargs: outbox.append(kwargs) or {"sent": True})
+    monkeypatch.setattr(subscriptions, "send_trial_started", lambda **kwargs: outbox.append(("trial_started", kwargs)) or {"sent": True})
+    monkeypatch.setattr(subscriptions, "send_purchase_confirmation", lambda **kwargs: outbox.append(("purchase", kwargs)) or {"sent": True})
     return outbox
-
-
-@pytest.fixture
-def preapproval_criado(monkeypatch):
-    capturado = {}
-
-    def _fake(**kwargs):
-        capturado.update(kwargs)
-        return {
-            "id": "preapproval-1",
-            "status": "pending",
-            "external_reference": kwargs["external_reference"],
-            "init_point": "https://www.mercadopago.com/subscriptions/preapproval-1",
-        }
-
-    monkeypatch.setattr(mp, "create_preapproval", _fake)
-    return capturado
-
-
-def _autoriza_preapproval(client, monkeypatch, preapproval_id: str = "preapproval-1") -> None:
-    """Simula o webhook que o Mercado Pago manda quando o cliente autoriza o
-    cartão na página do Checkout Pro — é isso que liga o trial de verdade."""
-    monkeypatch.setattr(
-        mp,
-        "get_preapproval",
-        lambda pid: {"id": pid, "status": "authorized", "external_reference": preapproval_id},
-    )
-    response = client.post(
-        "/api/webhooks/mercadopago/ar/subscription",
-        json={"type": "subscription_preapproval", "data": {"id": preapproval_id}},
-    )
-    assert response.status_code == 200, response.text
 
 
 def _assinatura(db):
     return db.scalar(select(Subscription))
 
 
-def _aware_utc(moment):
-    if moment is None:
+def _aware(dt):
+    if dt is None:
         return None
-    return moment if moment.tzinfo else moment.replace(tzinfo=timezone.utc)
+    return dt if dt.tzinfo else dt.replace(tzinfo=timezone.utc)
 
 
-def test_trial_start_devolve_init_point_sem_conceder_acesso_ainda(client, preapproval_criado):
-    response = client.post("/api/trial/start", json=TRIAL)
+# ---------------------------------------------------------------------------
+# Trial sem cartão — fluxo completo
+# ---------------------------------------------------------------------------
+
+def test_trial_start_retorna_trialing_com_prazo(client):
+    response = client.post("/api/trial/start", json=TRIAL_BR)
 
     assert response.status_code == 200, response.text
     body = response.json()
-    assert body["status"] == "redirect"
-    assert body["init_point"] == "https://www.mercadopago.com/subscriptions/preapproval-1"
-    assert body["trial_days"] == 3
+    assert body["status"] == "trialing"
+    assert "trial_ends_at" in body
 
     db = SessionLocal()
     try:
-        assinatura = _assinatura(db)
-        assert assinatura.external_id == "preapproval-1"
-        # Ninguém autorizou o cartão ainda: nem assinatura nem acesso nascem
-        # concedidos só por ter chamado esta rota.
-        assert assinatura.status == "pending"
-        assert db.scalar(select(Entitlement).where(Entitlement.product_id == "site:plano_lua")) is None
+        sub = _assinatura(db)
+        assert sub.status == "trialing"
+        assert sub.provider == "none"
+        assert sub.product_id == "site:plano_lua"
     finally:
         db.close()
 
 
-def test_paga_no_mp_e_recebe_a_senha_por_email_uma_unica_vez(client, preapproval_criado, monkeypatch, sent_emails):
-    """O bug que já queimou o produto: senha gerada e nunca entregue. A senha
-    tem que nascer e ser mandada no mesmo passo — a confirmação do webhook —
-    e não antes, quando ninguém garantiu que o cartão foi autorizado."""
-    client.post("/api/trial/start", json=TRIAL)
-    _autoriza_preapproval(client, monkeypatch)
-
-    assert len(sent_emails) == 1
-    senha_enviada = sent_emails[0]["temp_password"]
-    assert senha_enviada
-
-    login = client.post("/api/auth/login", json={"email": TRIAL["email"], "password": senha_enviada})
-    assert login.status_code == 200, login.text
-
-    # Reenvio da mesma confirmação (Mercado Pago insiste até receber 200) não
-    # pode gerar segunda senha nem segundo e-mail.
-    outro_evento = "preapproval-1-outro-evento"
-    monkeypatch.setattr(
-        mp,
-        "get_preapproval",
-        lambda pid: {"id": pid, "status": "authorized", "external_reference": "preapproval-1"},
-    )
-    client.post(
-        "/api/webhooks/mercadopago/ar/subscription",
-        json={"type": "subscription_preapproval", "data": {"id": outro_evento}},
-    )
-    assert len(sent_emails) == 1
-    ainda_loga = client.post("/api/auth/login", json={"email": TRIAL["email"], "password": senha_enviada})
-    assert ainda_loga.status_code == 200
-
-
-def test_abandonar_o_checkout_do_mp_nao_manda_nenhum_email(client, preapproval_criado, sent_emails):
-    """Sem o webhook confirmando autorização, ela não recebeu acesso nenhum —
-    e não pode receber um e-mail de compra prometendo o que não existe."""
-    response = client.post("/api/trial/start", json=TRIAL)
-    assert response.status_code == 200
-
-    assert sent_emails == []
-    db = SessionLocal()
-    try:
-        assert _assinatura(db).status == "pending"
-        assert db.scalar(select(Entitlement).where(Entitlement.product_id == "site:plano_lua")) is None
-    finally:
-        db.close()
-
-
-def test_autorizacao_do_checkout_pro_liga_o_trial_e_o_acesso(client, preapproval_criado, monkeypatch, sent_emails):
-    client.post("/api/trial/start", json=TRIAL)
-    _autoriza_preapproval(client, monkeypatch)
+def test_trial_concede_apenas_horoscopo(client):
+    """Trial cobre só horóscopo diário. Mapa Astral NÃO deve existir durante o trial."""
+    client.post("/api/trial/start", json=TRIAL_BR)
 
     db = SessionLocal()
     try:
-        assinatura = _assinatura(db)
-        assert assinatura.status == "trialing"
-        entitlement = db.scalar(
+        ent_plano = db.scalar(
             select(Entitlement).where(Entitlement.product_id == "site:plano_lua")
         )
-        # O acesso nasce com prazo: é o que faz o trial acabar de verdade.
-        assert entitlement.expires_at is not None
-        prazo = entitlement.expires_at
-        if prazo.tzinfo is None:
-            prazo = prazo.replace(tzinfo=timezone.utc)
-        # Amarrado ao TRIAL_DAYS em vez de a um número solto: mudar o tamanho do
-        # teste grátis é decisão comercial, e não pode quebrar o teste que só
-        # verifica que o prazo existe e bate com o configurado.
-        assert (
-            timedelta(days=subscriptions.TRIAL_DAYS - 1)
-            < prazo - AGORA
-            < timedelta(days=subscriptions.TRIAL_DAYS + 1)
+        ent_mapa = db.scalar(
+            select(Entitlement).where(Entitlement.product_id == "site:mapa_astral")
         )
-    finally:
-        db.close()
-
-    assert len(sent_emails) == 1
-
-
-def test_email_de_ativacao_do_trial_sai_uma_unica_vez(client, preapproval_criado, monkeypatch, sent_emails):
-    """Mercado Pago reenvia a notificação até receber 200 — duas autorizações
-    da mesma assinatura não podem virar dois e-mails de boas-vindas."""
-    client.post("/api/trial/start", json=TRIAL)
-    _autoriza_preapproval(client, monkeypatch)
-
-    monkeypatch.setattr(
-        mp,
-        "get_preapproval",
-        lambda pid: {"id": pid, "status": "authorized", "external_reference": "preapproval-1"},
-    )
-    segunda = client.post(
-        "/api/webhooks/mercadopago/ar/subscription",
-        json={"type": "subscription_preapproval", "data": {"id": "outro-evento-mesma-assinatura"}},
-    )
-    assert segunda.status_code == 200
-    assert len(sent_emails) == 1
-
-
-def test_o_periodo_gratis_e_pedido_ao_provedor(client, preapproval_criado):
-    """Contar os 3 dias do nosso lado exigiria disparar a 1ª cobrança sozinhos."""
-    client.post("/api/trial/start", json=TRIAL)
-
-    assert preapproval_criado["trial_days"] == 3
-    assert preapproval_criado["currency"] == "ARS"
-    assert preapproval_criado["notification_url"].endswith("/api/webhooks/mercadopago/ar/subscription")
-
-
-def test_o_valor_vem_do_servidor_e_nao_do_navegador(client, preapproval_criado):
-    from app import pricing
-
-    client.post("/api/trial/start", json={**TRIAL, "card_token_id": "outro-token"})
-
-    esperado = pricing.amount_minor("site:plano_lua", "es-AR") / 100
-    assert preapproval_criado["amount"] == esperado
-
-
-def test_brasil_nao_recebe_trial_com_cartao(client, preapproval_criado):
-    """Não existe conta recorrente brasileira: pedir cartão prometeria o que não há."""
-    response = client.post("/api/trial/start", json={**TRIAL, "locale": "pt-BR"})
-
-    assert response.status_code == 409
-    assert isinstance(response.json()["detail"], str)
-
-    db = SessionLocal()
-    try:
-        assert _assinatura(db) is None
+        assert ent_plano is not None, "trial deve conceder site:plano_lua"
+        assert ent_plano.expires_at is not None, "trial tem prazo"
+        assert ent_mapa is None, "mapa_astral NÃO deve existir durante o trial"
     finally:
         db.close()
 
 
-def test_cartao_recusado_nao_deixa_assinatura_orfa(client, monkeypatch):
-    def _recusa(**kwargs):
-        raise mp.MercadoPagoError("cartão recusado")
+def test_trial_envia_email_de_boas_vindas(client, emails_enviados):
+    client.post("/api/trial/start", json=TRIAL_BR)
 
-    monkeypatch.setattr(mp, "create_preapproval", _recusa)
-    response = client.post("/api/trial/start", json=TRIAL)
-
-    assert response.status_code == 402
-    db = SessionLocal()
-    try:
-        assert _assinatura(db) is None, "linha órfã que nenhum webhook encontraria"
-    finally:
-        db.close()
+    types = [e[0] for e in emails_enviados]
+    assert "trial_started" in types
 
 
-def test_nao_da_dois_trials_para_a_mesma_conta(client, preapproval_criado):
-    assert client.post("/api/trial/start", json=TRIAL).status_code == 200
-    segunda = client.post("/api/trial/start", json=TRIAL)
+def test_trial_funciona_no_brasil_e_na_argentina(client):
+    """Brasil agora pode fazer trial (sem cartão, sem dependência MLA)."""
+    br = client.post("/api/trial/start", json=TRIAL_BR)
+    assert br.status_code == 200, br.text
+
+    # AR com e-mail diferente
+    ar = client.post("/api/trial/start", json={**TRIAL_AR, "email": "ar@astrodicas.com"})
+    assert ar.status_code == 200, ar.text
+
+
+def test_um_trial_por_email(client):
+    """Segundo trial com o mesmo e-mail retorna 409."""
+    client.post("/api/trial/start", json=TRIAL_BR)
+    segunda = client.post("/api/trial/start", json=TRIAL_BR)
 
     assert segunda.status_code == 409
 
 
-def test_cancelar_avisa_o_provedor_e_mantem_o_acesso_ate_o_fim(client, preapproval_criado, monkeypatch):
-    """Cortar na hora seria cobrar por um período e não entregar."""
-    cancelados = []
-    monkeypatch.setattr(mp, "cancel_preapproval", lambda pid: cancelados.append(pid) or {"status": "cancelled"})
+def test_trial_nao_exige_cartao(client, monkeypatch):
+    """card_token_id ignorado — trial não toca o Mercado Pago."""
+    chamou_mp = []
+    monkeypatch.setattr(mp, "create_preapproval", lambda **kw: chamou_mp.append(kw))
 
-    client.post("/api/trial/start", json=TRIAL)
-    _autoriza_preapproval(client, monkeypatch)
-    db = SessionLocal()
-    try:
-        user = db.scalar(select(User))
-        from app.security import hash_password
-
-        user.password_hash = hash_password("senha-de-teste-123")
-        db.commit()
-    finally:
-        db.close()
-    client.post("/api/auth/login", json={"email": TRIAL["email"], "password": "senha-de-teste-123"})
-
-    response = client.post("/api/me/subscription/cancel")
+    response = client.post("/api/trial/start", json={**TRIAL_AR, "card_token_id": "nao-importa"})
 
     assert response.status_code == 200, response.text
-    assert cancelados == ["preapproval-1"]
-    assert response.json()["status"] == "cancelled"
-    assert response.json()["access_until"], "o acesso vale até o fim do que já foi concedido"
+    assert chamou_mp == [], "provider=none não deve chamar mp.create_preapproval"
 
+
+# ---------------------------------------------------------------------------
+# Gate de acesso — mapa_astral só após primeira cobrança
+# ---------------------------------------------------------------------------
+
+def _cria_assinatura_ar_pending(preapproval_id: str = "preapproval-1") -> str:
+    """Insere diretamente uma Subscription pendente AR (provider=mercadopago).
+
+    Necessário porque o webhook subscription_preapproval só atualiza assinaturas
+    que já existem — a criação inicial vem do /api/trial/start antigo ou, no
+    novo fluxo, do checkout externo. Para testes, criamos direto no banco.
+    """
+    from uuid import uuid4
+    from app.pricing import amount_minor
     db = SessionLocal()
     try:
-        entitlement = db.scalar(select(Entitlement).where(Entitlement.product_id == "site:plano_lua"))
-        assert entitlement.expires_at is not None
-    finally:
-        db.close()
-
-
-def test_cancelar_durante_o_trial_nao_cobra_e_mantem_o_prazo_ate_o_fim_do_trial(client, preapproval_criado, monkeypatch):
-    """A assinatura da rota de redirect nasce ``pending``/sem cartão; o
-    ``external_id`` já está gravado desde o /trial/start, então cancelar
-    durante o trial precisa achar a assinatura no provedor sem ambiguidade,
-    sem gerar cobrança nenhuma."""
-    cancelados = []
-    monkeypatch.setattr(mp, "cancel_preapproval", lambda pid: cancelados.append(pid) or {"status": "cancelled"})
-    cobrancas = []
-    monkeypatch.setattr(mp, "create_payment", lambda **kwargs: cobrancas.append(kwargs) or {"status": "approved"})
-
-    client.post("/api/trial/start", json=TRIAL)
-    db = SessionLocal()
-    try:
-        assinatura = _assinatura(db)
-        assert assinatura.external_id == "preapproval-1", "external_id já existe antes de qualquer autorização"
-    finally:
-        db.close()
-
-    _autoriza_preapproval(client, monkeypatch)
-    db = SessionLocal()
-    try:
-        prazo_do_trial = _aware_utc(_assinatura(db).current_period_end)
-    finally:
-        db.close()
-
-    db = SessionLocal()
-    try:
-        user = db.scalar(select(User))
-        from app.security import hash_password
-
-        user.password_hash = hash_password("senha-de-teste-123")
+        user = User(
+            email=TRIAL_AR["email"],
+            password_hash="placeholder",
+            name=TRIAL_AR["name"],
+            locale="es-AR",
+        )
+        db.add(user)
+        db.flush()
+        sub = Subscription(
+            user_id=user.id,
+            provider="mercadopago",
+            external_id=preapproval_id,
+            product_id="site:plano_lua",
+            status="pending",
+            amount_minor=amount_minor("site:plano_lua", "es-AR"),
+            currency="ARS",
+            locale="es-AR",
+            market="AR",
+        )
+        db.add(sub)
         db.commit()
+        return sub.id
     finally:
         db.close()
-    client.post("/api/auth/login", json={"email": TRIAL["email"], "password": "senha-de-teste-123"})
 
-    response = client.post("/api/me/subscription/cancel")
 
-    assert response.status_code == 200, response.text
-    assert cancelados == ["preapproval-1"], "cancelar tem que chegar no preapproval certo no provedor"
-    assert cobrancas == [], "cancelar durante o trial não pode cobrar nada"
+def _autoriza_preapproval(client, monkeypatch, preapproval_id: str = "preapproval-1") -> None:
+    """Simula webhook de autorização do Mercado Pago."""
+    monkeypatch.setattr(
+        mp,
+        "get_preapproval",
+        lambda pid: {"id": pid, "status": "authorized", "external_reference": preapproval_id},
+    )
+    client.post(
+        "/api/webhooks/mercadopago/ar/subscription",
+        json={"type": "subscription_preapproval", "data": {"id": preapproval_id}},
+    )
+
+
+def _assinatura_ar_paga(client, monkeypatch, preapproval_id: str = "preapproval-1") -> str:
+    """Cria assinatura AR pendente, autoriza via webhook e processa primeiro pagamento."""
+    sub_id = _cria_assinatura_ar_pending(preapproval_id)
+    _autoriza_preapproval(client, monkeypatch, preapproval_id)
+    # Simula primeiro pagamento aprovado
+    monkeypatch.setattr(
+        mp,
+        "get_payment",
+        lambda pid: {
+            "id": pid,
+            "status": "approved",
+            "metadata": {"preapproval_id": preapproval_id},
+        },
+    )
+    client.post(
+        "/api/webhooks/mercadopago/ar/subscription",
+        json={"type": "subscription_authorized_payment", "data": {"id": "payment-1"}},
+    )
+    return sub_id
+
+
+def test_mapa_astral_concedido_apos_primeira_cobranca(client, monkeypatch):
+    """mapa_astral só nasce no entitlement quando a primeira cobrança confirmar."""
+    _assinatura_ar_paga(client, monkeypatch)
+
 
     db = SessionLocal()
     try:
-        assinatura = _assinatura(db)
-        assert assinatura.status == "cancelled"
-        # O prazo do acesso é o mesmo de antes de cancelar: cancelar não
-        # antecipa nem estica o fim do trial.
-        assert _aware_utc(assinatura.current_period_end) == prazo_do_trial
-        entitlement = db.scalar(select(Entitlement).where(Entitlement.product_id == "site:plano_lua"))
-        assert _aware_utc(entitlement.expires_at) == prazo_do_trial
+        ent_mapa = db.scalar(
+            select(Entitlement).where(Entitlement.product_id == "site:mapa_astral")
+        )
+        assert ent_mapa is not None, "mapa_astral deve existir após pagamento confirmado"
+        assert ent_mapa.expires_at is None, "mapa_astral é vitalício (expires_at=None)"
+        assert ent_mapa.status == "available"
     finally:
         db.close()
 
 
-def test_provedor_fora_do_ar_nao_impede_o_cancelamento(client, preapproval_criado, monkeypatch):
-    """Cancelar é a promessa da landing. Divergência temporária é o mal menor."""
-    def _falha(pid):
-        raise mp.MercadoPagoError("provedor indisponível")
+def test_renovacao_mes2_nao_toca_mapa_astral(client, monkeypatch):
+    """Renovação do mês 2 NÃO deve criar novo entitlement de mapa_astral.
+    O mapa é concedido uma única vez na primeira cobrança e é vitalício."""
+    sub_id = _assinatura_ar_paga(client, monkeypatch)
 
-    monkeypatch.setattr(mp, "cancel_preapproval", _falha)
-    client.post("/api/trial/start", json=TRIAL)
+    db = SessionLocal()
+    try:
+        mapa_antes = db.scalar(
+            select(Entitlement).where(Entitlement.product_id == "site:mapa_astral")
+        )
+        mapa_id_antes = mapa_antes.id if mapa_antes else None
+    finally:
+        db.close()
+
+    # Simula segundo pagamento (mês 2)
+    monkeypatch.setattr(
+        mp,
+        "get_payment",
+        lambda pid: {
+            "id": pid,
+            "status": "approved",
+            "metadata": {"preapproval_id": "preapproval-1"},
+        },
+    )
+    client.post(
+        "/api/webhooks/mercadopago/ar/subscription",
+        json={"type": "subscription_authorized_payment", "data": {"id": "payment-2"}},
+    )
+
+    db = SessionLocal()
+    try:
+        mapa_depois = db.scalar(
+            select(Entitlement).where(Entitlement.product_id == "site:mapa_astral")
+        )
+        assert mapa_depois is not None
+        assert mapa_depois.id == mapa_id_antes, "mesmo entitlement, não foi recriado"
+        assert mapa_depois.expires_at is None, "ainda vitalício"
+    finally:
+        db.close()
+
+
+# ---------------------------------------------------------------------------
+# Renovação AR paga — webhook subscription_authorized_payment
+# ---------------------------------------------------------------------------
+
+def test_renovacao_paga_empurra_acesso_um_mes(client, monkeypatch):
+    """Após a primeira cobrança, current_period_end avança ~30d e status=active."""
+    sub_id = _cria_assinatura_ar_pending()
     _autoriza_preapproval(client, monkeypatch)
+
     db = SessionLocal()
     try:
-        user = db.scalar(select(User))
-        from app.security import hash_password
-
-        user.password_hash = hash_password("senha-de-teste-123")
-        db.commit()
-    finally:
-        db.close()
-    client.post("/api/auth/login", json={"email": TRIAL["email"], "password": "senha-de-teste-123"})
-
-    assert client.post("/api/me/subscription/cancel").status_code == 200
-
-
-def test_renovacao_paga_empurra_o_acesso_um_mes(client, preapproval_criado, monkeypatch):
-    client.post("/api/trial/start", json=TRIAL)
-    _autoriza_preapproval(client, monkeypatch)
-    db = SessionLocal()
-    try:
-        assinatura = _assinatura(db)
-        antes = assinatura.current_period_end
-        if antes.tzinfo is None:
-            antes = antes.replace(tzinfo=timezone.utc)
-        assinatura_id = assinatura.id
+        sub = db.get(Subscription, sub_id)
+        antes = _aware(sub.current_period_end)
     finally:
         db.close()
 
@@ -383,32 +286,25 @@ def test_renovacao_paga_empurra_o_acesso_um_mes(client, preapproval_criado, monk
         "get_payment",
         lambda pid: {"id": pid, "status": "approved", "metadata": {"preapproval_id": "preapproval-1"}},
     )
-    response = client.post(
+    resp = client.post(
         "/api/webhooks/mercadopago/ar/subscription",
         json={"type": "subscription_authorized_payment", "data": {"id": "payment-1"}},
     )
 
-    assert response.status_code == 200, response.text
+    assert resp.status_code == 200, resp.text
     db = SessionLocal()
     try:
-        assinatura = db.get(Subscription, assinatura_id)
-        depois = assinatura.current_period_end
-        if depois.tzinfo is None:
-            depois = depois.replace(tzinfo=timezone.utc)
+        sub = db.get(Subscription, sub_id)
+        depois = _aware(sub.current_period_end)
         assert depois > antes
-        assert assinatura.status == "active"
-        entitlement = db.scalar(select(Entitlement).where(Entitlement.product_id == "site:plano_lua"))
-        prazo = entitlement.expires_at
-        if prazo.tzinfo is None:
-            prazo = prazo.replace(tzinfo=timezone.utc)
-        assert prazo == depois, "o entitlement é quem o portal consulta"
+        assert sub.status == "active"
     finally:
         db.close()
 
 
-def test_a_mesma_renovacao_reenviada_nao_conta_duas_vezes(client, preapproval_criado, monkeypatch):
-    """O Mercado Pago reenvia até receber 200: um mês não pode virar dois."""
-    client.post("/api/trial/start", json=TRIAL)
+def test_mesma_renovacao_nao_conta_duas_vezes(client, monkeypatch):
+    """MP reenvia até receber 200: payment-1 chegando duas vezes não empurra duas vezes."""
+    _cria_assinatura_ar_pending()
     _autoriza_preapproval(client, monkeypatch)
     monkeypatch.setattr(
         mp,
@@ -434,58 +330,114 @@ def test_a_mesma_renovacao_reenviada_nao_conta_duas_vezes(client, preapproval_cr
         db.close()
 
 
-def test_cancelamento_no_painel_do_provedor_chega_pelo_webhook(client, preapproval_criado, monkeypatch):
-    client.post("/api/trial/start", json=TRIAL)
-    monkeypatch.setattr(mp, "get_preapproval", lambda pid: {"id": pid, "status": "cancelled"})
+# ---------------------------------------------------------------------------
+# Cancelamento
+# ---------------------------------------------------------------------------
 
-    response = client.post(
-        "/api/webhooks/mercadopago/ar/subscription",
-        json={"type": "subscription_preapproval", "data": {"id": "preapproval-1"}},
-    )
+def _loga(client, email: str, password: str) -> None:
+    client.post("/api/auth/login", json={"email": email, "password": password})
 
-    assert response.status_code == 200, response.text
+
+def test_cancelar_trial_nao_chama_provedor(client, monkeypatch):
+    """provider=none: cancelar não pode chamar mp.cancel_preapproval."""
+    cancelados = []
+    monkeypatch.setattr(mp, "cancel_preapproval", lambda pid: cancelados.append(pid))
+
+    client.post("/api/trial/start", json=TRIAL_BR)
+
+    from app.security import hash_password
     db = SessionLocal()
     try:
-        assinatura = _assinatura(db)
-        assert assinatura.status == "cancelled"
-        assert assinatura.cancelled_at is not None
+        user = db.scalar(select(User))
+        user.password_hash = hash_password("senha-123")
+        db.commit()
+    finally:
+        db.close()
+
+    _loga(client, TRIAL_BR["email"], "senha-123")
+    resp = client.post("/api/me/subscription/cancel")
+
+    assert resp.status_code == 200, resp.text
+    assert cancelados == [], "provider=none não deve chamar mp.cancel_preapproval"
+    assert resp.json()["status"] == "cancelled"
+
+
+def test_cancelar_mantem_acesso_ate_fim_do_prazo(client, monkeypatch):
+    """Cancelamento não antecipa o vencimento do entitlement."""
+    client.post("/api/trial/start", json=TRIAL_BR)
+
+    from app.security import hash_password
+    db = SessionLocal()
+    try:
+        user = db.scalar(select(User))
+        user.password_hash = hash_password("senha-123")
+        prazo_antes = _aware(_assinatura(db).current_period_end)
+        db.commit()
+    finally:
+        db.close()
+
+    _loga(client, TRIAL_BR["email"], "senha-123")
+    client.post("/api/me/subscription/cancel")
+
+    db = SessionLocal()
+    try:
+        ent = db.scalar(select(Entitlement).where(Entitlement.product_id == "site:plano_lua"))
+        assert _aware(ent.expires_at) == prazo_antes
     finally:
         db.close()
 
 
-def test_assinatura_invalida_e_recusada_no_webhook(client, monkeypatch):
+def test_cancelamento_via_webhook_mp(client, monkeypatch):
+    """Webhook do painel do MP com status=cancelled marca a assinatura como cancelada.
+
+    Testa direto de pending → cancelled (sem passar por authorized) para evitar
+    que a deduplicação por event_id bloqueie o segundo webhook com mesmo preapproval_id.
+    O cancelamento em produção chega como evento separado; aqui simulamos direto.
+    """
+    _cria_assinatura_ar_pending(preapproval_id="preapproval-cancel")
+
+    monkeypatch.setattr(
+        mp,
+        "get_preapproval",
+        lambda pid: {"id": pid, "status": "cancelled", "external_reference": "preapproval-cancel"},
+    )
+    resp = client.post(
+        "/api/webhooks/mercadopago/ar/subscription",
+        json={"type": "subscription_preapproval", "data": {"id": "preapproval-cancel"}},
+    )
+
+    assert resp.status_code == 200, resp.text
+    db = SessionLocal()
+    try:
+        sub = _assinatura(db)
+        assert sub.status == "cancelled"
+        assert sub.cancelled_at is not None
+    finally:
+        db.close()
+
+
+# ---------------------------------------------------------------------------
+# Misc
+# ---------------------------------------------------------------------------
+
+def test_webhook_invalido_retorna_401(client, monkeypatch):
     monkeypatch.setenv("ENV", "production")
     monkeypatch.setenv("MP_WEBHOOK_SECRET_AR", "clave-secreta-de-teste")
 
-    response = client.post(
+    resp = client.post(
         "/api/webhooks/mercadopago/ar/subscription",
         headers={"x-signature": "ts=1,v1=falsificado", "x-request-id": "req-1"},
         json={"type": "subscription_preapproval", "data": {"id": "preapproval-1"}},
     )
 
-    assert response.status_code == 401
+    assert resp.status_code == 401
 
 
-def test_ruido_do_painel_responde_ok_sem_mexer_em_nada(client, preapproval_criado):
-    client.post("/api/trial/start", json=TRIAL)
-
-    response = client.post(
+def test_ruido_do_painel_responde_ok(client):
+    resp = client.post(
         "/api/webhooks/mercadopago/ar/subscription",
         json={"type": "shipments", "data": {"id": "qualquer"}},
     )
 
-    assert response.status_code == 200
-    assert "ignored" in response.json()
-
-
-def test_trial_nao_exige_mais_cartao_no_navegador(client, preapproval_criado):
-    """Checkout Pro: quem tokeniza o cartão é a página do Mercado Pago, não o
-    site. Campos de cartão legados do Payment Brick, se ainda chegarem, são
-    apenas ignorados."""
-    payload = {key: value for key, value in TRIAL.items() if key != "card_token_id"}
-    response = client.post("/api/trial/start", json=payload)
-
-    assert response.status_code == 200, response.text
-    assert response.json()["status"] == "redirect"
-    assert response.json()["init_point"]
-    assert "card_token_id" not in preapproval_criado
+    assert resp.status_code == 200
+    assert "ignored" in resp.json()

@@ -1,12 +1,18 @@
-"""Lembretes de renovação e recuperação pós-vencimento do Plano Lua (avulso BR).
+"""Lembretes de renovação/trial e recuperação pós-vencimento do Círculo da Lua.
 
 Sem agendador in-process: morre no redeploy. O cron externo (Coolify) chama
 POST /api/tasks/renewal-reminders com o secret em x-task-secret.
 
-Três momentos, todos idempotentes:
+Dois fluxos, todos idempotentes:
+
+run_renewal_reminders — entitlements pagos (source != "trial"):
   7d      — 7 dias antes do vencimento
   today   — no dia do vencimento
   winback — 2-4 dias após vencer, só para quem NÃO renovou
+
+run_trial_reminders — entitlements de trial (source == "trial"):
+  trial_ending — 1 dia antes do fim do trial (convite para assinar)
+  trial_winback — 2-4 dias após o trial vencer sem conversão
 
 Marca em `site_renewal_reminders` por (entitlement_id, reminder_type, expiry_date):
 a chave inclui a data de vencimento para que uma segunda expiração (após nova
@@ -30,7 +36,7 @@ from sqlalchemy.orm import Mapped, Session, mapped_column
 
 from .checkout import gg_checkout_url
 from .db import Base, get_db
-from .mailer import send_renewal_reminder_email, send_winback_email
+from .mailer import send_renewal_reminder_email, send_trial_ending_email, send_winback_email
 from .models import Entitlement, User
 
 logger = logging.getLogger(__name__)
@@ -100,8 +106,89 @@ def _winback_url() -> str | None:
     return gg_checkout_url(WINBACK_PRODUCT_ID)
 
 
+def run_trial_reminders(db: Session) -> dict:
+    """Varre entitlements de trial e dispara lembretes. Seguro p/ chamar N vezes.
+
+    Separa trial de pago pelo ``source == "trial"``: assim run_renewal_reminders
+    não manda e-mail de renovação paga para quem ainda está no trial.
+    """
+    now = _now()
+    stats: dict[str, int] = {"trial_ending": 0, "trial_winback": 0, "skipped": 0, "errors": 0}
+
+    subscribe_link = _renewal_url()
+    winback_link = _winback_url()
+
+    candidates = db.scalars(
+        select(Entitlement).where(
+            Entitlement.product_id == PRODUCT_ID,
+            Entitlement.source == "trial",
+            Entitlement.expires_at.isnot(None),
+        )
+    ).all()
+
+    for ent in candidates:
+        user = db.get(User, ent.user_id)
+        if not user:
+            continue
+
+        expires_at = _aware(ent.expires_at)
+        expiry_key = _expiry_date_key(expires_at)
+        delta = expires_at - now
+
+        if timedelta(hours=0) <= delta <= timedelta(hours=36):
+            # Trial acaba nas próximas 36h: convite para assinar
+            if _already_sent(db, ent.id, "trial_ending", expiry_key):
+                stats["skipped"] += 1
+                continue
+            if not subscribe_link:
+                stats["skipped"] += 1
+                continue
+            locale = getattr(user, "locale", "pt-BR") or "pt-BR"
+            result = send_trial_ending_email(
+                email=user.email,
+                name=user.name or user.email,
+                trial_ends_at=expires_at,
+                subscribe_url=subscribe_link,
+                locale=locale,
+            )
+            if result.get("sent"):
+                _mark_sent(db, ent.id, "trial_ending", expiry_key)
+                stats["trial_ending"] += 1
+            else:
+                logger.warning("Falha ao enviar trial_ending para %s: %s", user.email, result.get("error"))
+                stats["errors"] += 1
+
+        elif timedelta(days=-4) <= delta < timedelta(days=-1) and expires_at < now:
+            # Trial vencido há 1-4 dias sem conversão
+            if winback_link:
+                if _already_sent(db, ent.id, "trial_winback", expiry_key):
+                    stats["skipped"] += 1
+                    continue
+                result = send_winback_email(
+                    email=user.email,
+                    name=user.name or user.email,
+                    winback_url=winback_link,
+                )
+                if result.get("sent"):
+                    _mark_sent(db, ent.id, "trial_winback", expiry_key)
+                    stats["trial_winback"] += 1
+                else:
+                    logger.warning("Falha ao enviar trial_winback para %s: %s", user.email, result.get("error"))
+                    stats["errors"] += 1
+            else:
+                stats["skipped"] += 1
+        else:
+            stats["skipped"] += 1
+
+    return stats
+
+
 def run_renewal_reminders(db: Session) -> dict:
-    """Varre entitlements e dispara os e-mails cabíveis. Seguro p/ chamar N vezes."""
+    """Varre entitlements pagos e dispara os e-mails cabíveis. Seguro p/ chamar N vezes.
+
+    Ignora entitlements de trial (source == "trial") — esses são tratados por
+    run_trial_reminders para que os textos e a lógica de conversão sejam corretos.
+    """
     now = _now()
     stats: dict[str, int] = {"7d": 0, "today": 0, "winback": 0, "skipped": 0, "errors": 0}
 
@@ -109,6 +196,7 @@ def run_renewal_reminders(db: Session) -> dict:
         select(Entitlement).where(
             Entitlement.product_id == PRODUCT_ID,
             Entitlement.expires_at.isnot(None),
+            Entitlement.source != "trial",
         )
     ).all()
 
@@ -238,4 +326,10 @@ async def renewal_reminders_task(request: Request, db: Session = Depends(get_db)
         raise HTTPException(status_code=401, detail="Segredo inválido.")
 
     stats = run_renewal_reminders(db)
-    return {"ok": True, **stats}
+    trial_stats = run_trial_reminders(db)
+    return {
+        "ok": True,
+        **stats,
+        "trial_ending": trial_stats["trial_ending"],
+        "trial_winback": trial_stats["trial_winback"],
+    }

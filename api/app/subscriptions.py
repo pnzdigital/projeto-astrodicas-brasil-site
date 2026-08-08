@@ -1,26 +1,23 @@
-"""Plano Lua por assinatura, abrindo com 3 dias grátis.
+"""Círculo da Lua por assinatura, abrindo com 3 dias grátis sem cartão.
 
-O funil: a pessoa cai do anúncio, lê o horóscopo do dia grátis
-(``horoscope_free``) e recebe a oferta de 3 dias de horóscopo diário sem pagar,
-cadastrando o cartão. No fim dos 3 dias vira Plano Lua mensal, e ela cancela
-pelo painel quando quiser.
+O funil: a pessoa lê o horóscopo do dia grátis (``horoscope_free``), recebe
+a oferta e entra com nome + e-mail. O trial nasce localmente — sem MP,
+sem cartão — e expira em 3 dias. Se não cancelar antes, ela assina pelo
+checkout normal (GG no Brasil, MP na Argentina).
 
 Três decisões que sustentam isso:
 
-1. **Só Argentina, por enquanto.** Trial com cartão exige assinatura recorrente,
-   e a única conta recorrente que existe é a do Mercado Pago (MLA). O Brasil vai
-   por Cakto, que aqui é link externo e não expõe recorrência — pedir cartão em
-   pt-BR seria prometer um fluxo que o backend não tem. A rota recusa com 409.
+1. **Trial sem cartão.** Não há preapproval nem cobrança inicial: o acesso
+   nasce e morre pelo ``expires_at`` do entitlement. Disponível em BR e AR.
 
-2. **O período grátis é do provedor.** ``free_trial`` do Mercado Pago autoriza o
-   cartão hoje e cobra só no 4º dia. Contar os dias do nosso lado exigiria que a
-   gente disparasse a primeira cobrança sozinho — a parte que não pode falhar.
+2. **1 trial por e-mail, para sempre.** Quem já teve um trial não ganha outro,
+   mesmo que o primeiro tenha vencido. O guard verifica qualquer subscription
+   do produto, independente do status.
 
-3. **Quem manda no acesso é o entitlement, não a assinatura.** O portal já
-   pergunta ao entitlement, e ele agora vence (``entitlements.py``). A assinatura
-   só empurra ``expires_at`` para frente a cada renovação paga. Se o webhook
-   parar de chegar, o acesso fecha sozinho no fim do período — falha fechada, que
-   é o lado certo para errar.
+3. **Brinde do 1º mês vitalício.** O Mapa Astral Completo (``site:mapa_astral``)
+   é concedido UMA vez, quando a primeira cobrança confirma — não durante o
+   trial, e não a cada renovação. PDF entregue é da assinante para sempre.
+   ``sync_entitlements`` faz essa distinção via ``_had_first_payment``.
 """
 
 from __future__ import annotations
@@ -29,6 +26,7 @@ import logging
 import os
 import secrets
 from datetime import datetime, timedelta, timezone
+from uuid import uuid4
 
 from fastapi import APIRouter, Cookie, Depends, HTTPException, Request
 from pydantic import BaseModel, EmailStr, Field
@@ -39,7 +37,7 @@ from . import mercadopago as mp
 from . import pricing
 from .checkout import portal_url, site_url
 from .db import get_db
-from .mailer import send_purchase_confirmation
+from .mailer import send_purchase_confirmation, send_trial_started
 from .models import Entitlement, Subscription, User, WebhookEvent
 from .ratelimit import checkout_rate_limit, webhook_rate_limit
 from .security import decode_token, hash_password
@@ -50,8 +48,8 @@ router = APIRouter()
 PRODUCT_ID = "site:plano_lua"
 TRIAL_DAYS = int(os.getenv("TRIAL_DAYS", "3"))
 
-# Mercado Pago -> vocabulário do site. ``authorized`` cobre tanto o trial quanto
-# a assinatura já cobrando; quem separa os dois é ``trial_ends_at``.
+# Mercado Pago -> vocabulário do site. Mantido para o webhook de preapproval,
+# que ainda serve assinaturas recorrentes pagas criadas via MP.
 PREAPPROVAL_STATUS = {
     "authorized": "active",
     "pending": "pending",
@@ -60,25 +58,9 @@ PREAPPROVAL_STATUS = {
 }
 
 MESSAGES: dict[str, dict[str, str]] = {
-    "trial_unavailable": {
-        "pt-BR": "O teste grátis com cartão ainda não está disponível no Brasil. Assine o Plano Lua pelo checkout.",
-        "es-AR": "La prueba gratis con tarjeta todavía no está disponible en tu país.",
-    },
-    "provider_off": {
-        "pt-BR": "O meio de pagamento ainda não está habilitado.",
-        "es-AR": "El medio de pago todavía no está habilitado.",
-    },
-    "card_required": {
-        "pt-BR": "Precisamos dos dados do cartão para reservar seu teste grátis.",
-        "es-AR": "Necesitamos los datos de la tarjeta para reservar tu prueba gratis.",
-    },
-    "provider_refused": {
-        "pt-BR": "Não foi possível autorizar o cartão. Confira os dados e tente de novo.",
-        "es-AR": "No pudimos autorizar la tarjeta. Revisá los datos e intentá de nuevo.",
-    },
     "already_subscribed": {
-        "pt-BR": "Esta conta já tem uma assinatura ativa.",
-        "es-AR": "Esta cuenta ya tiene una suscripción activa.",
+        "pt-BR": "Este e-mail já teve um trial ou assinatura ativa. Cada e-mail tem direito a um trial.",
+        "es-AR": "Este e-mail ya tuvo un trial o suscripción activa. Cada e-mail tiene derecho a un trial.",
     },
     "no_subscription": {
         "pt-BR": "Nenhuma assinatura ativa nesta conta.",
@@ -87,6 +69,14 @@ MESSAGES: dict[str, dict[str, str]] = {
     "session_required": {
         "pt-BR": "Faça login para continuar.",
         "es-AR": "Iniciá sesión para continuar.",
+    },
+    "provider_off": {
+        "pt-BR": "O meio de pagamento ainda não está habilitado.",
+        "es-AR": "El medio de pago todavía no está habilitado.",
+    },
+    "provider_refused": {
+        "pt-BR": "Não foi possível processar o pagamento. Confira os dados e tente de novo.",
+        "es-AR": "No pudimos procesar el pago. Revisá los datos e intentá de nuevo.",
     },
 }
 
@@ -97,27 +87,17 @@ def message(key: str, locale: str) -> str:
 
 
 class TrialBody(BaseModel):
-    """O corpo aceita o formato do Payment Brick como ele vem.
-
-    O Brick do Mercado Pago entrega ``formData`` com a chave ``token``, e a
-    landing repassa isso inteiro. A API de preapproval chama o mesmo dado de
-    ``card_token_id``. Aceitar os dois nomes evita uma tradução no navegador —
-    onde ela sumiria em silêncio se o Brick mudasse o shape.
-    """
+    """Corpo do trial sem cartão: só nome, e-mail e locale."""
 
     model_config = {"extra": "ignore"}
 
     email: EmailStr
     name: str = Field(default="", max_length=160)
-    locale: str = Field(default="es-AR", max_length=10)
-    # Token do cartão gerado pelo SDK do Mercado Pago no navegador. O número do
-    # cartão nunca chega aqui — é a razão de existir do token.
+    locale: str = Field(default="pt-BR", max_length=10)
+    # Campos legados do Payment Brick — ignorados, mantidos para não quebrar
+    # clientes antigos que ainda os enviem.
     card_token_id: str = Field(default="", max_length=120)
     token: str = Field(default="", max_length=120)
-
-    @property
-    def card_token(self) -> str:
-        return (self.card_token_id or self.token).strip()
 
 
 def _now() -> datetime:
@@ -139,15 +119,41 @@ def _authenticated(session: str | None, db: Session, locale: str) -> User:
     return user
 
 
+def _had_first_payment(subscription: Subscription) -> bool:
+    """True se a primeira cobrança já foi confirmada.
+
+    Critério: current_period_end > trial_ends_at. Se não há trial (assinatura
+    paga direta), qualquer current_period_end conta como pagamento.
+    """
+    trial_end = _aware(subscription.trial_ends_at)
+    period_end = _aware(subscription.current_period_end)
+    if trial_end is None:
+        return period_end is not None
+    if period_end is None:
+        return False
+    return period_end > trial_end
+
+
 def sync_entitlements(db: Session, subscription: Subscription) -> None:
     """Espelha o prazo da assinatura nos entitlements do plano.
 
-    Concede o que o Plano Lua libera e carimba ``expires_at`` com o fim do
-    período atual. Cancelamento não apaga nada: a pessoa pagou (ou ganhou) até
-    ali, e o acesso simplesmente vence sozinho na data.
+    Regras:
+    - Produto base (site:plano_lua): expires_at = current_period_end, sempre
+      atualizado. Cancelamento não apaga — acesso dura até o fim do período.
+    - Bundle items (site:mapa_astral e similares): só após primeira cobrança
+      confirmada, sem expires_at (vitalício). Renovações não sobrescrevem o
+      expires_at já nulo — PDF entregue é da assinante para sempre.
+    - Durante trial (sem cobrança confirmada): apenas o produto base é concedido.
     """
     expires_at = _aware(subscription.current_period_end)
+    paid = _had_first_payment(subscription)
+
     for product_id in pricing.granted_products(subscription.product_id):
+        is_bundle_item = product_id != subscription.product_id
+
+        if is_bundle_item and not paid:
+            continue  # brinde só após primeira cobrança
+
         entitlement = db.scalar(
             select(Entitlement).where(
                 Entitlement.user_id == subscription.user_id,
@@ -156,15 +162,20 @@ def sync_entitlements(db: Session, subscription: Subscription) -> None:
         )
         if entitlement:
             entitlement.status = "available"
-            entitlement.expires_at = expires_at
+            if not is_bundle_item:
+                # Produto base: atualiza prazo a cada renovação.
+                entitlement.expires_at = expires_at
+            # Bundle items vitalícios: expires_at permanece None — não toca.
             continue
+
+        source = "trial" if (not paid and not is_bundle_item) else "site"
         db.add(
             Entitlement(
                 user_id=subscription.user_id,
                 product_id=product_id,
                 status="available",
-                source="site",
-                expires_at=expires_at,
+                source=source,
+                expires_at=None if is_bundle_item else expires_at,
             )
         )
 
@@ -197,32 +208,29 @@ def subscription_to_dict(subscription: Subscription | None) -> dict | None:
 
 @router.post("/api/trial/start", dependencies=[Depends(checkout_rate_limit)])
 def start_trial(body: TrialBody, db: Session = Depends(get_db)) -> dict:
-    """Abre a assinatura no Checkout Pro do Mercado Pago (sem tokenizar cartão
-    no site) e devolve ``init_point`` para o cliente autorizar lá.
+    """Abre 3 dias grátis sem cartão. Cria conta, concede acesso ao horóscopo
+    e envia a senha por e-mail. Disponível em BR e AR.
 
-    Nem entitlement nem e-mail de compra saem daqui: a conta nasce ``pending``
-    e só vira ``trialing`` — com acesso e aviso — quando o webhook
-    ``subscription_preapproval`` confirmar que o Mercado Pago autorizou o
-    cartão. Prometer o trial antes disso seria dar acesso a quem nunca chegou
-    a completar o checkout hospedado.
+    Só nome + e-mail — sem tokenizar cartão, sem preapproval no MP. O acesso
+    vive no entitlement e expira sozinho no fim do trial. A conversão para
+    assinatura paga acontece depois, pelo checkout normal.
     """
     locale = pricing.normalize_locale(body.locale)
-    market = pricing.market_for(locale)
-
-    # A recorrência existe só onde existe conta recorrente. Ver o docstring.
-    if market != "AR":
-        raise HTTPException(status_code=409, detail=message("trial_unavailable", locale))
-    if not mp.is_enabled():
-        raise HTTPException(status_code=503, detail=message("provider_off", locale))
-
     email = body.email.lower()
-    user = db.scalar(select(User).where(User.email == email))
-    if user and active_subscription(db, user.id):
-        raise HTTPException(status_code=409, detail=message("already_subscribed", locale))
 
-    # Guardado na assinatura (não na sessão) porque quem manda o e-mail é o
-    # webhook, numa outra requisição, minutos ou horas depois: sem esta marca
-    # ele não teria como saber se a conta é nova.
+    user = db.scalar(select(User).where(User.email == email))
+
+    # 1 trial por e-mail, para sempre — inclusive trials expirados ou cancelados.
+    if user:
+        had_any_trial = db.scalar(
+            select(Subscription).where(
+                Subscription.user_id == user.id,
+                Subscription.product_id == PRODUCT_ID,
+            )
+        )
+        if had_any_trial:
+            raise HTTPException(status_code=409, detail=message("already_subscribed", locale))
+
     is_new_account = user is None
     if not user:
         placeholder_password = secrets.token_urlsafe(9)
@@ -230,48 +238,44 @@ def start_trial(body: TrialBody, db: Session = Depends(get_db)) -> dict:
         db.add(user)
         db.flush()
 
-    amount_minor = pricing.amount_minor(PRODUCT_ID, locale)
-    currency = pricing.currency_for(locale)
+    trial_ends_at = _now() + timedelta(days=TRIAL_DAYS)
     subscription = Subscription(
         user_id=user.id,
-        provider="mercadopago",
-        external_id="",
+        provider="none",   # sem cartão, sem provedor externo
+        external_id=str(uuid4()),
         product_id=PRODUCT_ID,
-        status="pending",
-        amount_minor=amount_minor,
-        currency=currency,
+        status="trialing",
+        amount_minor=pricing.amount_minor(PRODUCT_ID, locale),
+        currency=pricing.currency_for(locale),
         locale=locale,
-        market=market,
+        market=pricing.market_for(locale),
+        trial_ends_at=trial_ends_at,
+        current_period_end=trial_ends_at,
     )
     db.add(subscription)
     db.flush()
+    sync_entitlements(db, subscription)
 
-    try:
-        preapproval = mp.create_preapproval(
-            amount=amount_minor / 100,
-            currency=currency,
-            reason=pricing.title_for(PRODUCT_ID, locale),
-            payer_email=email,
-            external_reference=subscription.id,
-            trial_days=TRIAL_DAYS,
-            back_url=portal_url(),
-            notification_url=f"{site_url()}/api/webhooks/mercadopago/ar/subscription",
-        )
-    except mp.MercadoPagoError as exc:
-        # A assinatura não chegou a existir no provedor: desfazemos a nossa para
-        # não deixar linha órfã que o webhook nunca vai encontrar.
-        logger.warning("Assinatura recusada pelo provedor: %s", exc)
-        db.rollback()
-        raise HTTPException(status_code=402, detail=message("provider_refused", locale))
+    temp_password = None
+    if is_new_account:
+        temp_password = secrets.token_urlsafe(9)
+        user.password_hash = hash_password(temp_password)
 
-    subscription.external_id = str(preapproval.get("id") or "")
-    subscription.raw_payload = {**_digest(preapproval), "new_account": is_new_account}
     db.commit()
 
+    # E-mail depois do commit: acesso garantido independente do provedor de e-mail.
+    send_trial_started(
+        email=user.email,
+        name=user.name,
+        trial_ends_at=trial_ends_at,
+        locale=locale,
+        temp_password=temp_password,
+        portal_url=portal_url(),
+    )
+
     return {
-        "status": "redirect",
-        "init_point": preapproval.get("init_point") or preapproval.get("sandbox_init_point") or "",
-        "trial_days": TRIAL_DAYS,
+        "status": "trialing",
+        "trial_ends_at": trial_ends_at.isoformat(),
         "subscription": subscription_to_dict(subscription),
     }
 
@@ -294,11 +298,11 @@ def cancel_subscription(
     if not subscription:
         raise HTTPException(status_code=404, detail=message("no_subscription", locale))
 
-    if subscription.external_id:
+    if subscription.external_id and subscription.provider != "none":
         try:
             mp.cancel_preapproval(subscription.external_id)
         except mp.MercadoPagoError as exc:
-            # Cancelar é a promessa que a landing faz. Se o provedor está fora do
+            # Cancelar é a promessa da landing. Se o provedor está fora do
             # ar, marcamos assim mesmo e reconciliamos pelo webhook — deixar o
             # cliente sem conseguir cancelar é pior do que uma divergência
             # temporária, e o próximo webhook corrige o estado.
@@ -350,8 +354,7 @@ async def subscription_notification(request: Request, db: Session = Depends(get_
     if topic not in {"subscription_preapproval", "subscription_authorized_payment"}:
         return {"ok": True, "ignored": f"tipo {topic}"}
 
-    # Idempotência: o Mercado Pago reenvia a mesma notificação até receber 200,
-    # e uma renovação contada duas vezes daria dois meses de acesso por um.
+    # Idempotência: o Mercado Pago reenvia a mesma notificação até receber 200.
     event_id = f"{topic}:{data_id}"
     if db.scalar(select(WebhookEvent).where(WebhookEvent.provider == "mercadopago", WebhookEvent.event_id == event_id)):
         return {"ok": True, "duplicate": True}
@@ -371,17 +374,12 @@ async def subscription_notification(request: Request, db: Session = Depends(get_
         mp_status = str(preapproval.get("status") or "")
         just_authorized = mp_status == "authorized" and subscription.status == "pending"
         if just_authorized:
-            # Checkout Pro: o cliente acabou de autorizar o cartão na página do
-            # Mercado Pago. É aqui, e só aqui, que o trial de fato começa —
-            # antes disso a assinatura era só uma promessa sem cartão nenhum.
             trial_ends_at = _now() + timedelta(days=TRIAL_DAYS)
             subscription.status = "trialing"
             subscription.trial_ends_at = trial_ends_at
             subscription.current_period_end = trial_ends_at
         else:
             novo = PREAPPROVAL_STATUS.get(mp_status, subscription.status)
-            # ``authorized`` durante o período grátis continua sendo trial: quem
-            # separa os dois é a data, não o provedor.
             trial_ends_at = _aware(subscription.trial_ends_at)
             if novo == "active" and trial_ends_at and trial_ends_at > _now():
                 novo = "trialing"
@@ -396,10 +394,6 @@ async def subscription_notification(request: Request, db: Session = Depends(get_
         db.commit()
 
         if just_authorized and not already_notified:
-            # É só agora, com o cartão de fato autorizado, que a senha
-            # provisória é gerada e mandada — gerar lá no /trial/start e nunca
-            # entregar já deixou gente sem senha no fluxo antigo (ver commit
-            # da migração para Checkout Pro).
             user = db.get(User, subscription.user_id)
             temp_password = None
             if is_new_account:
@@ -434,8 +428,6 @@ async def subscription_notification(request: Request, db: Session = Depends(get_
 
     db.add(WebhookEvent(provider="mercadopago", event_id=event_id, payload={"id": payment.get("id"), "status": payment.get("status")}))
     if mp.internal_status(payment.get("status")) == "paid":
-        # Um mês a partir do fim do período atual, não de hoje: senão cada
-        # renovação encurtaria o acesso pelo tempo que a notificação demorou.
         base = max(_aware(subscription.current_period_end) or _now(), _now())
         subscription.current_period_end = base + timedelta(days=30)
         if subscription.status == "trialing":

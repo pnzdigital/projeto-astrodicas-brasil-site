@@ -7,7 +7,7 @@ from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from .db import get_db
-from .models import Entitlement, Order, User
+from .models import Entitlement, Order, Subscription, User
 from .pricing import format_amount, title_for
 from .ratelimit import auth_rate_limit
 from .security import create_token, decode_token
@@ -166,3 +166,42 @@ def summary(_admin: str = Depends(require_admin), db: Session = Depends(get_db))
         "users_count": users_count,
         "active_entitlements": active_entitlements,
     }
+
+
+@router.get("/trials")
+def trials(
+    limit: int = 100,
+    offset: int = 0,
+    _admin: str = Depends(require_admin),
+    db: Session = Depends(get_db),
+) -> dict:
+    """Lista assinantes em período de trial (provider=none, status=trialing)."""
+    query = (
+        db.query(Subscription, User)
+        .join(User, User.id == Subscription.user_id)
+        .filter(Subscription.status == "trialing")
+        .order_by(Subscription.created_at.desc())
+    )
+    total = query.count()
+    rows_raw = query.offset(offset).limit(limit).all()
+    now = datetime.now(timezone.utc)
+
+    rows = []
+    for sub, user in rows_raw:
+        trial_ends = sub.trial_ends_at
+        if trial_ends and trial_ends.tzinfo is None:
+            trial_ends = trial_ends.replace(tzinfo=timezone.utc)
+        expired = trial_ends < now if trial_ends else False
+        rows.append({
+            "subscription_id": sub.id,
+            "user_email": user.email,
+            "user_name": user.name,
+            "product_id": sub.product_id,
+            "status": sub.status,
+            "created_at": sub.created_at.isoformat() if sub.created_at else None,
+            "trial_ends_at": trial_ends.isoformat() if trial_ends else None,
+            "trial_expired": expired,
+            "provider": sub.provider,
+        })
+
+    return {"total": total, "limit": limit, "offset": offset, "trials": rows}

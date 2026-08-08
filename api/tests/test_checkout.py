@@ -158,7 +158,7 @@ def test_purchase_conversion_only_exposes_confirmed_order(client, monkeypatch, s
         "event_id": f"site-purchase-{order['order_id']}",
         "order_id": order["order_id"],
         "content_ids": ["site:oferta_plano_lua_premium"],
-        "content_name": "Plan Luna Premium",
+        "content_name": "Círculo Completo",
         "content_type": "product",
         "num_items": 1,
         "value": 34900.0,

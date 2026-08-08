@@ -497,6 +497,152 @@ Dúvidas? Nos escreva em contato@astrodicas.pnzdigital.com.br
     return _send_email(email, subject, html_content, text_content)
 
 
+def send_trial_started(
+    email: str,
+    name: str,
+    trial_ends_at: "datetime",
+    locale: str = "pt-BR",
+    temp_password: str | None = None,
+    portal_url: str | None = None,
+) -> dict[str, Any]:
+    """Boas-vindas ao trial do Círculo da Lua. Sem cartão, só e-mail."""
+    config = _get_config()
+    name_safe = _escape_html(name)
+    portal = (portal_url or config["portal_url"]).rstrip("/")
+    ends_label = trial_ends_at.strftime("%d/%m/%Y")
+
+    if locale == "es-AR":
+        subject = "Tu acceso al Círculo de la Luna ya está activo"
+        password_section = ""
+        if temp_password:
+            password_section = f"""
+<div class="info-box">
+    <strong>Contraseña temporal:</strong> <code>{_escape_html(temp_password)}</code>
+    <p>Cambiala en el portal cuando entres por primera vez.</p>
+</div>
+"""
+        content = f"""<h2>¡{name_safe}, tu cielo ya está calculado!</h2>
+<p>Tu acceso al <strong>Círculo de la Luna</strong> está activo por 3 días gratis — sin tarjeta, sin cobro.</p>
+<div class="info-box">
+    <strong>Durante los 3 días:</strong> horóscopo personalizado todos los días.<br>
+    <strong>Acceso válido hasta:</strong> {ends_label}<br>
+    <strong>Si decidís continuar:</strong> el Mapa Astral Completo en PDF + Guía del Mes + previsión semanal se agregan cuando confirmás la suscripción.
+</div>
+{password_section}
+<a href="{portal}" class="cta-button">Ir al portal →</a>
+<p>Si no querés continuar, no hace falta hacer nada — el acceso se cierra solo al vencerse. Sin cobros.</p>
+"""
+        footer = "¿Dudas? Escribinos a contato@astrodicas.pnzdigital.com.br"
+        text_content = (
+            f"¡{name_safe}, tu cielo ya está calculado!\n\n"
+            f"Tu acceso al Círculo de la Luna está activo por 3 días gratis — sin tarjeta.\n\n"
+            f"Durante los 3 días: horóscopo personalizado todos los días.\n"
+            f"Válido hasta: {ends_label}\n\n"
+        )
+        if temp_password:
+            text_content += f"Contraseña temporal: {temp_password}\n\n"
+        text_content += f"Portal: {portal}\n\nDudas: contato@astrodicas.pnzdigital.com.br"
+    else:
+        subject = "Seu acesso ao Círculo da Lua está ativo"
+        password_section = ""
+        if temp_password:
+            password_section = f"""
+<div class="info-box">
+    <strong>Senha temporária:</strong> <code>{_escape_html(temp_password)}</code>
+    <p>Altere no portal ao acessar pela primeira vez.</p>
+</div>
+"""
+        content = f"""<h2>{name_safe}, seu céu já está calculado!</h2>
+<p>Seu acesso ao <strong>Círculo da Lua</strong> está ativo por 3 dias grátis — sem cartão, sem cobrança.</p>
+<div class="info-box">
+    <strong>Durante os 3 dias:</strong> horóscopo personalizado todos os dias.<br>
+    <strong>Acesso válido até:</strong> {ends_label}<br>
+    <strong>Se quiser continuar:</strong> o Mapa Astral Completo em PDF + Guia do Mês + previsão da semana entram quando você confirmar a assinatura.
+</div>
+{password_section}
+<a href="{portal}" class="cta-button">Ir para o portal →</a>
+<p>Se não quiser continuar, não precisa fazer nada — o acesso fecha sozinho ao vencer. Sem cobranças.</p>
+"""
+        footer = "Dúvidas? Nos escreva em contato@astrodicas.pnzdigital.com.br"
+        text_content = (
+            f"{name_safe}, seu céu já está calculado!\n\n"
+            f"Seu acesso ao Círculo da Lua está ativo por 3 dias grátis — sem cartão.\n\n"
+            f"Durante os 3 dias: horóscopo personalizado todos os dias.\n"
+            f"Válido até: {ends_label}\n\n"
+        )
+        if temp_password:
+            text_content += f"Senha temporária: {temp_password}\n\n"
+        text_content += f"Portal: {portal}\n\nDúvidas: contato@astrodicas.pnzdigital.com.br"
+
+    html_content = _html_template(content, footer)
+    return _send_email(email, subject, html_content, text_content)
+
+
+def send_trial_ending_email(
+    email: str,
+    name: str,
+    trial_ends_at: "datetime",
+    subscribe_url: str,
+    locale: str = "pt-BR",
+) -> dict[str, Any]:
+    """Avisa que o trial acaba amanhã e convida a assinar o Círculo da Lua."""
+    name_safe = _escape_html(name)
+    ends_label = trial_ends_at.strftime("%d/%m/%Y")
+    url_safe = _escape_html(subscribe_url)
+
+    if locale == "es-AR":
+        subject = "Tu acceso gratis termina mañana — seguí con el Círculo de la Luna"
+        content = f"""<h2>Hola, {name_safe}. Tu trial termina mañana.</h2>
+<p>Tu acceso gratis al Círculo de la Luna vence el <strong>{ends_label}</strong>.</p>
+<p>Si querés seguir recibiendo tu horóscopo diario y desbloquear el resto:</p>
+<div class="info-box">
+    <strong>Con la suscripción se agregan:</strong><br>
+    ✦ Mapa Astral Completo en PDF (una vez, tuyo para siempre)<br>
+    ✦ Guía del Mes — nueva cada mes<br>
+    ✦ Previsión personalizada de la semana<br>
+    <br>
+    Cancelás cuando quieras, sin fidelidad.
+</div>
+<a href="{url_safe}" class="cta-button">Activar el Círculo de la Luna →</a>
+<p>Si no querés continuar, no hace falta hacer nada — el acceso se cierra solo. Sin cobros.</p>
+"""
+        footer = "¿Dudas? Escribinos a contato@astrodicas.pnzdigital.com.br"
+        text_content = (
+            f"Hola, {name_safe}. Tu trial termina mañana ({ends_label}).\n\n"
+            f"Con la suscripción se agregan: Mapa Astral Completo, Guía del Mes y previsión de la semana.\n\n"
+            f"Activar: {subscribe_url}\n\n"
+            f"Si no querés continuar, no hace falta hacer nada.\n\n"
+            f"¿Dudas? contato@astrodicas.pnzdigital.com.br"
+        )
+    else:
+        subject = "Seu acesso grátis termina amanhã — continue no Círculo da Lua"
+        content = f"""<h2>Olá, {name_safe}. Seu trial termina amanhã.</h2>
+<p>Seu acesso grátis ao Círculo da Lua vence em <strong>{ends_label}</strong>.</p>
+<p>Se quiser continuar recebendo seu horóscopo diário e desbloquear o restante:</p>
+<div class="info-box">
+    <strong>Com a assinatura você ganha:</strong><br>
+    ✦ Mapa Astral Completo em PDF (uma vez, seu para sempre)<br>
+    ✦ Guia do Mês — brinde novo todo mês<br>
+    ✦ Previsão personalizada da semana<br>
+    <br>
+    Cancela quando quiser, sem fidelidade.
+</div>
+<a href="{url_safe}" class="cta-button">Entrar no Círculo da Lua →</a>
+<p>Se não quiser continuar, não precisa fazer nada — o acesso fecha sozinho. Sem cobranças.</p>
+"""
+        footer = "Dúvidas? Nos escreva em contato@astrodicas.pnzdigital.com.br"
+        text_content = (
+            f"Olá, {name_safe}. Seu trial termina amanhã ({ends_label}).\n\n"
+            f"Com a assinatura você ganha: Mapa Astral Completo em PDF, Guia do Mês e previsão da semana.\n\n"
+            f"Assinar: {subscribe_url}\n\n"
+            f"Se não quiser continuar, não precisa fazer nada.\n\n"
+            f"Dúvidas: contato@astrodicas.pnzdigital.com.br"
+        )
+
+    html_content = _html_template(content, footer)
+    return _send_email(email, subject, html_content, text_content)
+
+
 def send_renewal_reminder_email(
     email: str,
     name: str,
@@ -504,27 +650,27 @@ def send_renewal_reminder_email(
     renewal_url: str,
     reminder_type: str = "7d",
 ) -> dict[str, Any]:
-    """Avisa que o Plano Lua vai vencer. reminder_type: '7d' ou 'today'."""
+    """Avisa que o Círculo da Lua vai vencer. reminder_type: '7d' ou 'today'."""
     name_safe = _escape_html(name)
     expires_label = expires_at.strftime("%d/%m/%Y")
     renewal_url_safe = _escape_html(renewal_url)
 
     if reminder_type == "today":
-        subject = "Seu Plano Lua vence hoje — renove para continuar"
+        subject = "Seu Círculo da Lua vence hoje — renove para continuar"
         headline = "Seu acesso vence hoje."
-        body_line = "Para continuar recebendo seu horóscopo diário e suas leituras astrológicas, renove seu Plano Lua agora."
+        body_line = "Para continuar recebendo seu horóscopo diário e suas leituras astrológicas, renove seu Círculo da Lua agora."
         button_text = "Renovar agora"
     else:
-        subject = "Seu Plano Lua vence em 7 dias — renove para não perder o acesso"
+        subject = "Seu Círculo da Lua vence em 7 dias — renove para não perder o acesso"
         headline = "Seu acesso vence em breve."
-        body_line = f"Seu Plano Lua está ativo até <strong>{expires_label}</strong>. Renove antes do prazo e mantenha seu acesso sem interrupção."
-        button_text = "Renovar Plano Lua"
+        body_line = f"Seu Círculo da Lua está ativo até <strong>{expires_label}</strong>. Renove antes do prazo e mantenha seu acesso sem interrupção."
+        button_text = "Renovar Círculo da Lua"
 
     content = f"""<h2>{headline}</h2>
 <p>Olá, {name_safe}!</p>
 <p>{body_line}</p>
 <div class="info-box">
-    <strong>Plano Lua</strong> — acesso a horóscopo diário, guia mensal e leituras personalizadas.<br>
+    <strong>Círculo da Lua</strong> — acesso a horóscopo diário, guia mensal e leituras personalizadas.<br>
     <strong>Vencimento:</strong> {expires_label}
 </div>
 <a href="{renewal_url_safe}" class="cta-button">{button_text}</a>
@@ -554,9 +700,9 @@ def send_winback_email(
 
     subject = "Sentimos sua falta — volte ao AstroDicas com condição especial"
     content = f"""<h2>Olá, {name_safe}. Seu céu ainda tem muito a revelar.</h2>
-<p>Seu Plano Lua venceu e sentimos sua falta. Preparamos uma condição especial para você voltar:</p>
+<p>Seu Círculo da Lua venceu e sentimos sua falta. Preparamos uma condição especial para você voltar:</p>
 <div class="info-box">
-    <strong>Plano Lua</strong> — 30 dias de acesso<br>
+    <strong>Círculo da Lua</strong> — 30 dias de acesso<br>
     <strong>De R$ 27,90 por R$ 20,90</strong> nesta oferta
 </div>
 <p>Sem assinatura, sem compromisso. Pague uma vez e aproveite por 30 dias.</p>
@@ -566,8 +712,8 @@ def send_winback_email(
     footer = "Dúvidas? Nos escreva em contato@astrodicas.pnzdigital.com.br"
     text_content = (
         f"Olá, {name_safe}. Seu céu ainda tem muito a revelar.\n\n"
-        f"Seu Plano Lua venceu e preparamos uma condição especial para você voltar:\n\n"
-        f"Plano Lua — 30 dias de acesso por R$ 20,90 (de R$ 27,90)\n\n"
+        f"Seu Círculo da Lua venceu e preparamos uma condição especial para você voltar:\n\n"
+        f"Círculo da Lua — 30 dias de acesso por R$ 20,90 (de R$ 27,90)\n\n"
         f"Sem assinatura, sem compromisso.\n\n"
         f"Acessar oferta: {winback_url}\n\n"
         f"Dúvidas? Nos escreva em contato@astrodicas.pnzdigital.com.br"
