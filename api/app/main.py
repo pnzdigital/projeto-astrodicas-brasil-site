@@ -621,6 +621,11 @@ def generate(content_id: str, request: Request, response: Response, background_t
         raise HTTPException(status_code=422, detail=msg)
     snapshot = profile_to_dict(profile)
     locale = _pick_locale(user.locale if user else None, request.headers.get("accept-language"))
+    if content_id == "site:content:previsao_semanal":
+        # Grava a semana-alvo no snapshot para que reading_is_current compare
+        # pela semana-alvo (não pela semana de criação). Veja _target_iso_week.
+        tz_locale = locale if locale in horoscope_free.LOCALE_DEFAULTS else "pt-BR"
+        snapshot = {**(snapshot or {}), "target_iso_week": _target_iso_week(tz_locale)}
     product_id = content_product(content_id)
     # Entitlement checado ANTES do cache: sem isso, quem cancelou/venceu ainda
     # veria a leitura de hoje se ela já tivesse sido gerada antes de expirar.
@@ -785,13 +790,30 @@ def content_title(content_id: str) -> str:
     }.get(content_id, "Leitura AstroDicas")
 
 
+def _target_iso_week(tz_locale: str) -> str:
+    """Semana-alvo da previsão semanal no fuso local da assinante.
+
+    Do sábado em diante → a semana que começa na segunda seguinte;
+    antes do sábado → a semana corrente.  Grava como "YYYY-Www" para
+    comparação explícita no input_snapshot (evita ambiguidade na fronteira
+    do sábado, onde criação de sexta e de sábado apontam para semanas
+    diferentes).
+    """
+    today = horoscope_free.local_today(tz_locale)
+    if today.weekday() >= 5:  # Saturday=5, Sunday=6 → next week
+        next_monday = today + timedelta(days=7 - today.weekday())
+        year, week, _ = next_monday.isocalendar()
+    else:
+        year, week, _ = today.isocalendar()
+    return f"{year}-W{week:02d}"
+
+
 def reading_is_current(reading: Reading, content_id: str, snapshot: dict, locale: str = "pt-BR") -> bool:
     if reading.input_snapshot != snapshot:
         return False
     created = reading.created_at
     if created.tzinfo is None:
         created = created.replace(tzinfo=timezone.utc)
-    now = datetime.now(timezone.utc)
     if content_id == "site:content:horoscopo_diario":
         # Dia da ASSINANTE, não do servidor — mesma razão do horóscopo grátis
         # (horoscope_free.local_today): às 22h no Brasil/Argentina o servidor
@@ -801,7 +823,13 @@ def reading_is_current(reading: Reading, content_id: str, snapshot: dict, locale
         created_local = created.astimezone(ZoneInfo(horoscope_free.LOCALE_DEFAULTS[tz_locale][1])).date()
         return created_local == horoscope_free.local_today(tz_locale)
     if content_id == "site:content:previsao_semanal":
-        return created.isocalendar()[:2] == now.isocalendar()[:2]
+        # Chave de validade = semana-alvo gravada no snapshot (não a semana de
+        # criação): a semana-alvo muda no sábado, não na segunda.  Se o snapshot
+        # passou a comparação acima, target_iso_week já bate — verificamos
+        # explicitamente para deixar a intenção clara e proteger testes diretos.
+        tz_locale = locale if locale in horoscope_free.LOCALE_DEFAULTS else "pt-BR"
+        stored_week = (reading.input_snapshot or {}).get("target_iso_week")
+        return bool(stored_week) and stored_week == _target_iso_week(tz_locale)
     if content_id == "site:content:guia_do_mes":
         # Mês da ASSINANTE, não do servidor — mesma razão do horóscopo diário
         # acima: perto da virada do mês, UTC já mudou de mês enquanto ainda é
@@ -812,7 +840,12 @@ def reading_is_current(reading: Reading, content_id: str, snapshot: dict, locale
         today_local = horoscope_free.local_today(tz_locale)
         return (created_local.year, created_local.month) == (today_local.year, today_local.month)
     if content_id == "site:content:calendario_lunar":
-        return (created.year, created.month) == (now.year, now.month)
+        # Mês da ASSINANTE, não do servidor — à meia-noite em UTC o servidor já
+        # virou o mês enquanto Brasil/Argentina ainda estão no anterior.
+        tz_locale = locale if locale in horoscope_free.LOCALE_DEFAULTS else "pt-BR"
+        created_local = created.astimezone(ZoneInfo(horoscope_free.LOCALE_DEFAULTS[tz_locale][1])).date()
+        today_local = horoscope_free.local_today(tz_locale)
+        return (created_local.year, created_local.month) == (today_local.year, today_local.month)
     return True
 
 
