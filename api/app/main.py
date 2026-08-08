@@ -18,7 +18,7 @@ from sqlalchemy.orm import Session
 from .db import Base, SessionLocal, engine, get_db
 from .astrology import resolve_coordinates
 from .mailer import send_purchase_confirmation
-from . import admin, checkout, entitlements, ggcheckout, horoscope_free, migrations, preview, pricing, security, sessions, subscriptions
+from . import admin, checkout, entitlements, ggcheckout, horoscope_free, migrations, preview, pricing, renewal, security, sessions, subscriptions
 from .ratelimit import auth_rate_limit, password_reset_rate_limit, webhook_rate_limit
 from .engine import generate_reading, sections_for
 from .pdf_export import build_pdf
@@ -55,6 +55,7 @@ app.include_router(admin.router)
 app.include_router(preview.router)
 app.include_router(horoscope_free.router)
 app.include_router(subscriptions.router)
+app.include_router(renewal.router)
 
 
 @app.middleware("http")
@@ -502,18 +503,36 @@ def save_profile(body: ProfileBody, request: Request, site_session: str | None =
 @app.get("/api/me/access")
 def access(request: Request, site_session: str | None = Cookie(default=None), db: Session = Depends(get_db)) -> dict:
     user = current_user(site_session, db, accept_language=request.headers.get("accept-language"))
-    # ``active`` diz ao portal o que está valendo agora; ``expires_at`` deixa a
-    # UI avisar "seu acesso termina em X" antes de o cliente descobrir sozinho.
+    now = datetime.now(timezone.utc)
     return {
         "entitlements": [
-            {
-                "product_id": e.product_id,
-                "status": e.status,
-                "active": entitlements.is_active(e),
-                "expires_at": e.expires_at.isoformat() if e.expires_at else None,
-            }
+            _entitlement_dict(e, now)
             for e in user.entitlements
         ]
+    }
+
+
+def _entitlement_dict(e: "Entitlement", now: datetime) -> dict:
+    """Serializa um entitlement com campos de conveniência para o painel."""
+    is_active = entitlements.is_active(e, now)
+    expires_at = e.expires_at
+    if expires_at is not None and expires_at.tzinfo is None:
+        expires_at = expires_at.replace(tzinfo=timezone.utc)
+
+    days_remaining: int | None = None
+    needs_renewal: bool | None = None
+    if expires_at is not None:
+        delta = expires_at - now
+        days_remaining = max(0, delta.days)
+        needs_renewal = not is_active
+
+    return {
+        "product_id": e.product_id,
+        "status": e.status,
+        "active": is_active,
+        "expires_at": expires_at.isoformat() if expires_at else None,
+        "days_remaining": days_remaining,
+        "needs_renewal": needs_renewal,
     }
 
 

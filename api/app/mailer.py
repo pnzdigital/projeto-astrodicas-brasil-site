@@ -495,3 +495,82 @@ Dúvidas? Nos escreva em contato@astrodicas.pnzdigital.com.br
 
     html_content = _html_template(content, footer)
     return _send_email(email, subject, html_content, text_content)
+
+
+def send_renewal_reminder_email(
+    email: str,
+    name: str,
+    expires_at: "datetime",
+    renewal_url: str,
+    reminder_type: str = "7d",
+) -> dict[str, Any]:
+    """Avisa que o Plano Lua vai vencer. reminder_type: '7d' ou 'today'."""
+    name_safe = _escape_html(name)
+    expires_label = expires_at.strftime("%d/%m/%Y")
+    renewal_url_safe = _escape_html(renewal_url)
+
+    if reminder_type == "today":
+        subject = "Seu Plano Lua vence hoje — renove para continuar"
+        headline = "Seu acesso vence hoje."
+        body_line = "Para continuar recebendo seu horóscopo diário e suas leituras astrológicas, renove seu Plano Lua agora."
+        button_text = "Renovar agora"
+    else:
+        subject = "Seu Plano Lua vence em 7 dias — renove para não perder o acesso"
+        headline = "Seu acesso vence em breve."
+        body_line = f"Seu Plano Lua está ativo até <strong>{expires_label}</strong>. Renove antes do prazo e mantenha seu acesso sem interrupção."
+        button_text = "Renovar Plano Lua"
+
+    content = f"""<h2>{headline}</h2>
+<p>Olá, {name_safe}!</p>
+<p>{body_line}</p>
+<div class="info-box">
+    <strong>Plano Lua</strong> — acesso a horóscopo diário, guia mensal e leituras personalizadas.<br>
+    <strong>Vencimento:</strong> {expires_label}
+</div>
+<a href="{renewal_url_safe}" class="cta-button">{button_text}</a>
+<p>Se preferir não renovar, basta ignorar este e-mail. Sem cobranças automáticas.</p>
+"""
+    footer = "Dúvidas? Nos escreva em contato@astrodicas.pnzdigital.com.br"
+    text_content = (
+        f"{headline}\n\n"
+        f"Olá, {name_safe}!\n\n"
+        f"{body_line.replace('<strong>', '').replace('</strong>', '')}\n\n"
+        f"Renovar: {renewal_url}\n\n"
+        f"Se preferir não renovar, basta ignorar este e-mail. Sem cobranças automáticas.\n\n"
+        f"Dúvidas? Nos escreva em contato@astrodicas.pnzdigital.com.br"
+    )
+    html_content = _html_template(content, footer)
+    return _send_email(email, subject, html_content, text_content)
+
+
+def send_winback_email(
+    email: str,
+    name: str,
+    winback_url: str,
+) -> dict[str, Any]:
+    """Convida de volta quem não renovou, com oferta de preço menor."""
+    name_safe = _escape_html(name)
+    winback_url_safe = _escape_html(winback_url)
+
+    subject = "Sentimos sua falta — volte ao AstroDicas com condição especial"
+    content = f"""<h2>Olá, {name_safe}. Seu céu ainda tem muito a revelar.</h2>
+<p>Seu Plano Lua venceu e sentimos sua falta. Preparamos uma condição especial para você voltar:</p>
+<div class="info-box">
+    <strong>Plano Lua</strong> — 30 dias de acesso<br>
+    <strong>De R$ 27,90 por R$ 20,90</strong> nesta oferta
+</div>
+<p>Sem assinatura, sem compromisso. Pague uma vez e aproveite por 30 dias.</p>
+<a href="{winback_url_safe}" class="cta-button">Quero voltar</a>
+<p>Esta oferta é exclusiva e pode não estar disponível no site principal.</p>
+"""
+    footer = "Dúvidas? Nos escreva em contato@astrodicas.pnzdigital.com.br"
+    text_content = (
+        f"Olá, {name_safe}. Seu céu ainda tem muito a revelar.\n\n"
+        f"Seu Plano Lua venceu e preparamos uma condição especial para você voltar:\n\n"
+        f"Plano Lua — 30 dias de acesso por R$ 20,90 (de R$ 27,90)\n\n"
+        f"Sem assinatura, sem compromisso.\n\n"
+        f"Acessar oferta: {winback_url}\n\n"
+        f"Dúvidas? Nos escreva em contato@astrodicas.pnzdigital.com.br"
+    )
+    html_content = _html_template(content, footer)
+    return _send_email(email, subject, html_content, text_content)
