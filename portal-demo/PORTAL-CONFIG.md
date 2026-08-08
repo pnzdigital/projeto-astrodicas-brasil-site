@@ -7,7 +7,7 @@ IDs daqui sempre começam por `site:`.
 
 ## O que existe no arquivo
 
-- `SITE_CATALOG`: produtos individuais, Plano Lua, oferta Premium e os combos web.
+- `SITE_CATALOG`: produtos individuais, Diário Astral, oferta Completo e os combos web.
 - `WEB_CONTENT`: leituras entregues como experiência web. O PDF é uma saída opcional.
 - `ACCESS_STATES`: estados de renderização/liberação (`available`, `locked`, `pending`, etc.).
 - `CHECKOUT`: adaptadores de checkout. Cakto é o primeiro provedor, com URLs vazias até o deploy.
