@@ -13,10 +13,12 @@ pacote e dispara o e-mail transacional. Nada aqui conhece o Telegram.
 
 from __future__ import annotations
 
+import json
 import logging
 import os
 import secrets
 from datetime import datetime, timezone
+from urllib.parse import urlencode, urlparse, urlunparse, parse_qs
 
 from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel, EmailStr, Field
@@ -57,6 +59,33 @@ def portal_url() -> str:
     return os.getenv("PORTAL_URL", "https://dash.astrodicas.pnzdigital.com.br/")
 
 
+def gg_checkout_url(product_id: str) -> str | None:
+    """URL de checkout do GG para o produto, ou None se não configurada.
+
+    Configurar: GG_CHECKOUT_URLS='{"site:plano_lua": "https://checkout.gg.com/abc"}'
+    Adicionar produto: só editar a env var, sem redeploy.
+    """
+    raw = os.getenv("GG_CHECKOUT_URLS", "").strip()
+    if not raw:
+        return None
+    try:
+        urls = json.loads(raw)
+    except json.JSONDecodeError:
+        logger.error("GG_CHECKOUT_URLS não é JSON válido — nenhuma URL GG disponível")
+        return None
+    url = (urls.get(product_id) or "").strip()
+    return url if url else None
+
+
+def _append_checkout_params(base_url: str, email: str, order_id: str) -> str:
+    """Acrescenta email e ref de pedido ao link de checkout externo (para prefill)."""
+    parsed = urlparse(base_url)
+    qs = parse_qs(parsed.query, keep_blank_values=True)
+    qs.setdefault("email", [email])
+    qs.setdefault("ref", [order_id])
+    return urlunparse(parsed._replace(query=urlencode({k: v[0] for k, v in qs.items()})))
+
+
 # Quem cobra em cada mercado é configuração, não regra de negócio. O padrão
 # reproduz o que sempre valeu (Argentina no Mercado Pago, Brasil na Cakto),
 # então nada muda sem alguém pedir.
@@ -65,8 +94,8 @@ def portal_url() -> str:
 # (MLB): contas do Mercado Pago são presas ao país, e a conta argentina em uso
 # hoje (MLA) não cobra em BRL. Sem MP_ACCESS_TOKEN válido para o país, o
 # checkout responde 503 em vez de vender.
-PROVIDERS = {"mercadopago", "cakto"}
-DEFAULT_PROVIDERS = {"AR": "mercadopago", "BR": "cakto"}
+PROVIDERS = {"mercadopago", "cakto", "ggcheckout"}
+DEFAULT_PROVIDERS = {"AR": "mercadopago", "BR": "ggcheckout"}
 
 
 def provider_for(locale: str | None) -> str:
@@ -105,7 +134,7 @@ def _checkout_config(locale: str) -> dict:
             "public_key": mp.public_key(),
             "enabled": mp.is_enabled(),
         }
-    return {"provider": provider, "transparent": False, "public_key": "", "enabled": True}
+    return {"provider": provider, "transparent": False, "redirect": True, "public_key": "", "enabled": True}
 
 
 @router.get("/api/catalog")
@@ -150,7 +179,19 @@ def open_order(body: OrderBody, db: Session = Depends(get_db)) -> dict:
     db.commit()
 
     init_point = ""
-    if provider == "mercadopago":
+    if provider == "ggcheckout":
+        gg_url = gg_checkout_url(body.product_id)
+        if not gg_url:
+            logger.error(
+                "URL GG Checkout não configurada para product_id=%r; configure GG_CHECKOUT_URLS",
+                body.product_id,
+            )
+            raise HTTPException(
+                status_code=503,
+                detail="O checkout deste produto ainda não está disponível. Entre em contato pelo suporte.",
+            )
+        init_point = _append_checkout_params(gg_url, body.email.lower(), order.id)
+    elif provider == "mercadopago":
         try:
             preference = mp.create_preference(
                 order_id=order.id,

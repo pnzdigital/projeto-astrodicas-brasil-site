@@ -26,7 +26,7 @@ def _mp_habilitado(monkeypatch):
 
 def test_padrao_preserva_o_comportamento_de_sempre():
     assert checkout.provider_for("es-AR") == "mercadopago"
-    assert checkout.provider_for("pt-BR") == "cakto"
+    assert checkout.provider_for("pt-BR") == "ggcheckout"
 
 
 def test_brasil_pode_ser_configurado_no_mercado_pago(monkeypatch):
@@ -38,12 +38,12 @@ def test_brasil_pode_ser_configurado_no_mercado_pago(monkeypatch):
 def test_argentina_pode_sair_do_mercado_pago(monkeypatch):
     monkeypatch.setenv("CHECKOUT_PROVIDER_AR", "cakto")
     assert checkout.provider_for("es-AR") == "cakto"
-    assert checkout.provider_for("pt-BR") == "cakto"
+    assert checkout.provider_for("pt-BR") == "ggcheckout", "BR não muda junto com AR"
 
 
 def test_valor_desconhecido_nao_derruba_a_venda(monkeypatch, caplog):
     monkeypatch.setenv("CHECKOUT_PROVIDER_BR", "pagseguro")
-    assert checkout.provider_for("pt-BR") == "cakto", "typo cai no padrão em vez de quebrar"
+    assert checkout.provider_for("pt-BR") == "ggcheckout", "typo cai no padrão em vez de quebrar"
     assert "pagseguro" in caplog.text
 
 
@@ -54,7 +54,7 @@ def test_maiuscula_e_espaco_nao_atrapalham(monkeypatch):
 
 def test_catalogo_br_segue_a_configuracao(client, monkeypatch, _mp_habilitado):
     padrao = client.get("/api/catalog?locale=pt-BR").json()["checkout"]
-    assert padrao["provider"] == "cakto"
+    assert padrao["provider"] == "ggcheckout"
     assert padrao["transparent"] is False
     assert padrao["public_key"] == ""
 
@@ -76,10 +76,12 @@ def test_pedido_br_configurado_no_mp_nasce_com_o_provedor_certo(client, monkeypa
     assert pedido.json()["currency"] == "BRL", "o preço continua sendo do mercado, não do provedor"
 
 
-def test_pedido_da_cakto_nao_e_cobrado_pela_rota_aposentada_do_mercado_pago(client, _mp_habilitado):
+def test_pedido_br_nao_e_cobrado_pela_rota_aposentada_do_mercado_pago(client, monkeypatch, _mp_habilitado):
     """A rota do checkout transparente foi aposentada para todo mundo: uma
-    venda Cakto não tem como cair na conta argentina por ela porque a rota
+    venda BR não tem como cair na conta argentina por ela porque a rota
     não cobra mais ninguém."""
+    import json as _json
+    monkeypatch.setenv("GG_CHECKOUT_URLS", _json.dumps({"site:mapa_astral": "https://checkout.gg.test/mapa"}))
     pedido = client.post(
         "/api/checkout/order",
         json={"product_id": "site:mapa_astral", "email": "br@cliente.com", "name": "Cliente BR", "locale": "pt-BR"},

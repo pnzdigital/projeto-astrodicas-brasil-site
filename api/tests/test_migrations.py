@@ -46,8 +46,9 @@ def _drop_and_recreate_as_legacy_schema() -> None:
         )
 
 
-def test_checkout_order_survives_pre_existing_orders_table_missing_new_columns(client):
+def test_checkout_order_survives_pre_existing_orders_table_missing_new_columns(client, monkeypatch):
     """Reproduz o payload real do portal-demo/checkout.html contra o schema legado."""
+    monkeypatch.setenv("CHECKOUT_PROVIDER_BR", "cakto")
     _drop_and_recreate_as_legacy_schema()
     migrations.ensure_schema()
 
@@ -67,7 +68,8 @@ def test_checkout_order_survives_pre_existing_orders_table_missing_new_columns(c
     assert body["currency"] == "BRL"
 
 
-def test_ensure_schema_is_idempotent(client):
+def test_ensure_schema_is_idempotent(client, monkeypatch):
+    monkeypatch.setenv("CHECKOUT_PROVIDER_BR", "cakto")
     _drop_and_recreate_as_legacy_schema()
     migrations.ensure_schema()
     migrations.ensure_schema()  # segunda chamada não deve falhar nem duplicar colunas

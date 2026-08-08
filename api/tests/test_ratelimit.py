@@ -155,6 +155,7 @@ def test_limit_keys_on_forwarded_client_ip_not_proxy(monkeypatch, client):
 
 
 def test_checkout_order_and_webhook_have_independent_buckets(monkeypatch, client):
+    monkeypatch.setenv("CHECKOUT_PROVIDER_BR", "cakto")
     monkeypatch.setenv("RATE_LIMIT_CHECKOUT_MAX", "1")
     monkeypatch.setenv("RATE_LIMIT_CHECKOUT_WINDOW_SECONDS", "60")
     monkeypatch.setenv("RATE_LIMIT_WEBHOOK_MAX", "1")

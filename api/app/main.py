@@ -18,9 +18,9 @@ from sqlalchemy.orm import Session
 from .db import Base, SessionLocal, engine, get_db
 from .astrology import resolve_coordinates
 from .mailer import send_purchase_confirmation
-from . import admin, checkout, entitlements, horoscope_free, migrations, preview, pricing, security, sessions, subscriptions
+from . import admin, checkout, entitlements, ggcheckout, horoscope_free, migrations, preview, pricing, security, sessions, subscriptions
 from .ratelimit import auth_rate_limit, password_reset_rate_limit, webhook_rate_limit
-from .engine import generate_reading
+from .engine import generate_reading, sections_for
 from .pdf_export import build_pdf
 from .models import Entitlement, Order, PasswordResetToken, Profile, Reading, User, WebhookEvent
 from .security import (
@@ -50,6 +50,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 app.include_router(checkout.router)
+app.include_router(ggcheckout.router)
 app.include_router(admin.router)
 app.include_router(preview.router)
 app.include_router(horoscope_free.router)
@@ -552,8 +553,24 @@ def _run_generation_job(reading_id: str, content_id: str, title: str, user_id: s
             logger.error("generate background job: reading %s sumiu antes de terminar", reading_id)
             return
         profile = db.get(Profile, user_id)
+        expected = sections_for(content_id)
+        # sections_total já foi setado em main.generate antes do 202; aqui
+        # apenas resets sections_done para cobrir o caso improvável de retry.
+        reading.sections_done = 0
+        db.commit()
+
+        done_count = [0]
+
+        def _on_section_done() -> None:
+            done_count[0] += 1
+            reading.sections_done = done_count[0]
+            db.commit()
+
         try:
-            generated = generate_reading(content_id, title, profile, locale, customer_name)
+            if expected:
+                generated = generate_reading(content_id, title, profile, locale, customer_name, on_section_done=_on_section_done)
+            else:
+                generated = generate_reading(content_id, title, profile, locale, customer_name)
         except Exception:
             logger.exception("generate_reading levantou exceção não tratada para reading=%s", reading_id)
             reading.status = "fallback"
@@ -596,7 +613,15 @@ def generate(content_id: str, request: Request, response: Response, background_t
         # Já pronta: nada para gerar, devolve 200 de verdade (não 202).
         response.status_code = status.HTTP_200_OK
         return {"reading": reading_to_dict(existing, user.locale)}
-    reading = Reading(user_id=user.id, content_id=content_id, product_id=product_id, status="in_progress", title=content_title(content_id), input_snapshot=snapshot)
+    reading = Reading(
+        user_id=user.id,
+        content_id=content_id,
+        product_id=product_id,
+        status="in_progress",
+        title=content_title(content_id),
+        input_snapshot=snapshot,
+        sections_total=len(sections_for(content_id)),  # exposto no 202 para o front
+    )
     db.add(reading)
     db.commit()
     db.refresh(reading)
@@ -790,6 +815,8 @@ def reading_to_dict(reading: Reading, locale: str = "pt-BR") -> dict:
         # o cliente pagante vê o Ascendente calculado como se fosse exato.
         "birth_time_assumed": bool(getattr(reading, "birth_time_assumed", False)),
         "ascendant_warning": ascendant_warning.get(locale) or ascendant_warning.get("pt-BR") or "",
+        "sections_done": int(getattr(reading, "sections_done", 0) or 0),
+        "sections_total": int(getattr(reading, "sections_total", 0) or 0),
         "created_at": reading.created_at.isoformat(),
         "updated_at": reading.updated_at.isoformat(),
     }

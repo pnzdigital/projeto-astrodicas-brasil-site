@@ -210,10 +210,11 @@ def test_ar_prices_in_portal_config_ar_match_checkout_amount(vitrine_ars_prices_
 # ─── Cakto (BR) — o checkout também tem que mandar o preço do servidor ────
 
 
-def test_br_checkout_order_amount_matches_pricing_for_every_listed_sku(client):
+def test_br_checkout_order_amount_matches_pricing_for_every_listed_sku(client, monkeypatch):
     """Para cada SKU listado (visível na vitrine), o /api/checkout/order devolve
-    o mesmo amount que pricing.amount_minor(). Esse é o valor que vai pra Cakto
-    via webhook (mesma rota, só muda o provedor)."""
+    o mesmo amount que pricing.amount_minor(). Usa provedor cakto (sem verificação
+    de URL) para isolar o teste ao preço, não à configuração de checkout."""
+    monkeypatch.setenv("CHECKOUT_PROVIDER_BR", "cakto")
     for sku in pricing.PRICES_BRL_MINOR:
         if sku in pricing.UNLISTED:
             continue  # bump / exit-offer: vitrine não mostra, teste cobre via offer copy
