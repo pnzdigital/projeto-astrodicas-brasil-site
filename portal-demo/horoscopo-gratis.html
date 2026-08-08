@@ -374,7 +374,6 @@
         trialSubmit.disabled = true;
         trialError.textContent = copy.trialOpening;
         try {
-          if (window.fbq) fbq('track', 'StartTrial', { content_name: 'diario-astral-trial', content_language: locale, predicted_ltv: 0 });
           const response = await fetch(`${API}/api/trial/start`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -382,6 +381,7 @@
           });
           const data = await response.json().catch(() => ({}));
           if (!response.ok || data.status !== 'trialing') { trialError.textContent = data.detail || copy.trialFailed; trialSubmit.disabled = false; return; }
+          if (window.fbq) fbq('track', 'StartTrial', { content_name: 'diario-astral-trial', content_language: locale, predicted_ltv: 0 });
           window.location.href = PORTAL;
         } catch {
           trialError.textContent = copy.trialFailed;

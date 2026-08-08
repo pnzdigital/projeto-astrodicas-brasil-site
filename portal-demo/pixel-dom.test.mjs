@@ -95,12 +95,27 @@ test('InitiateCheckout dispara ao clicar no CTA do Plano Lua (pt-BR)', async () 
   assert.ok(ic, 'InitiateCheckout não disparou ao clicar no CTA');
 });
 
-test('es-AR: submit do form de trial dispara StartTrial e redireciona pro portal', () => {
-  // Trial cria acesso local (sem Mercado Pago): redireciona pro PORTAL após status=trialing.
+test('es-AR: ViewContent dispara na chegada com locale es-AR', async () => {
+  const { fbqCalls } = await loadPage('/es/horoscopo-gratis');
+  const vc = fbqCalls.find((c) => c[1] === 'ViewContent');
+  assert.ok(vc, 'ViewContent não disparou para /es/horoscopo-gratis');
+  assert.equal(vc[2].content_language, 'es-AR');
+});
+
+test('es-AR: StartTrial dispara APÓS api/trial/start confirmar status=trialing', () => {
+  // Verifica no código-fonte que StartTrial vem depois da verificação de status,
+  // garantindo que o evento só sai quando o trial foi de fato criado no backend.
   const trialBlock = html.slice(html.indexOf('function wireTrialCard'), html.lastIndexOf('</script>'));
-  assert.match(trialBlock, /fbq\('track', 'StartTrial'/, 'StartTrial não dispara no submit do form de trial');
-  assert.match(trialBlock, /\/api\/trial\/start/, 'submit do trial não chama /api/trial/start');
-  assert.match(trialBlock, /window\.location\.href\s*=\s*PORTAL/, 'submit do trial não redireciona pro PORTAL');
+  const startTrialIdx = trialBlock.indexOf("fbq('track', 'StartTrial'");
+  const apiConfirmIdx = trialBlock.indexOf("data.status !== 'trialing'");
+  const fetchIdx = trialBlock.indexOf('/api/trial/start');
+  const redirectIdx = trialBlock.indexOf('window.location.href');
+  assert.ok(startTrialIdx > -1, 'StartTrial não encontrado em wireTrialCard');
+  assert.ok(apiConfirmIdx > -1, 'verificação data.status !== trialing não encontrada');
+  assert.ok(fetchIdx > -1, 'submit do trial não chama /api/trial/start');
+  assert.ok(redirectIdx > -1, 'submit do trial não redireciona pro PORTAL');
+  assert.ok(startTrialIdx > apiConfirmIdx, 'StartTrial deve disparar DEPOIS da verificação de status=trialing (não antes da API responder)');
+  assert.ok(startTrialIdx < redirectIdx, 'StartTrial deve disparar ANTES do redirect pro portal');
 });
 
 // ── storefront.html: ViewContent na vitrine ─────────────────────────────────
