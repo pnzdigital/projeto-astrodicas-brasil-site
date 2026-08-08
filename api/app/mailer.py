@@ -689,6 +689,49 @@ def send_renewal_reminder_email(
     return _send_email(email, subject, html_content, text_content)
 
 
+def send_weekly_forecast_email(
+    email: str,
+    name: str,
+    forecast_html: str,
+    portal_url: str,
+    locale: str = "pt-BR",
+) -> dict[str, Any]:
+    """Envia a previsão da semana por e-mail, com o texto completo e link para o portal."""
+    name_safe = _escape_html(name)
+    portal_safe = _escape_html(portal_url)
+
+    import re as _re
+    forecast_plain = _re.sub(r"<[^>]+>", "", forecast_html).strip()
+
+    if locale == "es-AR":
+        subject = "Tu previsión de la semana — AstroDicas"
+        content = f"""<h2>Hola, {name_safe}. Tu semana empieza aquí.</h2>
+<p>La previsión astral de la semana que viene, calculada a partir de tu mapa natal:</p>
+<div class="info-box" style="white-space:pre-line">{forecast_html}</div>
+<a href="{portal_safe}" class="cta-button">Leer en el portal</a>
+"""
+        footer = "¿Dudas? Escribinos a contato@astrodicas.pnzdigital.com.br"
+        text_content = (
+            f"Hola, {name_safe}. Tu previsión astral de la semana que viene:\n\n"
+            f"{forecast_plain}\n\nLeer en el portal: {portal_url}\n"
+        )
+    else:
+        subject = "Sua previsão da semana — AstroDicas"
+        content = f"""<h2>Olá, {name_safe}. Sua semana começa aqui.</h2>
+<p>A previsão astral da próxima semana, calculada a partir do seu mapa natal:</p>
+<div class="info-box" style="white-space:pre-line">{forecast_html}</div>
+<a href="{portal_safe}" class="cta-button">Ler no portal</a>
+"""
+        footer = "Dúvidas? Nos escreva em contato@astrodicas.pnzdigital.com.br"
+        text_content = (
+            f"Olá, {name_safe}. Sua previsão astral da próxima semana:\n\n"
+            f"{forecast_plain}\n\nLer no portal: {portal_url}\n"
+        )
+
+    html_content = _html_template(content, footer)
+    return _send_email(email, subject, html_content, text_content)
+
+
 def send_winback_email(
     email: str,
     name: str,

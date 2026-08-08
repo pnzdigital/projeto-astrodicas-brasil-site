@@ -34,10 +34,10 @@ from fastapi import APIRouter, Depends, HTTPException, Request
 from sqlalchemy import String, DateTime, UniqueConstraint, select
 from sqlalchemy.orm import Mapped, Session, mapped_column
 
-from .checkout import gg_checkout_url
+from .checkout import gg_checkout_url, portal_url
 from .db import Base, get_db
-from .mailer import send_renewal_reminder_email, send_trial_ending_email, send_winback_email
-from .models import Entitlement, User
+from .mailer import send_renewal_reminder_email, send_trial_ending_email, send_weekly_forecast_email, send_winback_email
+from .models import Entitlement, Profile, User
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -333,3 +333,105 @@ async def renewal_reminders_task(request: Request, db: Session = Depends(get_db)
         "trial_ending": trial_stats["trial_ending"],
         "trial_winback": trial_stats["trial_winback"],
     }
+
+
+WEEKLY_FORECAST_PRODUCT = "site:mapa_astral"
+WEEKLY_FORECAST_CONTENT = "site:content:previsao_semanal"
+
+
+def run_weekly_forecast(db: Session) -> dict:
+    """Gera e envia a previsão semanal para assinantes ativas com mapa_astral.
+
+    Chamado pelo cron do Coolify todo sábado via POST /api/tasks/weekly-forecast.
+    Idempotente: a chave (user_id, iso_week) evita reenvio na mesma semana.
+    Inclui o texto completo da previsão no e-mail — não só aviso.
+    """
+    from .engine import generate_reading
+    from datetime import date
+
+    now = _now()
+    # ISO week de referência (YYYY-Www) — chave de idempotência por semana
+    iso_week = f"{now.isocalendar().year}-W{now.isocalendar().week:02d}"
+    stats: dict[str, int] = {"sent": 0, "skipped": 0, "no_profile": 0, "errors": 0}
+    portal = portal_url()
+
+    candidates = db.scalars(
+        select(Entitlement).where(
+            Entitlement.product_id == WEEKLY_FORECAST_PRODUCT,
+            Entitlement.status == "available",
+        )
+    ).all()
+
+    for ent in candidates:
+        # Entitlement expirado → pula
+        if ent.expires_at is not None and _aware(ent.expires_at) < now:
+            stats["skipped"] += 1
+            continue
+
+        user = db.get(User, ent.user_id)
+        if not user:
+            stats["skipped"] += 1
+            continue
+
+        # Idempotência: (user_id, "weekly_forecast", iso_week)
+        if _already_sent(db, ent.id, "weekly_forecast", iso_week):
+            stats["skipped"] += 1
+            continue
+
+        profile = db.get(Profile, user.id)
+        if not profile or not profile.birth_date or not profile.birth_city:
+            stats["no_profile"] += 1
+            continue
+
+        locale = getattr(user, "locale", "pt-BR") or "pt-BR"
+        try:
+            result = generate_reading(
+                WEEKLY_FORECAST_CONTENT,
+                "Previsão da semana",
+                profile,
+                locale=locale,
+                customer_name=user.name or user.email,
+            )
+            forecast_html = result.body_html or ""
+        except Exception as exc:
+            logger.error("Falha ao gerar previsão semanal para %s: %s", user.email, exc)
+            stats["errors"] += 1
+            continue
+
+        delivery = send_weekly_forecast_email(
+            email=user.email,
+            name=user.name or user.email,
+            forecast_html=forecast_html,
+            portal_url=portal,
+            locale=locale,
+        )
+        if delivery.get("sent"):
+            _mark_sent(db, ent.id, "weekly_forecast", iso_week)
+            stats["sent"] += 1
+        else:
+            logger.error(
+                "Falha ao enviar previsão semanal para %s: %s",
+                user.email,
+                delivery.get("error"),
+            )
+            stats["errors"] += 1
+
+    return stats
+
+
+@router.post("/api/tasks/weekly-forecast")
+async def weekly_forecast_task(request: Request, db: Session = Depends(get_db)) -> dict:
+    """Cron do Coolify chama todo sábado para disparar a previsão semanal.
+
+    Mesmo mecanismo de autenticação do /api/tasks/renewal-reminders.
+    Configurar no Coolify: cron sábado + header x-task-secret.
+    """
+    secret = os.getenv("TASK_SECRET", "").strip()
+    if not secret:
+        raise HTTPException(status_code=503, detail="TASK_SECRET não configurado.")
+    provided = request.headers.get("x-task-secret", "")
+    if not hmac.compare_digest(secret.encode(), provided.encode()):
+        raise HTTPException(status_code=401, detail="Segredo inválido.")
+
+    stats = run_weekly_forecast(db)
+    return {"ok": True, **stats}
