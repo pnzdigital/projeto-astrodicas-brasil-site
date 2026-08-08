@@ -170,7 +170,7 @@
     ['Começar por ARS ', 'Empezar por ARS '],
     ['Começar por', 'Empezar por'],
     ['Com o Mapa Astral Completo de brinde', 'Con la Carta Astral Completa de regalo'],
-    ['Assinar por', 'Suscribirme por']
+    ['Ativar por', 'Activar por']
   ];
 
   var v2 = [
@@ -321,7 +321,7 @@
     ['Compra garantida', 'Compra garantizada'],
     ['Dados protegidos', 'Datos protegidos'],
     ['Conteúdo de astrologia com finalidade de autoconhecimento e entretenimento. Não substitui orientação médica, psicológica, jurídica ou financeira.', 'Contenido de astrología con fines de autoconocimiento y entretenimiento. No reemplaza orientación médica, psicológica, jurídica ni financiera.'],
-    ['QUERO MEU MAPA E HORÓSCOPO', 'QUIERO MI CARTA Y HORÓSCOPO'],
+    ['Quero meu mapa agora', 'Quiero mi carta ahora'],
     ['ESPERE! Vai deixar tudo isso pra trás?', '¡ESPERÁ! ¿Vas a dejar todo esto atrás?'],
     ['Só com o Diário Astral você', 'Solamente con el Diario Astral'],
     ['NÃO leva', 'NO recibís'],
