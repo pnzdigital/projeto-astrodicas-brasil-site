@@ -103,7 +103,13 @@ BUNDLES: dict[str, tuple[str, ...]] = {
     "site:combo_diario_astral_mapa_prosperidade": ("site:diario_astral", "site:mapa_prosperidade"),
 }
 
-RECURRING = {"site:diario_astral", "site:diario_astral_oferta_saida"}
+# Nenhum produto cobra sozinho. Desde 08/08/2026 o Diário Astral é compra de
+# 30 dias de acesso (``checkout.TIMED_ACCESS_PRODUCTS``), não assinatura: o
+# trial não guarda cartão, então não existe meio de cobrar de novo sem a
+# cliente voltar e comprar. Manter algum id aqui faria o catálogo anunciar
+# recorrência que o sistema não executa — a mesma classe de mentira que a copy
+# acabou de parar de contar.
+RECURRING: set[str] = set()
 
 # Ofertas que só existem dentro da página de vendas (order bump e saída).
 # Continuam no catálogo da API porque o checkout precisa do preço, mas a
