@@ -264,7 +264,7 @@ def start_trial(body: TrialBody, db: Session = Depends(get_db)) -> dict:
     db.commit()
 
     # E-mail depois do commit: acesso garantido independente do provedor de e-mail.
-    send_trial_started(
+    delivery = send_trial_started(
         email=user.email,
         name=user.name,
         trial_ends_at=trial_ends_at,
@@ -272,6 +272,12 @@ def start_trial(body: TrialBody, db: Session = Depends(get_db)) -> dict:
         temp_password=temp_password,
         portal_url=portal_url(),
     )
+    if not delivery.get("sent"):
+        logger.error(
+            "Trial iniciado sem e-mail entregue: user=%s erro=%s",
+            user.id,
+            delivery.get("error"),
+        )
 
     return {
         "status": "trialing",

@@ -30,7 +30,7 @@ def _send_email(
     config = _get_config()
 
     if not config["api_key"]:
-        logger.warning("RESEND_API_KEY not set")
+        logger.error("RESEND_API_KEY ausente — e-mail para %s não foi enviado", to)
         return {"sent": False, "error": "RESEND_API_KEY ausente"}
 
     try:

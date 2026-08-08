@@ -433,7 +433,7 @@ def fulfill_order(db: Session, order: Order) -> User:
     db.commit()
 
     if not already_notified:
-        send_purchase_confirmation(
+        delivery = send_purchase_confirmation(
             email=user.email,
             name=user.name,
             product_title=pricing.title_for(order.product_id, order.locale),
@@ -441,6 +441,13 @@ def fulfill_order(db: Session, order: Order) -> User:
             locale=order.locale,
             temp_password=temp_password or None,
         )
+        if not delivery.get("sent"):
+            logger.error(
+                "Compra MP confirmada sem e-mail entregue: user=%s product=%s erro=%s",
+                user.id,
+                order.product_id,
+                delivery.get("error"),
+            )
     return user
 
 
