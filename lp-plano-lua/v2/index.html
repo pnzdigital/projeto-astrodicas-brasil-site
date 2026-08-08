@@ -829,12 +829,32 @@ footer.site p{max-width:58ch;margin:12px auto 0;line-height:1.6}
 
 
 
-  /* timer */
-  var end=Date.now()+C.TIMER_MIN*60000, el=document.getElementById('timer');
-  (function tick(){
-    var d=Math.max(0,end-Date.now()), m=Math.floor(d/60000), s=Math.floor(d%60000/1000);
-    el.textContent=m+':'+(s<10?'0':'')+s;
-    if(d>0) setTimeout(tick,1000);
+  /* timer — prazo persistente por visitante (localStorage)
+     Reiniciar a cada visita cria urgência falsa (CDC + Meta Ads policy).
+     Comportamento honesto: quem volta amanhã vê o tempo real restante; quando
+     zera, o topbar mostra "Condição encerrada" e para — não reinicia. */
+  (function(){
+    var KEY='astrodicas_offer_deadline_v2';
+    var stored=localStorage.getItem(KEY);
+    var end;
+    if(stored){
+      end=parseInt(stored,10);
+    } else {
+      end=Date.now()+C.TIMER_MIN*60000;
+      try{ localStorage.setItem(KEY,String(end)); }catch(e){}
+    }
+    var topbar=document.querySelector('.topbar');
+    var el=document.getElementById('timer');
+    (function tick(){
+      var d=Math.max(0,end-Date.now());
+      if(d===0){
+        if(topbar) topbar.textContent='Condição de lançamento encerrada.';
+        return;
+      }
+      var m=Math.floor(d/60000), s=Math.floor(d%60000/1000);
+      el.textContent=m+':'+(s<10?'0':'')+s;
+      setTimeout(tick,1000);
+    })();
   })();
 
   /* céu */
