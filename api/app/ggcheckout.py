@@ -163,17 +163,25 @@ async def ggcheckout_webhook(request: Request, db: Session = Depends(get_db)) ->
     # status == "paid"
     product_id = resolve_gg_product(payload)
     if not product_id:
-        logger.error(
-            "GG Checkout pagamento %s pago mas product.id não mapeado; configure GG_PRODUCT_MAP. "
-            "product=%r products=%r",
-            payment_id,
-            payload.get("product"),
-            payload.get("products"),
+        # Falha de CONFIGURAÇÃO, não de payload. Não persistir o evento para que
+        # a retentativa do GG funcione depois de GG_PRODUCT_MAP ser corrigido.
+        # (Payload genuinamente inválido — sem payment_id/email — já foi descartado
+        # acima e nunca chega aqui.)
+        gg_ids = sorted(
+            {((payload.get("product") or {}).get("id") or "").strip()}
+            | {(p.get("id") or "").strip() for p in (payload.get("products") or [])}
+            - {""}
         )
-        db.commit()
+        logger.error(
+            "GG Checkout pagamento %s: UIDs %r não estão em GG_PRODUCT_MAP — "
+            "adicione-os ao mapa para liberar o acesso. Evento NÃO salvo; retentativa será processada.",
+            payment_id,
+            gg_ids,
+        )
+        db.expunge(event)  # remove da sessão sem commitar; preserva retentativas
         raise HTTPException(
             status_code=422,
-            detail="Produto não mapeado. Configure GG_PRODUCT_MAP.",
+            detail=f"Produto não mapeado. Configure GG_PRODUCT_MAP. UIDs recebidos: {gg_ids}",
         )
 
     customer_name = (

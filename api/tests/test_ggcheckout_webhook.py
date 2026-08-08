@@ -253,6 +253,66 @@ def test_produto_nao_mapeado_retorna_422_e_loga(client, sent_emails, caplog):
     assert sent_emails == []
 
 
+def test_produto_nao_mapeado_nao_persiste_evento_e_permite_retentativa(
+    client, monkeypatch, sent_emails
+):
+    """Falha de configuração (produto fora do mapa) NÃO deve persistir o evento.
+
+    Fluxo real: GG dispara webhook → 422 porque GG_PRODUCT_MAP ainda não
+    tem o UID. Operador adiciona o UID ao mapa. GG retenta. Segunda chamada
+    com mesmo payment_id deve processar normalmente (sem cair no bloco
+    de idempotência que devolve 'duplicate: true').
+    """
+    payment_id = "pay-retry-nomap"
+    gg_uid = "gg-uuid-sem-mapa"
+    payload = _gg_payload(payment_id, email="retry@br.com", gg_product_id=gg_uid)
+
+    # Primeiro envio: mapa vazio → 422
+    monkeypatch.setenv("GG_PRODUCT_MAP", json.dumps({}))
+    resp1 = client.post(
+        "/api/webhooks/ggcheckout",
+        json=payload,
+        headers={"x-secret": GG_SECRET},
+    )
+    assert resp1.status_code == 422
+    assert gg_uid in resp1.json()["detail"]
+
+    # Evento NÃO está no BD — retentativa possível
+    db = SessionLocal()
+    try:
+        event = db.scalar(
+            select(WebhookEvent).where(WebhookEvent.event_id == f"gg:{payment_id}")
+        )
+        assert event is None, "Evento de config-error não deve ser persistido"
+    finally:
+        db.close()
+
+    # Operador corrige o mapa; GG retenta — deve liberar acesso
+    monkeypatch.setenv("GG_PRODUCT_MAP", GG_PRODUCT_MAP_JSON.replace(GG_PRODUCT_ID, gg_uid))
+    resp2 = client.post(
+        "/api/webhooks/ggcheckout",
+        json=payload,
+        headers={"x-secret": GG_SECRET},
+    )
+    assert resp2.status_code == 200
+    assert resp2.json().get("product_id") == "site:plano_lua"
+
+    # Acesso liberado
+    db = SessionLocal()
+    try:
+        user = db.scalar(select(User).where(User.email == "retry@br.com"))
+        assert user is not None
+        ent = db.scalar(
+            select(Entitlement).where(
+                Entitlement.user_id == user.id,
+                Entitlement.product_id == "site:plano_lua",
+            )
+        )
+        assert ent is not None and ent.status == "available"
+    finally:
+        db.close()
+
+
 def test_gg_product_map_json_invalido_retorna_422(client, monkeypatch, sent_emails):
     monkeypatch.setenv("GG_PRODUCT_MAP", "nao-e-json")
     response = client.post(
