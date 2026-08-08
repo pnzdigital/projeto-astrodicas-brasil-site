@@ -9,7 +9,7 @@
   document.documentElement.lang = 'es-AR';
 
   var common = [
-    ['Plano Lua — seu horóscopo, não o do seu signo', 'Plan Luna — tu horóscopo, no el de tu signo'],
+    ['Diário Astral — seu horóscopo, não o do seu signo', 'Diario Astral — tu horóscopo, no el de tu signo'],
     ['Calculado no seu mapa natal, todo dia. Mapa Astral Completo de brinde.', 'Calculado sobre tu carta natal, todos los días. Carta Astral Completa de regalo.'],
     ['Horóscopo diário calculado no SEU mapa astral. Mapa Astral Completo de brinde.', 'Horóscopo diario calculado sobre TU carta natal. Carta Astral Completa de regalo.'],
     ['Astrologia calculada, não chutada', 'Astrología calculada, no improvisada'],
