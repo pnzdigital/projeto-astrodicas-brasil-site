@@ -8,7 +8,7 @@ Payload aninhado:
     product.id, products[].id, webhook.id, webhook.businessId, UTMs.
 
 Mapeamento GG product_id → nosso product_id via GG_PRODUCT_MAP (JSON):
-    GG_PRODUCT_MAP='{"gg-uuid-abc": "site:plano_lua"}'
+    GG_PRODUCT_MAP='{"gg-uuid-abc": "site:diario_astral"}'
 Adicionar produto: só editar a env var.
 """
 
@@ -58,7 +58,7 @@ def _verify_secret(provided: str) -> bool:
 def gg_product_map() -> dict[str, str]:
     """Mapa product.id do GG → product_id nosso.
 
-    Configurar: GG_PRODUCT_MAP='{"gg-uuid": "site:plano_lua"}'
+    Configurar: GG_PRODUCT_MAP='{"gg-uuid": "site:diario_astral"}'
     Adicionar produto: só editar a env var.
     """
     raw = os.getenv("GG_PRODUCT_MAP", "").strip()

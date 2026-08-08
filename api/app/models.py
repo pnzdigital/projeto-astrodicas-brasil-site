@@ -121,7 +121,7 @@ class Subscription(Base):
     user_id: Mapped[str] = mapped_column(ForeignKey("site_users.id", ondelete="CASCADE"), index=True)
     provider: Mapped[str] = mapped_column(String(40), default="mercadopago")
     external_id: Mapped[str] = mapped_column(String(255), index=True)
-    product_id: Mapped[str] = mapped_column(String(120), default="site:plano_lua")
+    product_id: Mapped[str] = mapped_column(String(120), default="site:diario_astral")
     # trialing -> active -> cancelled | expired. O vocabulário é nosso; o do
     # provedor entra traduzido, como já acontece com os pagamentos.
     status: Mapped[str] = mapped_column(String(32), default="trialing")

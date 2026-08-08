@@ -39,10 +39,10 @@ router = APIRouter()
 PAID_STATUSES = {"paid", "approved"}
 
 # Produtos cuja compra avulsa (canal BR, GG Checkout / PIX) gera acesso com prazo.
-# Ambos liberam site:plano_lua; o prazo é carimbado no entitlement plano_lua.
+# Ambos liberam site:diario_astral; o prazo é carimbado no entitlement plano_lua.
 # Outros produtos (mapas, combos) continuam vitalícios.
-TIMED_ACCESS_PRODUCTS = {"site:plano_lua", "site:oferta_plano_lua_exit"}
-PLANO_LUA_PRODUCT_ID = "site:plano_lua"
+TIMED_ACCESS_PRODUCTS = {"site:diario_astral", "site:diario_astral_oferta_saida"}
+PLANO_LUA_PRODUCT_ID = "site:diario_astral"
 PLANO_LUA_ACCESS_DAYS = 30
 
 
@@ -69,7 +69,7 @@ def portal_url() -> str:
 def gg_checkout_url(product_id: str) -> str | None:
     """URL de checkout do GG para o produto, ou None se não configurada.
 
-    Configurar: GG_CHECKOUT_URLS='{"site:plano_lua": "https://checkout.gg.com/abc"}'
+    Configurar: GG_CHECKOUT_URLS='{"site:diario_astral": "https://checkout.gg.com/abc"}'
     Adicionar produto: só editar a env var, sem redeploy.
     """
     raw = os.getenv("GG_CHECKOUT_URLS", "").strip()
@@ -392,7 +392,7 @@ def fulfill_order(db: Session, order: Order) -> User:
             select(Entitlement).where(Entitlement.user_id == user.id, Entitlement.product_id == product_id)
         )
 
-        # Prazo de 30 dias só para o entitlement site:plano_lua quando a compra
+        # Prazo de 30 dias só para o entitlement site:diario_astral quando a compra
         # é de um produto avulso com prazo. Estende a partir do vencimento atual
         # se ainda ativo, para não cortar dias já pagos.
         new_expires_at = None

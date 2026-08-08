@@ -45,7 +45,7 @@ from .security import decode_token, hash_password
 logger = logging.getLogger(__name__)
 router = APIRouter()
 
-PRODUCT_ID = "site:plano_lua"
+PRODUCT_ID = "site:diario_astral"
 TRIAL_DAYS = int(os.getenv("TRIAL_DAYS", "3"))
 
 # Mercado Pago -> vocabulário do site. Mantido para o webhook de preapproval,
@@ -138,7 +138,7 @@ def sync_entitlements(db: Session, subscription: Subscription) -> None:
     """Espelha o prazo da assinatura nos entitlements do plano.
 
     Regras:
-    - Produto base (site:plano_lua): expires_at = current_period_end, sempre
+    - Produto base (site:diario_astral): expires_at = current_period_end, sempre
       atualizado. Cancelamento não apaga — acesso dura até o fim do período.
     - Bundle items (site:mapa_astral e similares): só após primeira cobrança
       confirmada, sem expires_at (vitalício). Renovações não sobrescrevem o

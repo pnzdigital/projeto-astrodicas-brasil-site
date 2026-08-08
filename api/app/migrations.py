@@ -83,6 +83,37 @@ def ensure_schema() -> None:
                 logger.warning("Não foi possível criar %s.%s: %s", table, name, exc)
 
     _relax_order_user_id(inspector, existing_tables)
+    _rename_product_ids(existing_tables)
+
+
+# Renomeação dos product_id internos: plano_lua → diario_astral e variantes.
+# Aplicada em dev (onde há dados) e em prod quando a primeira compra aparecer.
+_PRODUCT_ID_RENAMES: list[tuple[str, str]] = [
+    ("site:oferta_plano_lua_premium_bump", "site:diario_astral_completo_bump"),
+    ("site:oferta_plano_lua_premium",      "site:diario_astral_completo"),
+    ("site:oferta_plano_lua_exit",         "site:diario_astral_oferta_saida"),
+    ("site:combo_plano_lua_mapa_astral",   "site:combo_diario_astral_mapa_astral"),
+    ("site:combo_plano_lua_mapa_amor",     "site:combo_diario_astral_mapa_amor"),
+    ("site:combo_plano_lua_mapa_prosperidade", "site:combo_diario_astral_mapa_prosperidade"),
+    ("site:plano_lua",                     "site:diario_astral"),
+]
+
+_PRODUCT_ID_TABLES = ("site_orders", "site_entitlements", "site_subscriptions")
+
+
+def _rename_product_ids(existing_tables: set[str]) -> None:
+    for table in _PRODUCT_ID_TABLES:
+        if table not in existing_tables:
+            continue
+        for old_id, new_id in _PRODUCT_ID_RENAMES:
+            try:
+                with engine.begin() as connection:
+                    connection.execute(
+                        text(f"UPDATE {table} SET product_id = :new WHERE product_id = :old"),
+                        {"new": new_id, "old": old_id},
+                    )
+            except Exception as exc:  # pragma: no cover
+                logger.warning("Rename product_id %s→%s em %s: %s", old_id, new_id, table, exc)
 
 
 def _relax_order_user_id(inspector, existing_tables: set[str]) -> None:

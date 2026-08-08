@@ -19,7 +19,7 @@ a chave inclui a data de vencimento para que uma segunda expiração (após nova
 compra) gere um novo registro, em vez de ser bloqueada pelo primeiro.
 
 O e-mail de winback só sai se GG_CHECKOUT_URLS tiver a URL de
-`site:oferta_plano_lua_exit`; sem ela loga e não manda link quebrado.
+`site:diario_astral_oferta_saida`; sem ela loga e não manda link quebrado.
 """
 
 from __future__ import annotations
@@ -42,8 +42,8 @@ from .models import Entitlement, User
 logger = logging.getLogger(__name__)
 router = APIRouter()
 
-PRODUCT_ID = "site:plano_lua"
-WINBACK_PRODUCT_ID = "site:oferta_plano_lua_exit"
+PRODUCT_ID = "site:diario_astral"
+WINBACK_PRODUCT_ID = "site:diario_astral_oferta_saida"
 
 
 class RenewalReminder(Base):
