@@ -89,7 +89,7 @@ def test_refaz_apenas_a_secao_truncada_sem_tocar_nas_outras(monkeypatch):
     target_title, _target_subtitle = expected[-1]
     calls_by_title: dict[str, int] = {}
 
-    def _fake(prompt, locale="pt-BR", max_tokens=None, timeout=None):
+    def _fake(prompt, locale="pt-BR", max_tokens=None, timeout=None, **_kwargs):
         title = _section_title_from_prompt(prompt)
         calls_by_title[title] = calls_by_title.get(title, 0) + 1
         subtitle = next(s for t, s in expected if t == title)
@@ -119,7 +119,7 @@ def test_secao_cai_no_fallback_pontual_sem_derrubar_as_outras(monkeypatch):
     target_title, _target_subtitle = expected[0]
     calls_by_title: dict[str, int] = {}
 
-    def _fake(prompt, locale="pt-BR", max_tokens=None, timeout=None):
+    def _fake(prompt, locale="pt-BR", max_tokens=None, timeout=None, **_kwargs):
         title = _section_title_from_prompt(prompt)
         calls_by_title[title] = calls_by_title.get(title, 0) + 1
         subtitle = next(s for t, s in expected if t == title)
@@ -130,7 +130,10 @@ def test_secao_cai_no_fallback_pontual_sem_derrubar_as_outras(monkeypatch):
     monkeypatch.setattr(engine, "_call_minimax", _fake)
     result = engine.generate_reading(content_id, "Mapa da Carreira", _profile())
 
-    assert calls_by_title[target_title] == 2, "deveria ter esgotado as 2 tentativas na seção que sempre trunca"
+    # Roteamento M3 desligado por padrão (MINIMAX_MODEL_LONG vazia): primário
+    # e fallback são o mesmo modelo, então não há segunda rodada — 2 chamadas,
+    # exatamente como antes do roteamento existir.
+    assert calls_by_title[target_title] == 2, "sem roteamento, só as 2 tentativas do modelo único"
     assert result.source == "fallback", "leitura com 1 seção em fallback precisa continuar identificável como fallback"
     assert len(result.sections) == len(expected)
     fallback_section = next(s for s in result.sections if s["order"] == 1)
@@ -152,7 +155,7 @@ def test_leitura_seccionada_bem_sucedida_trava_tres_propriedades(monkeypatch):
     ):
         expected = engine.sections_for(content_id)
 
-        def _fake(prompt, locale="pt-BR", max_tokens=None, timeout=None, _expected=expected):
+        def _fake(prompt, locale="pt-BR", max_tokens=None, timeout=None, _expected=expected, **_kwargs):
             title = _section_title_from_prompt(prompt)
             subtitle = next(s for t, s in _expected if t == title)
             return _section_markdown(title, subtitle, complete=True)
@@ -181,7 +184,7 @@ def test_todas_as_secoes_falham_cai_no_fallback_completo(monkeypatch):
     monkeypatch.setenv("MINIMAX_SECTION_MAX_ATTEMPTS", "2")
     content_id = "site:content:mapa_astral_completo"
 
-    def _fake(prompt, locale="pt-BR", max_tokens=None, timeout=None):
+    def _fake(prompt, locale="pt-BR", max_tokens=None, timeout=None, **_kwargs):
         raise RuntimeError("MiniMax indisponível: URLError")
 
     monkeypatch.setattr(engine, "_call_minimax", _fake)
@@ -190,3 +193,33 @@ def test_todas_as_secoes_falham_cai_no_fallback_completo(monkeypatch):
     assert result.source == "fallback"
     assert len(result.sections) == len(engine.sections_for(content_id))
     assert not engine._looks_truncated(result.sections[-1]["content"])
+
+
+def test_com_roteamento_ligado_seção_tenta_m3_e_depois_o_fallback(monkeypatch):
+    """Com MINIMAX_MODEL_LONG setada, a seção que sempre trunca esgota as
+    tentativas no M3 e REPETE no fallback M2.7 antes do fallback editorial:
+    2 (M3) + 2 (M2.7) = 4 chamadas."""
+    monkeypatch.setenv("MINIMAX_API_KEY", "chave-de-teste")
+    monkeypatch.setenv("MINIMAX_SECTION_MAX_ATTEMPTS", "2")
+    monkeypatch.setenv("MINIMAX_MODEL_LONG", "MiniMax-M3")
+    content_id = "site:content:mapa_da_carreira"
+    expected = engine.sections_for(content_id)
+    target_title, _ = expected[0]
+    calls_by_title: dict[str, int] = {}
+    modelos: list[str] = []
+
+    def _fake(prompt, locale="pt-BR", max_tokens=None, timeout=None, model=None, **_kwargs):
+        title = _section_title_from_prompt(prompt)
+        calls_by_title[title] = calls_by_title.get(title, 0) + 1
+        subtitle = next(s for t, s in expected if t == title)
+        if title == target_title:
+            modelos.append(model)
+            return _section_markdown(title, subtitle, complete=False)
+        return _section_markdown(title, subtitle, complete=True)
+
+    monkeypatch.setattr(engine, "_call_minimax", _fake)
+    engine.generate_reading(content_id, "Mapa da Carreira", _profile())
+
+    assert calls_by_title[target_title] == 4
+    assert modelos[:2] == ["MiniMax-M3", "MiniMax-M3"]
+    assert modelos[2:] == ["MiniMax-M2.7", "MiniMax-M2.7"]

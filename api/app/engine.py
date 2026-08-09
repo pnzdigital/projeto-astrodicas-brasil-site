@@ -3,6 +3,7 @@ import json
 import logging
 import os
 import re
+import threading
 from dataclasses import dataclass
 from datetime import date
 from urllib.error import HTTPError, URLError
@@ -12,6 +13,35 @@ from .astrology import astrology_context
 
 
 logger = logging.getLogger(__name__)
+
+# --- Quota instrumentation ------------------------------------------------
+#
+# Duas cotas distintas na mesma conta MiniMax (ver
+# /tmp/claude-1000/roteamento-minimax.md, seção 2): M2.7 é limitada por
+# CONTAGEM de requisições/semana (45.000), M3 por VOLUME de tokens/mês (1B).
+# Contador em memória (sem banco) só para dar visibilidade de queima de cota
+# em log/produção — reinicia a cada deploy, não é fonte de verdade contábil.
+_QUOTA_LOCK = threading.Lock()
+_QUOTA_COUNTERS = {"m2_7_requests": 0, "m3_tokens": 0, "other_requests": 0, "other_tokens": 0}
+
+
+def _record_quota_usage(model: str, completion_tokens: int | None) -> None:
+    tokens = completion_tokens or 0
+    is_m3 = "m3" in (model or "").lower()
+    with _QUOTA_LOCK:
+        if is_m3:
+            _QUOTA_COUNTERS["m3_tokens"] += tokens
+            logger.info("minimax_quota bucket=m3_tokens_month delta=%d total=%d", tokens, _QUOTA_COUNTERS["m3_tokens"])
+        else:
+            _QUOTA_COUNTERS["m2_7_requests"] += 1
+            logger.info("minimax_quota bucket=m2_7_requests_week delta=1 total=%d", _QUOTA_COUNTERS["m2_7_requests"])
+
+
+def get_quota_counters() -> dict:
+    """Snapshot dos contadores em memória — exposto para debug/instrumentação
+    (não persiste entre deploys/processos)."""
+    with _QUOTA_LOCK:
+        return dict(_QUOTA_COUNTERS)
 
 _CONTENT_ID_RE = re.compile(r"Identificador:\s*([\w:]+)")
 
@@ -120,6 +150,20 @@ def _max_tokens_for(content_id: str) -> int:
 # → arredondado para 2500.
 _SECTION_TOKEN_BUDGET = int(os.getenv("MINIMAX_SECTION_MAX_TOKENS", "2500"))
 
+# Budget per section when primary model is M3. M3 reasoning block (<think>) consumes
+# significantly more tokens than M2.7 before producing any body — measured: M3 at 1800
+# burned the entire budget in thinking (body empty). 5000 gives ~2500 for reasoning
+# + ~2500 for content, matching M2.7 quality at 1000 consumed tokens.
+_SECTION_TOKEN_BUDGET_M3 = int(os.getenv("MINIMAX_SECTION_MAX_TOKENS_M3", "5000"))
+
+# Content-ids that benefit from M3 routing: large sectioned output, purchased on-demand
+# (low request frequency, high token volume per event).
+_LONG_CONTENT_IDS = frozenset({
+    "site:content:mapa_astral_completo",
+    "site:content:mapa_da_carreira",
+    "site:content:guia_do_mes",
+})
+
 # Per-section retry.
 #
 # Depois de corrigir o budget de tokens (ver _SECTION_TOKEN_BUDGET), o log de
@@ -206,10 +250,77 @@ SECTIONS_BY_CONTENT_ID: dict[str, list[tuple[str, str]]] = {
         ("Área Sensível", "Onde o cuidado rende mais"),
         ("Mensagem Final", "Como atravessar o mês"),
     ],
+    # Portado de _SECOES_POR_TIPO["prosperidade"] no bot. Site vendia isto no
+    # formato de parágrafo corrido (8-11 parágrafos ~2500 palavras) contra as
+    # 14 seções do mesmo produto no bot (~4500+ palavras) — mesmo produto
+    # pago, metade do conteúdo. Ver sections_for() para a escolha de variante.
+    "site:content:mapa_da_prosperidade": [
+        ("Introdução à Prosperidade", "Abundância integral"),
+        ("Relação com Dinheiro", "Crença e comportamento"),
+        ("Júpiter Financeiro", "Onde expandir"),
+        ("Saturno Financeiro", "Base e proteção"),
+        ("Vênus e Valor", "Preço, prazer e equilíbrio"),
+        ("Marte e Ação", "Como gerar renda"),
+        ("Diversificação", "Múltiplas fontes"),
+        ("Reserva e Segurança", "Estabilidade emocional e financeira"),
+        ("Padrões de Escassez", "O que cortar"),
+        ("Prosperidade e Propósito", "Dinheiro com sentido"),
+        ("Parcerias de Crescimento", "Quem soma"),
+        ("Ciclos e Timing", "Quando acelerar"),
+        ("Plano de Abundância", "Prática mensal"),
+        ("Mensagem Final", "Você em fluxo"),
+    ],
+    # Portado de _SECOES_POR_TIPO["sinastria"] no bot (variante COM dados do
+    # parceiro completos). Ver SINASTRIA_SEM_PARCEIRO_SECTIONS para a variante
+    # sem parceiro e sections_for() para a escolha entre as duas.
+    "site:content:mapa_do_amor_sinastria": [
+        ("Introdução à Sinastria", "A dança de duas almas"),
+        ("Vênus em Compatibilidade", "Estilo de amar"),
+        ("Lua em Compatibilidade", "Segurança emocional"),
+        ("Marte e Química", "Desejo, impulso e erotismo"),
+        ("Mercúrio e Diálogo", "Como vocês se entendem"),
+        ("Júpiter no Casal", "Expansão e bênçãos"),
+        ("Saturno no Casal", "Compromisso e maturidade"),
+        ("Netuno no Amor", "Encanto e ilusão"),
+        ("Plutão e Transformação", "Intensidade do vínculo"),
+        ("Casas Ativadas", "Áreas da vida em destaque"),
+        ("Pontos de Atrito", "Diferença como evolução"),
+        ("Padrões Kármicos", "O que se repete no amor"),
+        ("Potencial de Construção", "Projeto de vida a dois"),
+        ("Mensagem Final", "Amor com consciência"),
+    ],
 }
 
+# Portado de _SECOES_POR_TIPO["sinastria_sem"] no bot (variante SEM dados do
+# parceiro). Não entra em SECTIONS_BY_CONTENT_ID porque o site usa o MESMO
+# content_id ("site:content:mapa_do_amor_sinastria") para as duas variantes —
+# a escolha depende do perfil (profile.partner_birth_date), feita em
+# sections_for(). Manter separado evita inventar posições planetárias do
+# parceiro quando o cliente não informou os dados dele (regra já existia em
+# `rules` no ``_prompt``, agora também vale para a lista de seções).
+SINASTRIA_SEM_PARCEIRO_SECTIONS: list[tuple[str, str]] = [
+    ("Guia Amoroso Pessoal", "Seu mapa sem parceiro"),
+    ("Seu Estilo de Amar", "Vênus pessoal"),
+    ("Necessidades Emocionais", "Lua pessoal"),
+    ("Desejo e Magnetismo", "Marte pessoal"),
+    ("Comunicação no Amor", "Mercúrio pessoal"),
+    ("Padrões de Repetição", "O que observar"),
+    ("Parceiro Compatível", "Perfil que soma"),
+    ("Limites Saudáveis", "Amor sem autoabandono"),
+    ("Autocuidado Afetivo", "Base da estabilidade"),
+    ("Janelas Favoráveis", "Ciclos de abertura"),
+    ("Cura de Feridas", "Quíron no amor"),
+    ("Amor e Propósito", "Relação que expande"),
+    ("Preparação Consciente", "Como atrair melhor"),
+    ("Mensagem Final", "Seu coração com direção"),
+]
 
-def sections_for(content_id: str) -> list[tuple[str, str]]:
+_SINASTRIA_CONTENT_ID = "site:content:mapa_do_amor_sinastria"
+
+
+def sections_for(content_id: str, profile=None) -> list[tuple[str, str]]:
+    if content_id == _SINASTRIA_CONTENT_ID and not (profile and getattr(profile, "partner_birth_date", None)):
+        return SINASTRIA_SEM_PARCEIRO_SECTIONS
     return SECTIONS_BY_CONTENT_ID.get(content_id, [])
 
 
@@ -367,9 +478,20 @@ def _prompt(content_id: str, title: str, profile, locale: str, customer_name: st
     # (troca de signo a cada ~2h). Sem esse aviso no prompt, o texto pago
     # afirmaria o Ascendente com certeza que não tem — bug comercial.
     assumed_warning = _assumed_warning_text(locale, bool(context.get("birth_time_assumed")))
-    sections = sections_for(content_id)
+    sections = sections_for(content_id, profile)
     if sections:
         lista_secoes = "\n".join(f"{i:02d}. ## {t} — {s}" for i, (t, s) in enumerate(sections, 1))
+        # Aviso de parceiro incompleto: regra herdada do antigo content_rule de
+        # parágrafo corrido de mapa_do_amor_sinastria (não pode ficar duplicada
+        # em `rules`, senão as duas instruções brigam no prompt — ver histórico
+        # do bug em git blame). Só se aplica quando sections == variante sem
+        # parceiro, detectável comparando com a lista dedicada.
+        partner_caution = (
+            " Os dados do parceiro estão incompletos: não invente posições planetárias dele; "
+            "esta leitura foca só no mapa do cliente."
+            if content_id == _SINASTRIA_CONTENT_ID and sections is SINASTRIA_SEM_PARCEIRO_SECTIONS
+            else ""
+        )
         content_rule = (
             "Escreva uma leitura natal premium ESTRUTURADA EM SEÇÕES. Responda em markdown, "
             "uma seção por vez, EXATAMENTE nesta ordem e com estes títulos:\n"
@@ -381,20 +503,23 @@ def _prompt(content_id: str, title: str, profile, locale: str, customer_name: st
             "não troque a ordem. Use apenas posições presentes no calculated_chart. TERMINE "
             "cada frase e cada seção de forma completa — nunca corte uma frase no meio; se estiver "
             "perto do limite, feche a frase atual e encerre a seção em vez de continuar."
+            + partner_caution
         )
-        rules = {content_id: content_rule}
     else:
-        rules = {}
-    rules.update({
-        "site:content:horoscopo_diario": "Escreva exatamente 3 parágrafos substanciais, com 90 a 130 palavras cada. Use prioritariamente os trânsitos atuais para o mapa natal. O primeiro cria identificação emocional, o segundo aborda relações e trabalho e o terceiro traz direção prática.",
-        "site:content:mapa_do_amor_sinastria": "Escreva 9 a 12 parágrafos sobre padrões afetivos do cliente. Se os dados do parceiro estiverem incompletos, explique com delicadeza que a comparação completa depende deles e não invente posições do parceiro.",
-        "site:content:mapa_da_prosperidade": "Escreva 8 a 11 parágrafos sobre recursos, segurança, merecimento e oportunidades, sem prometer ganhos financeiros. Relacione a leitura às posições calculadas.",
-        "site:content:previsao_semanal": "Escreva 7 parágrafos, um para o panorama e seis para temas e decisões da semana, usando os trânsitos atuais calculados.",
-        "site:content:calendario_lunar": "Escreva um guia editorial do ciclo lunar atual em 7 a 9 parágrafos. Não invente datas que não estejam nos dados; quando faltarem, trate como guia de uso das fases.",
-        "site:content:guia_dos_retrogrados": "Escreva 7 a 9 parágrafos explicando os planetas retrógrados presentes no céu calculado e como atravessar revisões sem fatalismo.",
-        "site:content:manual_do_ascendente": "Escreva 8 a 10 parágrafos sobre o Ascendente calculado, seu regente simbólico, presença, corpo e primeira impressão. Se não houver Ascendente calculado, explique que a hora exata é necessária.",
-    })
-    content_rule = rules.get(content_id, content_rule if sections else "Escreva uma leitura premium profunda, com 7 a 10 parágrafos.")
+        # Regras de parágrafo corrido — só para content_ids QUE NÃO ESTÃO em
+        # SECTIONS_BY_CONTENT_ID (nem na variante sem-parceiro da sinastria).
+        # mapa_do_amor_sinastria e mapa_da_prosperidade saíram daqui quando
+        # entraram seccionados; NÃO reintroduzir suas chaves nesta tabela —
+        # um dict.update por cima do content_rule seccionado reativa a
+        # contradição de duas instruções de formato no mesmo prompt.
+        legacy_rules = {
+            "site:content:horoscopo_diario": "Escreva exatamente 3 parágrafos substanciais, com 90 a 130 palavras cada. Use prioritariamente os trânsitos atuais para o mapa natal. O primeiro cria identificação emocional, o segundo aborda relações e trabalho e o terceiro traz direção prática.",
+            "site:content:previsao_semanal": "Escreva 7 parágrafos, um para o panorama e seis para temas e decisões da semana, usando os trânsitos atuais calculados.",
+            "site:content:calendario_lunar": "Escreva um guia editorial do ciclo lunar atual em 7 a 9 parágrafos. Não invente datas que não estejam nos dados; quando faltarem, trate como guia de uso das fases.",
+            "site:content:guia_dos_retrogrados": "Escreva 7 a 9 parágrafos explicando os planetas retrógrados presentes no céu calculado e como atravessar revisões sem fatalismo.",
+            "site:content:manual_do_ascendente": "Escreva 8 a 10 parágrafos sobre o Ascendente calculado, seu regente simbólico, presença, corpo e primeira impressão. Se não houver Ascendente calculado, explique que a hora exata é necessária.",
+        }
+        content_rule = legacy_rules.get(content_id, "Escreva uma leitura premium profunda, com 7 a 10 parágrafos.")
     language_lock = _language_lock_text(locale)
     markdown_rule = (
         "Responda no formato markdown seccionado pedido acima (## título / ### subtítulo / parágrafos)."
@@ -562,12 +687,22 @@ def _system_prompt(locale: str) -> str:
     )
 
 
-def _call_minimax(prompt: str, locale: str = "pt-BR", max_tokens: int | None = None, timeout: float | None = None) -> str:
+def _call_minimax(
+    prompt: str,
+    locale: str = "pt-BR",
+    max_tokens: int | None = None,
+    timeout: float | None = None,
+    model: str | None = None,
+    section_label: str = "",
+) -> str:
     api_key = os.getenv("MINIMAX_API_KEY", "").strip()
     if not api_key:
         raise RuntimeError("MINIMAX_API_KEY não configurada")
     base_url = os.getenv("MINIMAX_BASE_URL", os.getenv("LLM_BASE_URL", "https://api.minimax.io/v1")).rstrip("/")
-    model = os.getenv("MINIMAX_MODEL", os.getenv("LLM_MODEL_TEXT", "MiniMax-M2.7"))
+    # ``model`` explícito é usado pelo roteamento M3/M2.7 seção-a-seção (ver
+    # _LONG_CONTENT_IDS / _generate_section); quando ausente, cai no modelo
+    # padrão da conta inteira.
+    model = model or os.getenv("MINIMAX_MODEL", os.getenv("LLM_MODEL_TEXT", "MiniMax-M2.7"))
     # ``max_tokens`` explícito é usado pela geração seção-a-seção (budget bem
     # menor, ~550 tokens, em vez do documento inteiro); quando ausente, cai no
     # comportamento antigo (budget por content_id extraído do próprio prompt).
@@ -601,12 +736,41 @@ def _call_minimax(prompt: str, locale: str = "pt-BR", max_tokens: int | None = N
         # cair no fallback pontual como as demais falhas de rede já tratadas
         # aqui.
         raise RuntimeError(f"MiniMax indisponível: {type(exc).__name__}") from exc
+
+    usage = result.get("usage") or {} if isinstance(result, dict) else {}
+    prompt_tokens = usage.get("prompt_tokens")
+    completion_tokens = usage.get("completion_tokens")
+    finish_reason = None
     try:
-        content = result["choices"][0]["message"]["content"]
+        choice = result["choices"][0]
+        finish_reason = choice.get("finish_reason")
+        content = choice["message"]["content"]
     except (KeyError, IndexError, TypeError) as exc:
         raise RuntimeError("Resposta MiniMax sem conteúdo") from exc
+
+    content_id = _extract_content_id(prompt)
+    # Log estruturado de custo/quota — cada chamada real ao MiniMax gera uma
+    # linha, seja ela bem-sucedida ou não (empty body inclusive), para que dê
+    # pra reconstituir queima de cota via grep em produção (ver relatório
+    # /tmp/claude-1000/roteamento-minimax.md, seção "Token logging").
+    logger.info(
+        "minimax_call model=%s content_id=%s section=%s prompt_tokens=%s completion_tokens=%s finish_reason=%s",
+        model, content_id, section_label or "-", prompt_tokens, completion_tokens, finish_reason,
+    )
+    _record_quota_usage(model, completion_tokens)
+
     content = re.sub(r"<think>[\s\S]*?</think>\s*", "", content).strip()
     if not content:
+        # CONSTRAINT DE PRODUÇÃO (M3, 2026-08-07): com budget apertado M3
+        # queima o orçamento inteiro em <think>...</think> e devolve corpo
+        # vazio com finish_reason=length. Este RuntimeError é o gatilho que
+        # ``_generate_section`` usa para cair automaticamente no modelo de
+        # fallback (M2.7) — NUNCA remover sem manter esse fallback em algum
+        # lugar do caminho de chamada.
+        logger.warning(
+            "minimax_empty_body model=%s content_id=%s section=%s finish_reason=%s",
+            model, content_id, section_label or "-", finish_reason,
+        )
         raise RuntimeError("Resposta MiniMax vazia")
     return content
 
@@ -731,7 +895,7 @@ def _fallback_sections(content_id: str, profile, locale: str) -> list[dict]:
     O texto continua identificável como fallback via ``ReadingResult.source``."""
     template = _fallback_reading(profile, locale)
     paragraphs = re.findall(r"<p>(.*?)</p>", template, re.DOTALL)
-    expected = sections_for(content_id)
+    expected = sections_for(content_id, profile)
     if not expected:
         return []
     sections = []
@@ -828,44 +992,98 @@ def _generate_section(
     attempts = max(1, int(os.getenv("MINIMAX_SECTION_MAX_ATTEMPTS", _SECTION_MAX_ATTEMPTS_DEFAULT)))
     timeout = float(os.getenv("MINIMAX_SECTION_TIMEOUT_SECONDS", _SECTION_TIMEOUT_SECONDS_DEFAULT))
     prompt = _section_prompt(content_id, general_title, section_title, subtitle, order, total, sibling_titles, context, locale)
-    for attempt in range(1, attempts + 1):
-        try:
-            raw = _call_minimax(prompt, locale, max_tokens=_SECTION_TOKEN_BUDGET, timeout=timeout)
-        except RuntimeError as exc:
-            logger.warning(
-                "MiniMax falhou na seção '%s' (tentativa %d/%d): %s", section_title, attempt, attempts, exc,
-            )
-            continue
 
-        parsed = _parse_markdown_sections(raw)
-        body_text = parsed[0]["content"] if parsed else raw.strip()
+    # Roteamento M3 x M2.7 (ver /tmp/claude-1000/roteamento-minimax.md,
+    # seção 3): content_ids "longos" (mapa_astral_completo, mapa_da_carreira,
+    # guia_do_mes — compra rara, muito texto) podem ir pro modelo com cota em
+    # TOKENS/mês (M3); todo o resto fica no modelo com cota em
+    # REQUISIÇÕES/semana (M2.7).
+    #
+    # DESLIGADO POR PADRÃO (decisão da dona, 2026-08-09): amostra real do M3
+    # veio 24% mais curta que o baseline do M2.7 (3.6k vs 4.720 palavras) no
+    # Mapa Astral Completo, que é o produto mais caro. Sem
+    # MINIMAX_MODEL_LONG setada, produção continua 100% no modelo de sempre.
+    # Para ligar: MINIMAX_MODEL_LONG=MiniMax-M3. Para desligar: apagar a env.
+    is_long_content = content_id in _LONG_CONTENT_IDS
+    default_model = os.getenv("MINIMAX_MODEL", os.getenv("LLM_MODEL_TEXT", "MiniMax-M2.7"))
+    modelo_longo = os.getenv("MINIMAX_MODEL_LONG", "").strip()
+    if is_long_content and modelo_longo:
+        primary_model = modelo_longo
+        primary_budget = _SECTION_TOKEN_BUDGET_M3
+    else:
+        primary_model = (os.getenv("MINIMAX_MODEL_SHORT", "").strip() or default_model)
+        primary_budget = _SECTION_TOKEN_BUDGET
+    fallback_model = (os.getenv("MINIMAX_MODEL_FALLBACK", "").strip() or default_model)
 
-        if _has_foreign_script(body_text):
-            logger.warning(
-                "MiniMax devolveu caractere fora do alfabeto latino (%s) na seção '%s', tentativa %d/%d; refazendo só esta seção.",
-                _foreign_sample(body_text), section_title, attempt, attempts,
-            )
-            continue
-        if _has_foreign_words(body_text, locale):
-            logger.warning(
-                "MiniMax vazou palavra de outro idioma (%s) na seção '%s', tentativa %d/%d; refazendo só esta seção.",
-                _foreign_word_sample(body_text, locale), section_title, attempt, attempts,
-            )
-            continue
-        if _looks_truncated(body_text):
-            logger.warning(
-                "MiniMax truncou a seção '%s' (tentativa %d/%d); refazendo só esta seção. Final observado: %r",
-                section_title, attempt, attempts, body_text[-40:],
-            )
-            continue
-        if not body_text:
-            continue
+    def _attempt_with_model(model_name: str, budget: int) -> dict | None:
+        for attempt in range(1, attempts + 1):
+            try:
+                raw = _call_minimax(
+                    prompt, locale, max_tokens=budget, timeout=timeout, model=model_name, section_label=section_title,
+                )
+            except RuntimeError as exc:
+                logger.warning(
+                    "MiniMax (%s) falhou na seção '%s' (tentativa %d/%d): %s",
+                    model_name, section_title, attempt, attempts, exc,
+                )
+                continue
 
-        return {"title": section_title, "subtitle": subtitle, "order": order, "content": body_text}, False
+            parsed = _parse_markdown_sections(raw)
+            body_text = parsed[0]["content"] if parsed else raw.strip()
+
+            if _has_foreign_script(body_text):
+                logger.warning(
+                    "MiniMax (%s) devolveu caractere fora do alfabeto latino (%s) na seção '%s', tentativa %d/%d; refazendo só esta seção.",
+                    model_name, _foreign_sample(body_text), section_title, attempt, attempts,
+                )
+                continue
+            if _has_foreign_words(body_text, locale):
+                logger.warning(
+                    "MiniMax (%s) vazou palavra de outro idioma (%s) na seção '%s', tentativa %d/%d; refazendo só esta seção.",
+                    model_name, _foreign_word_sample(body_text, locale), section_title, attempt, attempts,
+                )
+                continue
+            if _looks_truncated(body_text):
+                logger.warning(
+                    "MiniMax (%s) truncou a seção '%s' (tentativa %d/%d); refazendo só esta seção. Final observado: %r",
+                    model_name, section_title, attempt, attempts, body_text[-40:],
+                )
+                continue
+            if not body_text:
+                continue
+
+            return {"title": section_title, "subtitle": subtitle, "order": order, "content": body_text}
+        return None
+
+    section = _attempt_with_model(primary_model, primary_budget)
+    if section is not None:
+        logger.info(
+            "minimax_section_model_used content_id=%s section=%s model=%s fallback=false",
+            content_id, section_title, primary_model,
+        )
+        return section, False
+
+    if fallback_model != primary_model:
+        # Constraint dura de produção: SEMPRE que o modelo primário (M3 ou
+        # não) esgota as tentativas — incluindo o caso de corpo vazio por
+        # <think> ter consumido o budget inteiro — cai automaticamente para
+        # o modelo de fallback (M2.7) ANTES de desistir e usar o fallback
+        # editorial estático.
+        logger.warning(
+            "model_fallback content_id=%s section=%s primary=%s fallback=%s",
+            content_id, section_title, primary_model, fallback_model,
+        )
+        section = _attempt_with_model(fallback_model, _SECTION_TOKEN_BUDGET)
+        if section is not None:
+            logger.info(
+                "minimax_section_model_used content_id=%s section=%s model=%s fallback=true",
+                content_id, section_title, fallback_model,
+            )
+            return section, False
 
     logger.error(
-        "Seção '%s' esgotou %d tentativas (idioma/truncamento/falha de rede); usando fallback pontual só nela.",
-        section_title, attempts,
+        "Seção '%s' esgotou tentativas em %s (idioma/truncamento/falha de rede/corpo vazio); usando fallback pontual só nela.",
+        section_title, "primário e fallback" if fallback_model != primary_model else primary_model,
     )
     return _fallback_section(content_id, profile, locale, order), True
 
@@ -916,7 +1134,7 @@ def generate_reading(content_id: str, title: str, profile, locale: str = "pt-BR"
         if birth_time_assumed
         else None
     )
-    expected_sections = sections_for(content_id)
+    expected_sections = sections_for(content_id, profile)
     if os.getenv("MINIMAX_API_KEY", "").strip() and expected_sections:
         # Seção-a-seção, concorrente, com retry por seção (ver
         # ``_generate_reading_sections`` / ``_generate_section``) — substitui a
