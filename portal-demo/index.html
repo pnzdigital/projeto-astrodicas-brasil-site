@@ -1070,6 +1070,7 @@
       renderDailyHoroscope();
       renderDailyHistory();
       renderExpiryBanner();
+      renderLunarCalendarDelivery();
       // Retoma polling para leituras em progresso sem poll ativo (ex: aba fechada e reaberta).
       LIBRARY_ITEMS.forEach((item) => {
         if (item.state === ACCESS_STATES.inProgress && !appState.pollingContentIds.has(item.id)) {
@@ -1240,7 +1241,46 @@
       document.getElementById('total-count').textContent = String(LIBRARY_ITEMS.length).padStart(2, '0');
       const deliveryNav = document.querySelector('.section-head#entregaveis a');
       if (deliveryNav) deliveryNav.textContent = `${String(active).padStart(2, '0')} ${IS_ARGENTINA ? 'contenidos activos' : 'conteúdos ativos'}`;
+      renderProfileProgress(active);
       applySpanishPortalCopy();
+    }
+    function renderProfileProgress(active) {
+      if (!appState.authenticated) return; // modo demo/deslogado: mantém a cópia estática do HTML
+      const total = LIBRARY_ITEMS.length;
+      const pct = total ? Math.round((active / total) * 100) : 0;
+      const missing = total - active;
+      const valueEl = document.querySelector('.profile-line strong');
+      const barEl = document.querySelector('.progress');
+      const noteEl = document.querySelector('.progress-note');
+      if (valueEl) valueEl.textContent = `${pct}%`;
+      if (barEl) {
+        barEl.setAttribute('aria-valuenow', String(pct));
+        const bar = barEl.querySelector('i');
+        if (bar) bar.style.width = `${pct}%`;
+      }
+      if (noteEl) {
+        if (missing <= 0) {
+          noteEl.textContent = IS_ARGENTINA ? 'Ya desbloqueaste todo tu panel.' : 'Você já desbloqueou todo o seu painel.';
+        } else if (missing === 1) {
+          noteEl.textContent = IS_ARGENTINA ? 'Ya desbloqueaste las bases. Falta un mapa para completar tu panel.' : 'Você já desbloqueou as bases. Falta um mapa para completar seu painel.';
+        } else {
+          noteEl.textContent = IS_ARGENTINA ? `Ya desbloqueaste las bases. Faltan ${missing} mapas para completar tu panel.` : `Você já desbloqueou as bases. Faltam ${missing} mapas para completar seu painel.`;
+        }
+      }
+    }
+    function renderLunarCalendarDelivery() {
+      if (!appState.authenticated) return; // modo demo/deslogado: mantém a cópia estática do HTML
+      const el = document.querySelector('.delivery-date[datetime]:not(#next-forecast-delivery-date)');
+      if (!el) return;
+      const now = new Date();
+      let target = new Date(now.getFullYear(), now.getMonth(), 1);
+      if (target < new Date(now.getFullYear(), now.getMonth(), now.getDate())) {
+        target = new Date(now.getFullYear(), now.getMonth() + 1, 1);
+      }
+      el.dateTime = target.toISOString().slice(0, 10);
+      const dd = String(target.getDate()).padStart(2, '0');
+      const mmm = new Intl.DateTimeFormat(IS_ARGENTINA ? 'es-AR' : 'pt-BR', { month: 'short' }).format(target).replace('.', '').toUpperCase();
+      el.innerHTML = `${dd}<br>${mmm}`;
     }
     function renderOffers() {
       document.getElementById('offer-grid').innerHTML = OFFERS.map((offer) => `<article class="offer" data-offer="${offer.id}"><div class="offer-kicker">${offer.kicker}</div><h3>${offer.title}</h3><p>${offer.description}</p><span class="offer-price">${offer.price} <small>${offer.cadence}</small></span><button class="button small" type="button" data-offer-checkout="${offer.checkoutKey}" data-offer-title="${offer.title}">${offer.button} →</button></article>`).join('');
@@ -1403,6 +1443,85 @@
         return;
       }
       banner.hidden = true;
+    }
+    function renderAccountMetrics() {
+      const PRODUCT_LABELS = {
+        'site:diario_astral': IS_ARGENTINA ? 'Diario Astral' : 'Diário Astral',
+        'site:diario_astral_completo': IS_ARGENTINA ? 'Diario Astral Completo' : 'Diário Astral Completo',
+        'site:mapa_astral': IS_ARGENTINA ? 'Mapa Astral' : 'Mapa Astral',
+        'site:mapa_amor_sinastria': IS_ARGENTINA ? 'Mapa del Amor' : 'Mapa do Amor',
+        'site:mapa_carreira': IS_ARGENTINA ? 'Mapa de la Carrera' : 'Mapa da Carreira',
+        'site:mapa_prosperidade': IS_ARGENTINA ? 'Mapa de la Prosperidad' : 'Mapa da Prosperidade',
+      };
+      const planValueEl = document.getElementById('plan-metric-value');
+      const planStatusEl = document.getElementById('plan-metric-status');
+      const planNoteEl = document.getElementById('plan-metric-note');
+
+      if (planValueEl && planStatusEl && planNoteEl) {
+        if (!appState.authenticated) {
+          planValueEl.firstChild.nodeValue = '— ';
+          planStatusEl.textContent = '';
+          planNoteEl.textContent = IS_ARGENTINA ? 'Iniciá sesión para ver' : 'Faça login para ver';
+        } else {
+          const allEnts = [...appState.entitlements.values()];
+          const primary = allEnts.find((e) => e.active && e.product_id === 'site:diario_astral')
+            || allEnts.find((e) => e.active)
+            || allEnts[0]
+            || null;
+          if (!primary) {
+            planValueEl.firstChild.nodeValue = '— ';
+            planStatusEl.textContent = IS_ARGENTINA ? 'inactivo' : 'inativo';
+            planNoteEl.textContent = IS_ARGENTINA ? 'Ningún plan activo' : 'Nenhum plano ativo';
+          } else {
+            const name = PRODUCT_LABELS[primary.product_id] || primary.product_id;
+            planValueEl.firstChild.nodeValue = name + ' ';
+            planStatusEl.textContent = primary.active
+              ? (IS_ARGENTINA ? 'activo' : 'ativo')
+              : (IS_ARGENTINA ? 'encerrado' : 'encerrado');
+            if (!primary.expires_at) {
+              planNoteEl.textContent = IS_ARGENTINA ? 'Acceso vitalicio' : 'Acesso vitalício';
+            } else {
+              const df = new Intl.DateTimeFormat(IS_ARGENTINA ? 'es-AR' : 'pt-BR', { day: '2-digit', month: 'short', year: 'numeric' });
+              const expiryStr = df.format(new Date(primary.expires_at)).replace('.', '');
+              planNoteEl.textContent = primary.active
+                ? (IS_ARGENTINA ? `Acceso al portal hasta ${expiryStr}` : `Acesso ao portal até ${expiryStr}`)
+                : (IS_ARGENTINA ? `Acceso encerrado el ${expiryStr}` : `Acesso encerrado em ${expiryStr}`);
+            }
+          }
+        }
+      }
+
+      // Próximo envio: previsão semanal sai todo sábado
+      const today = new Date();
+      const todayDay = today.getDay(); // 0=Dom … 6=Sáb
+      const daysUntilSat = todayDay === 6 ? 7 : (6 - todayDay + 7) % 7;
+      const nextSat = new Date(today);
+      nextSat.setDate(today.getDate() + daysUntilSat);
+      nextSat.setHours(0, 0, 0, 0);
+
+      const nextSendValueEl = document.getElementById('next-send-metric-value');
+      const nextSendUnitEl = document.getElementById('next-send-metric-unit');
+      const nextSendNoteEl = document.getElementById('next-send-metric-note');
+      const deliveryDateEl = document.getElementById('next-forecast-delivery-date');
+
+      if (nextSendValueEl && nextSendUnitEl) {
+        nextSendValueEl.firstChild.nodeValue = daysUntilSat + ' ';
+        nextSendUnitEl.textContent = IS_ARGENTINA ? 'días' : 'dias';
+      }
+      if (nextSendNoteEl) {
+        const dayLabel = new Intl.DateTimeFormat(IS_ARGENTINA ? 'es-AR' : 'pt-BR', { weekday: 'long' }).format(nextSat);
+        const dateLabel = new Intl.DateTimeFormat(IS_ARGENTINA ? 'es-AR' : 'pt-BR', { day: '2-digit', month: '2-digit' }).format(nextSat);
+        const dayCapitalized = dayLabel.charAt(0).toUpperCase() + dayLabel.slice(1);
+        nextSendNoteEl.textContent = IS_ARGENTINA
+          ? `Previsión semanal · ${dayCapitalized}, ${dateLabel}`
+          : `Previsão semanal · ${dayCapitalized}, ${dateLabel}`;
+      }
+      if (deliveryDateEl) {
+        deliveryDateEl.dateTime = nextSat.toISOString().slice(0, 10);
+        const dd = String(nextSat.getDate()).padStart(2, '0');
+        const mmm = new Intl.DateTimeFormat(IS_ARGENTINA ? 'es-AR' : 'pt-BR', { month: 'short' }).format(nextSat).replace('.', '').toUpperCase();
+        deliveryDateEl.innerHTML = `${dd}<br>${mmm}`;
+      }
     }
     function formatSubscriptionDate(iso) {
       if (!iso) return null;
