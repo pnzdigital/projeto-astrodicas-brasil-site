@@ -232,6 +232,18 @@ section{padding:clamp(40px,6.5vw,72px) 0}
 .method h3{margin-bottom:8px}
 .method p{font-size:.9rem;color:var(--cream-dim)}
 @media(max-width:760px){.method{grid-template-columns:1fr}}
+.example{margin-top:18px;border:var(--rule);border-radius:12px;padding:24px 26px;background:rgba(255,255,255,.018)}
+.example .ex-head{display:flex;justify-content:space-between;align-items:baseline;flex-wrap:wrap;gap:8px;margin-bottom:14px}
+.example .ex-tag{font-size:.66rem;letter-spacing:.12em;text-transform:uppercase;color:var(--gold-dim);font-weight:700}
+.example .ex-meta{font-size:.78rem;color:var(--cream-dim)}
+.example table{width:100%;border-collapse:collapse;font-size:.86rem}
+.example th,.example td{text-align:left;padding:7px 10px;border-bottom:1px solid rgba(255,255,255,.06)}
+.example th{color:var(--cream-dim);font-weight:600;font-size:.7rem;letter-spacing:.06em;text-transform:uppercase}
+.example td.num{font-family:var(--display);color:var(--gold-dim);font-size:.86rem;padding:7px 10px;display:table-cell}
+.example .ex-grid{display:grid;grid-template-columns:1fr 1fr;gap:18px}
+.example .ex-aspect{margin-top:12px;font-size:.82rem;color:var(--cream-dim)}
+.example .ex-aspect b{color:var(--cream)}
+@media(max-width:760px){.example .ex-grid{grid-template-columns:1fr}}
 
 /* ── planos ── */
 .plans{display:grid;grid-template-columns:1fr 1fr;gap:16px;align-items:start}
@@ -501,6 +513,32 @@ footer.site p{max-width:58ch;margin:12px auto 0;line-height:1.6}
         <p>A prévia gratuita calcula seu Sol, sua Lua, seu Ascendente e as posições dos planetas sem cadastro e sem e-mail. É o mesmo cálculo que sustenta a leitura paga.</p>
       </article>
     </div>
+    <div class="example">
+      <div class="ex-head">
+        <span class="ex-tag">Exemplo real de saída</span>
+        <span class="ex-meta">Nascimento fictício · 21/03/1994 · 08:30 · São Paulo (–23,55 / –46,63)</span>
+      </div>
+      <div class="ex-grid">
+        <table>
+          <thead><tr><th>Planeta</th><th>Signo</th><th>Grau</th></tr></thead>
+          <tbody>
+            <tr><td class="num">Sol</td><td>Áries</td><td>0,62°</td></tr>
+            <tr><td class="num">Lua</td><td>Câncer</td><td>11,89°</td></tr>
+            <tr><td class="num">Ascendente</td><td>Touro</td><td>1,47°</td></tr>
+            <tr><td class="num">Marte</td><td>Peixes</td><td>11,02°</td></tr>
+          </tbody>
+        </table>
+        <div>
+          <table>
+            <thead><tr><th>Casa I (Asc.)</th><th>Casa IV (IC)</th><th>Casa VII (Desc.)</th><th>Casa X (MC)</th></tr></thead>
+            <tbody>
+              <tr><td class="num">31,47°</td><td class="num">122,35°</td><td class="num">211,47°</td><td class="num">302,35°</td></tr>
+            </tbody>
+          </table>
+          <p class="ex-aspect">Aspecto real deste mapa: <b>Lua trígono Marte</b>, orbe 0,87° — dentro do orbe de 6° que declaramos acima.</p>
+        </div>
+      </div>
+    </div>
   </div>
 </section>
 
@@ -631,12 +669,11 @@ footer.site p{max-width:58ch;margin:12px auto 0;line-height:1.6}
   <div class="wrap narrow center">
     <h2>Quantos dias mais<br><span class="serif">você vai gastar com o texto errado?</span></h2>
     <p class="lede" style="margin:16px auto 0;max-width:50ch">
-      Você já sabe que aquele horóscopo não é seu. Amanhã ele vai estar lá de novo, igualzinho,
-      falando com 200 milhões de pessoas ao mesmo tempo — e você vai tentar se encaixar de novo.
+      Você já sabe que aquele horóscopo não é seu — fala com 200 milhões de pessoas ao mesmo tempo.
     </p>
     <p class="lede" style="margin:14px auto 0;max-width:50ch">
       <strong style="color:var(--cream)">Ou o seu chega hoje.</strong>
-      Calculado com a sua hora e a sua cidade, escrito só pra você. Leva dois minutos pra decidir isso.
+      Calculado com a sua hora e a sua cidade, escrito só pra você.
     </p>
     <div class="cta-block">
       <a class="cta" data-cta="scroll" href="#planos">COMEÇAR POR R$<span data-lp="basico">27,90</span><small>Mapa Astral de brinde · sem cartão salvo</small></a>
@@ -669,14 +706,14 @@ footer.site p{max-width:58ch;margin:12px auto 0;line-height:1.6}
     <ul>
       <li>Mapa do Amor</li>
       <li>Mapa da Prosperidade</li>
-      <li>Calendário Lunar do ano</li>
+      <li>Calendário Lunar do mês, renovado todo mês</li>
       <li>Guia dos Retrógrados</li>
       <li>Manual do Seu Ascendente</li>
     </ul>
     <div class="modal-price">
       <span class="was">O Premium sai por <span class="strike">R$ <span data-lp="completo">97,00</span></span>. Só agora:</span>
       <b>R$ <span data-lp="bump">57,90</span></b>
-      <span>pagamento único · todos os bônus juntos valem R$ <span data-lp="bonusValor">184,00</span></span>
+      <span>pagamento único · todos os bônus inclusos</span>
     </div>
     <button class="cta" data-cta="bump">SIM! QUERO O COMPLETO POR R$ <span data-lp="bump">57,90</span><small>Pagamento único, sem assinatura</small></button>
     <button class="modal-skip" data-cta="basico-direto">Não, continuar só com o Diário Astral (R$<span data-lp="basico">27,90</span>)</button>
