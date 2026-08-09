@@ -6,6 +6,7 @@ from fastapi import APIRouter, Cookie, Depends, HTTPException, Response, status
 from sqlalchemy import func
 from sqlalchemy.orm import Session
 
+from . import engine as engine_module
 from .db import get_db
 from .models import Entitlement, Order, Subscription, User
 from .pricing import format_amount, title_for
@@ -205,3 +206,10 @@ def trials(
         })
 
     return {"total": total, "limit": limit, "offset": offset, "trials": rows}
+
+
+@router.get("/quota")
+def quota(_admin: str = Depends(require_admin), db: Session = Depends(get_db)) -> dict:
+    """Consumo de requisições/tokens MiniMax da semana ISO corrente, por
+    modelo, contra o teto configurável (MINIMAX_WEEKLY_REQUEST_LIMIT)."""
+    return engine_module.get_weekly_quota_snapshot(db)

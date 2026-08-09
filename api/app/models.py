@@ -191,6 +191,26 @@ class WebhookEvent(Base):
     received_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now_utc)
 
 
+class QuotaUsage(Base):
+    """Consumo de requisições/tokens do MiniMax por janela semanal e modelo.
+
+    ``week_start`` é a segunda-feira 00:00 UTC da semana ISO corrente — a
+    mesma unidade do teto de requisições/semana da conta M2.7. Uma linha por
+    (semana, modelo); gravada via UPSERT a cada chamada real ao MiniMax para
+    sobreviver a restart de container (Coolify reinicia a cada deploy).
+    """
+
+    __tablename__ = "site_quota_usage"
+    __table_args__ = (UniqueConstraint("week_start", "model", name="uq_site_quota_usage_week_model"),)
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=lambda: str(uuid4()))
+    week_start: Mapped[date] = mapped_column(Date, index=True)
+    model: Mapped[str] = mapped_column(String(80))
+    request_count: Mapped[int] = mapped_column(Integer, default=0)
+    token_count: Mapped[int] = mapped_column(Integer, default=0)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now_utc, onupdate=now_utc)
+
+
 class GenerationJob(Base):
     """Fila durável de geração de leitura consumida pelo worker separado.
 

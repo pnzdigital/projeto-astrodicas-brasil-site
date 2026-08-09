@@ -4,12 +4,16 @@ import logging
 import os
 import re
 import threading
+import uuid
 from dataclasses import dataclass
-from datetime import date
+from datetime import date, datetime, timedelta, timezone
 from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
 
+from sqlalchemy import text
+
 from .astrology import astrology_context
+from .db import SessionLocal
 
 
 logger = logging.getLogger(__name__)
@@ -42,6 +46,97 @@ def get_quota_counters() -> dict:
     (não persiste entre deploys/processos)."""
     with _QUOTA_LOCK:
         return dict(_QUOTA_COUNTERS)
+
+
+def _week_start(when: datetime | None = None) -> date:
+    """Segunda-feira 00:00 UTC da semana ISO de ``when`` (default: agora)."""
+    moment = when or datetime.now(timezone.utc)
+    return (moment - timedelta(days=moment.weekday())).date()
+
+
+def _persist_quota_usage(model: str, completion_tokens: int | None) -> None:
+    """Grava o consumo em ``site_quota_usage`` (UPSERT por semana+modelo).
+
+    CONSTRAINT: geração de conteúdo nunca pode falhar por causa de métrica.
+    Qualquer erro de banco aqui vira warning e a chamada segue — perder uma
+    linha de instrumentação é aceitável, perder uma venda não é. Chamado de
+    dentro do pool de threads de `_generate_reading_sections`: cada chamada
+    abre e fecha sua própria sessão/conexão (nunca compartilhada entre
+    threads) e o UPSERT atômico evita contenção por leitura-antes-de-escrever.
+    """
+    tokens = completion_tokens or 0
+    week_start = _week_start()
+    now = datetime.now(timezone.utc)
+    try:
+        with SessionLocal() as session:
+            session.execute(
+                text(
+                    """
+                    INSERT INTO site_quota_usage (id, week_start, model, request_count, token_count, updated_at)
+                    VALUES (:id, :week_start, :model, 1, :tokens, :updated_at)
+                    ON CONFLICT (week_start, model) DO UPDATE SET
+                        request_count = site_quota_usage.request_count + 1,
+                        token_count = site_quota_usage.token_count + :tokens,
+                        updated_at = :updated_at
+                    """
+                ),
+                {
+                    "id": uuid.uuid4().hex,
+                    "week_start": week_start,
+                    "model": model or "unknown",
+                    "tokens": tokens,
+                    "updated_at": now,
+                },
+            )
+            session.commit()
+    except Exception as exc:  # noqa: BLE001 - métrica nunca pode derrubar a geração
+        logger.warning("quota_usage_persist_failed model=%s error=%s", model, exc)
+
+
+def get_weekly_quota_snapshot(db=None) -> dict:
+    """Consumo persistido da semana ISO corrente, por modelo, contra o teto
+    configurável (``MINIMAX_WEEKLY_REQUEST_LIMIT``, default 45000).
+
+    Aceita uma ``Session`` opcional (rota admin já tem uma via Depends); sem
+    ela, abre e fecha a própria. Nunca levanta — se o banco falhar, devolve
+    consumo zerado com ``available=False`` para o painel sinalizar sem quebrar."""
+    limit = int(os.getenv("MINIMAX_WEEKLY_REQUEST_LIMIT", "45000"))
+    week_start = _week_start()
+    owns_session = db is None
+    session = db or SessionLocal()
+    try:
+        rows = session.execute(
+            text("SELECT model, request_count, token_count FROM site_quota_usage WHERE week_start = :week_start"),
+            {"week_start": week_start},
+        ).fetchall()
+        by_model = {
+            row.model: {"requests": row.request_count, "tokens": row.token_count}
+            for row in rows
+        }
+        total_requests = sum(v["requests"] for v in by_model.values())
+        return {
+            "available": True,
+            "week_start": week_start.isoformat(),
+            "limit": limit,
+            "total_requests": total_requests,
+            "remaining": max(0, limit - total_requests),
+            "percent_used": round((total_requests / limit) * 100, 1) if limit > 0 else 0.0,
+            "by_model": by_model,
+        }
+    except Exception as exc:  # noqa: BLE001 - painel não pode quebrar por causa disso
+        logger.warning("quota_snapshot_failed error=%s", exc)
+        return {
+            "available": False,
+            "week_start": week_start.isoformat(),
+            "limit": limit,
+            "total_requests": 0,
+            "remaining": limit,
+            "percent_used": 0.0,
+            "by_model": {},
+        }
+    finally:
+        if owns_session:
+            session.close()
 
 _CONTENT_ID_RE = re.compile(r"Identificador:\s*([\w:]+)")
 
@@ -758,6 +853,7 @@ def _call_minimax(
         model, content_id, section_label or "-", prompt_tokens, completion_tokens, finish_reason,
     )
     _record_quota_usage(model, completion_tokens)
+    _persist_quota_usage(model, completion_tokens)
 
     content = re.sub(r"<think>[\s\S]*?</think>\s*", "", content).strip()
     if not content:

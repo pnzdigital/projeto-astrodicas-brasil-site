@@ -75,6 +75,19 @@
     select{min-height:38px;padding:0 10px;border:1px solid var(--line);border-radius:5px;background:rgba(8,7,25,.6)}
 
     .pager{display:flex;justify-content:flex-end;gap:8px;margin-top:14px}
+
+    /* quota panel */
+    .quota-head{display:flex;flex-wrap:wrap;align-items:baseline;justify-content:space-between;gap:10px;margin-bottom:14px}
+    .quota-head .quota-total{font:600 30px var(--display);color:var(--gold-lit)}
+    .quota-head .quota-sub{color:var(--muted);font-size:12px}
+    .quota-meter{position:relative;height:14px;border-radius:100px;background:rgba(244,239,228,.1);overflow:hidden}
+    .quota-meter .fill{height:100%;border-radius:100px;background:linear-gradient(90deg,var(--gold),var(--gold-lit));transition:width .3s ease}
+    .quota-meter.warn .fill{background:linear-gradient(90deg,#e0a63a,#f0c96a)}
+    .quota-meter.danger .fill{background:linear-gradient(90deg,#c94a5a,var(--bad))}
+    .quota-banner{display:none;margin-top:12px;padding:10px 14px;border-radius:6px;font-size:13px;font-weight:600}
+    .quota-banner.warn{display:block;color:#4a3300;background:#f0c96a}
+    .quota-banner.danger{display:block;color:#4a0f18;background:var(--bad)}
+    .quota-by-model{margin-top:18px}
     #status-msg{color:var(--muted);font-size:13px;padding:40px 0;text-align:center}
     @media(max-width:640px){.cards{grid-template-columns:1fr 1fr}.card .value{font-size:24px}}
   </style>
@@ -110,6 +123,27 @@
           <h2 id="chart-title">Vendas · últimos 30 dias</h2>
           <div class="bars" id="chart-bars" role="img" aria-label="Gráfico de barras de vendas diárias dos últimos 30 dias"></div>
           <div class="bars-labels" id="chart-labels" aria-hidden="true"></div>
+        </section>
+
+        <section class="panel" aria-labelledby="quota-title">
+          <h2 id="quota-title">Cota MiniMax · semana corrente</h2>
+          <div class="quota-head">
+            <div>
+              <div class="quota-total" id="quota-total">—</div>
+              <div class="quota-sub" id="quota-sub">carregando…</div>
+            </div>
+          </div>
+          <div class="quota-meter" id="quota-meter" role="img" aria-label="Percentual do teto semanal usado">
+            <div class="fill" id="quota-fill" style="width:0%"></div>
+          </div>
+          <p class="quota-banner" id="quota-banner" role="alert"></p>
+          <div class="quota-by-model table-scroll">
+            <table>
+              <caption class="visually-hidden">Consumo por modelo na semana corrente</caption>
+              <thead><tr><th scope="col">Modelo</th><th scope="col">Requisições</th><th scope="col">Tokens</th></tr></thead>
+              <tbody id="quota-model-rows"></tbody>
+            </table>
+          </div>
         </section>
 
         <section class="panel" aria-labelledby="product-title">
@@ -343,6 +377,55 @@
       document.getElementById('next-page').disabled = state.offset + state.limit >= payload.total;
     }
 
+    function renderQuota(quota) {
+      const total = document.getElementById('quota-total');
+      const sub = document.getElementById('quota-sub');
+      const meter = document.getElementById('quota-meter');
+      const fill = document.getElementById('quota-fill');
+      const banner = document.getElementById('quota-banner');
+      const tbody = document.getElementById('quota-model-rows');
+
+      if (!quota.available) {
+        total.textContent = '—';
+        sub.textContent = 'Não foi possível ler o consumo de cota agora.';
+        meter.className = 'quota-meter';
+        fill.style.width = '0%';
+        banner.className = 'quota-banner';
+        tbody.innerHTML = '';
+        return;
+      }
+
+      const pct = Math.min(100, quota.percent_used);
+      total.textContent = `${quota.total_requests.toLocaleString('pt-BR')} / ${quota.limit.toLocaleString('pt-BR')}`;
+      sub.textContent = `${quota.percent_used}% do teto semanal usado · ${quota.remaining.toLocaleString('pt-BR')} restantes · semana de ${quota.week_start}`;
+      fill.style.width = `${pct}%`;
+
+      meter.className = 'quota-meter';
+      banner.className = 'quota-banner';
+      if (quota.percent_used >= 90) {
+        meter.classList.add('danger');
+        banner.classList.add('danger');
+        banner.textContent = `Atenção: ${quota.percent_used}% do teto semanal do MiniMax já foi usado. Considere upgrade de plano.`;
+      } else if (quota.percent_used >= 70) {
+        meter.classList.add('warn');
+        banner.classList.add('warn');
+        banner.textContent = `${quota.percent_used}% do teto semanal do MiniMax já foi usado.`;
+      }
+
+      tbody.innerHTML = '';
+      const entries = Object.entries(quota.by_model || {}).sort((a, b) => b[1].requests - a[1].requests);
+      for (const [model, data] of entries) {
+        const row = document.createElement('tr');
+        row.innerHTML = `<td>${model}</td><td>${data.requests.toLocaleString('pt-BR')}</td><td>${data.tokens.toLocaleString('pt-BR')}</td>`;
+        tbody.appendChild(row);
+      }
+    }
+
+    async function loadQuota() {
+      const quota = await api('/quota');
+      renderQuota(quota);
+    }
+
     async function loadSales() {
       const params = new URLSearchParams({ limit: state.limit, offset: state.offset });
       if (state.market) params.set('market', state.market);
@@ -359,6 +442,7 @@
         renderCards(summary);
         renderChart(summary.daily_series);
         renderProducts(summary.by_product);
+        await loadQuota();
         await loadSales();
         statusMsg.hidden = true;
         dashboard.hidden = false;
