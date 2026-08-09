@@ -375,6 +375,71 @@ def _process_winback(
         stats["errors"] += 1
 
 
+def _process_coupon_winback(
+    db: Session,
+    ent: "Entitlement",
+    user: "User",
+    expiry_key: str,
+    reminder_type: str,
+    coupon_code: str | None,
+    discount_pct: int,
+    is_last_chance: bool,
+    renewal_link: str | None,
+    winback_link: str | None,
+    locale: str,
+    stats: dict,
+) -> None:
+    """Envia e-mail de recuperação com cupom de desconto.
+
+    Bloqueia o envio (logger.error) se o código do cupom não estiver configurado.
+    Para Argentina (locale es-AR) usa winback_link como fallback sem cupom,
+    pois o Mercado Pago não suporta cupons GG Checkout de forma nativa.
+    """
+    if coupon_code is None:
+        # Erro já logado em _get_coupon_code; conta como error p/ visibilidade.
+        stats["errors"] += 1
+        return
+
+    if _already_sent(db, ent.id, reminder_type, expiry_key):
+        stats["skipped"] += 1
+        return
+
+    is_ar = locale == "es-AR"
+    # Argentina: usa oferta de saída como URL alternativa (preço já reduzido).
+    effective_url = (winback_link or renewal_link) if is_ar else renewal_link
+    effective_code = "" if is_ar else coupon_code
+
+    if not effective_url:
+        logger.warning(
+            "URL de checkout ausente para %s — skipping cupom para %s.",
+            reminder_type,
+            user.email,
+        )
+        stats["skipped"] += 1
+        return
+
+    result = send_coupon_winback_email(
+        email=user.email,
+        name=user.name or user.email,
+        checkout_url=effective_url,
+        coupon_code=effective_code,
+        discount_pct=discount_pct,
+        is_last_chance=is_last_chance,
+        locale=locale,
+    )
+    if result.get("sent"):
+        _mark_sent(db, ent.id, reminder_type, expiry_key)
+        stats[reminder_type] = stats.get(reminder_type, 0) + 1
+    else:
+        logger.warning(
+            "Falha ao enviar %s para %s: %s",
+            reminder_type,
+            user.email,
+            result.get("error"),
+        )
+        stats["errors"] += 1
+
+
 @router.post("/api/tasks/renewal-reminders")
 async def renewal_reminders_task(request: Request, db: Session = Depends(get_db)) -> dict:
     """Endpoint chamado pelo cron do Coolify para disparar lembretes.
