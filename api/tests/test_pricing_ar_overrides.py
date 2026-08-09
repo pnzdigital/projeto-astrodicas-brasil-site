@@ -13,7 +13,7 @@ def _label(product_id: str) -> str:
 
 
 def test_diario_astral_has_its_own_ar_price():
-    assert _label("site:diario_astral") == "ARS 9.900"
+    assert _label("site:diario_astral") == "ARS 14.900"
 
 
 def test_premium_has_its_own_ar_price():
@@ -45,5 +45,5 @@ def test_every_override_points_at_a_real_product():
 
 
 def test_checkout_amount_follows_the_override():
-    assert pricing.amount_units("site:diario_astral", "es-AR") == 9900.0
+    assert pricing.amount_units("site:diario_astral", "es-AR") == 14900.0
     assert pricing.amount_units("site:diario_astral_completo", "es-AR") == 34900.0

@@ -9,7 +9,7 @@ def test_all_brl_prices_match_readme():
 
 
 def test_all_ars_prices_match_readme():
-    assert pricing.format_amount(pricing.amount_minor("site:diario_astral", "es-AR"), "ARS") == "ARS 9.900"
+    assert pricing.format_amount(pricing.amount_minor("site:diario_astral", "es-AR"), "ARS") == "ARS 14.900"
     assert pricing.format_amount(pricing.amount_minor("site:diario_astral_completo", "es-AR"), "ARS") == "ARS 34.900"
 
 

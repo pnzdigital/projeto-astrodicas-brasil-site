@@ -46,7 +46,7 @@ PRICES_BRL_MINOR: dict[str, int] = {
 # Estes preços são fixos em reais argentinos: não acompanham BRL_TO_ARS.
 # Tudo o que não estiver aqui continua sendo convertido pela taxa.
 PRICES_ARS_MINOR: dict[str, int] = {
-    "site:diario_astral": 990000,                # ARS 9.900/mês
+    "site:diario_astral": 1490000,               # ARS 14.900 pelos 30 dias
     "site:diario_astral_completo": 3490000,  # ARS 34.900 pagamento único
     "site:diario_astral_oferta_saida": 890000,    # ARS 8.900, abaixo do Diário Astral
 }

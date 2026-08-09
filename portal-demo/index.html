@@ -651,8 +651,8 @@
         <section class="metrics" aria-label="Resumo da conta">
           <article class="metric">
             <div class="metric-label">Seu plano</div>
-            <div class="metric-value">Lua <small>ativo</small></div>
-            <p class="metric-note">Acesso ao portal até 29 jul 2027</p>
+            <div class="metric-value" id="plan-metric-value">— <small id="plan-metric-status"></small></div>
+            <p class="metric-note" id="plan-metric-note">—</p>
           </article>
           <article class="metric">
             <div class="metric-label">Conteúdos liberados</div>
@@ -661,8 +661,8 @@
           </article>
           <article class="metric">
             <div class="metric-label">Próximo envio</div>
-            <div class="metric-value">02 <small>dias</small></div>
-            <p class="metric-note">Previsão semanal · sexta-feira, 31/07</p>
+            <div class="metric-value" id="next-send-metric-value">— <small id="next-send-metric-unit">dias</small></div>
+            <p class="metric-note" id="next-send-metric-note">Previsão semanal · calculando…</p>
           </article>
         </section>
 
@@ -689,7 +689,7 @@
             <div class="progress" role="progressbar" aria-label="Perfil explorado" aria-valuemin="0" aria-valuemax="100" aria-valuenow="68"><i></i></div>
             <p class="progress-note">Você já desbloqueou as bases. Faltam dois mapas para completar seu painel.</p>
             <div class="delivery-list" id="proximos">
-              <div class="delivery"><time class="delivery-date" datetime="2026-07-31">31<br>JUL</time><div><strong>Previsão semanal</strong><span>enviada automaticamente por e-mail</span></div></div>
+              <div class="delivery"><time class="delivery-date" id="next-forecast-delivery-date" datetime="">—<br>—</time><div><strong>Previsão semanal</strong><span>enviada automaticamente por e-mail</span></div></div>
               <div class="delivery"><time class="delivery-date" datetime="2026-08-01">01<br>AGO</time><div><strong>Calendário lunar de agosto</strong><span>disponível para leitura no portal</span></div></div>
             </div>
           </aside>
@@ -876,7 +876,7 @@
       'site:content:mapa_do_amor_sinastria': { icon: '♡', kicker: 'Leitura avulsa', meta: 'Desbloqueie para ler', reading: '<p>Uma leitura para compreender a dinâmica entre duas pessoas com delicadeza e profundidade — sem transformar vínculo em sentença.</p>' },
       'site:content:mapa_da_carreira': { icon: '✧', kicker: 'Leitura avulsa', meta: 'Desbloqueie para ler', reading: '<p>Seu mapa também fala sobre trabalho, visibilidade e a maneira como você constrói algo que importa.</p>' },
       'site:content:mapa_da_prosperidade': { icon: '◇', kicker: 'Leitura avulsa', meta: 'Desbloqueie para ler', reading: '<p>Prosperidade é relação: com tempo, recursos, prazer e segurança. Esta leitura abre novas perguntas para suas escolhas.</p>' },
-      'site:content:previsao_semanal': { icon: '◷', kicker: 'Diário Astral', meta: 'Domingo · automático', reading: '<p>A previsão semanal combina os movimentos do céu com o seu mapa. Ela chega no domingo e fica disponível nesta biblioteca durante todo o ciclo.</p><h3>Como usar</h3><ul><li>Leia no início da semana.</li><li>Marque o tema que mais ressoa.</li><li>Retorne no fim para observar o que mudou.</li></ul>' },
+      'site:content:previsao_semanal': { icon: '◷', kicker: 'Diário Astral', meta: 'Sábado · automático', reading: '<p>A previsão semanal combina os movimentos do céu com o seu mapa. Ela chega no sábado e fica disponível nesta biblioteca durante todo o ciclo.</p><h3>Como usar</h3><ul><li>Leia no início da semana.</li><li>Marque o tema que mais ressoa.</li><li>Retorne no fim para observar o que mudou.</li></ul>' },
       'site:content:calendario_lunar': { icon: '☾', kicker: 'Bônus Premium', meta: 'Incluído no Premium', reading: '<p>Um calendário para acompanhar luas novas, cheias e os momentos de recolhimento e expansão do ano.</p>' },
       'site:content:guia_dos_retrogrados': { icon: '↺', kicker: 'Bônus Premium', meta: 'Incluído no Premium', reading: '<p>Retrogradações são convites para rever. Use este guia para atravessar cada fase com menos pressa e mais contexto.</p>' },
       'site:content:manual_do_ascendente': { icon: '↑', kicker: 'Bônus Premium', meta: 'Incluído no Premium', reading: '<p>Seu Ascendente fala sobre a primeira impressão, o corpo e a forma como você encontra o mundo. Uma leitura para voltar muitas vezes.</p>' },
@@ -919,7 +919,7 @@
       'site:combo_diario_astral_mapa_prosperidade': ['Combinação', 'Diário Astral + Mapa da Prosperidade', 'Seu acompanhamento diário e uma leitura para prosperar.', 'R$ 67,00', 'pagamento único', 'Conhecer combinação'],
     });
     const OFFER_COPY_AR = Object.freeze({
-      'site:diario_astral': ['Suscripción', 'Diario Astral', 'Horóscopo personalizado, Mapa Astral y Guía del Mes en tu área.', 'ARS 9.900', '/mes · cancela cuando quieras', 'Conocer Diario Astral'],
+      'site:diario_astral': ['Acceso 30 días', 'Diario Astral', 'Horóscopo personalizado, Mapa Astral y Guía del Mes en tu área.', 'ARS 14.900', '30 días · sin renovación automática', 'Conocer Diario Astral'],
       'site:mapa_astral': ['Lectura individual', 'Mapa Astral Completo', 'Una lectura profunda para guardar y volver a consultar.', 'Desde ARS 14.570', 'acceso permanente', 'Ver Mapa Astral'],
       'site:mapa_amor_sinastria': ['Lectura individual', 'Mapa del Amor · Sinastría', 'Dos historias y una lectura cuidadosa sobre el encuentro.', 'Desde ARS 14.570', 'acceso permanente', 'Ver Mapa del Amor'],
       'site:mapa_carreira': ['Lectura individual', 'Mapa de la Carrera', 'Talentos y dirección para tus próximas decisiones profesionales.', 'Desde ARS 14.570', 'acceso permanente', 'Ver Mapa de la Carrera'],

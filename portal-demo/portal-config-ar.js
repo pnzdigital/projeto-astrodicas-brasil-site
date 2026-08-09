@@ -7,7 +7,7 @@
 import base from "./portal-config.js";
 
 const ARS_PRICES = Object.freeze({
-  "site:diario_astral": "ARS 9.900",
+  "site:diario_astral": "ARS 14.900",
   "site:mapa_astral": "ARS 14.570",
   "site:mapa_amor_sinastria": "ARS 14.570",
   "site:mapa_carreira": "ARS 14.570",

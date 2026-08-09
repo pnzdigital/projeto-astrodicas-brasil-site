@@ -51,7 +51,7 @@ def test_argentine_price_is_the_brazilian_price_converted():
     ratio_combo = pricing.amount_minor("site:combo_mapa_astral_amor", "es-AR") / pricing.amount_minor("site:combo_mapa_astral_amor", "pt-BR")
     assert ratio_mapa == ratio_combo
     # Preços próprios do mercado AR.
-    assert pricing.format_amount(pricing.amount_minor("site:diario_astral", "es-AR"), "ARS") == "ARS 9.900"
+    assert pricing.format_amount(pricing.amount_minor("site:diario_astral", "es-AR"), "ARS") == "ARS 14.900"
     assert pricing.format_amount(pricing.amount_minor("site:diario_astral_completo", "es-AR"), "ARS") == "ARS 34.900"
 
 
@@ -66,7 +66,7 @@ def test_catalog_endpoint_serves_each_market(client):
     assert ar["checkout"]["transparent"] is False
     assert ar["checkout"]["redirect"] is True
     lua_ar = next(p for p in ar["products"] if p["product_id"] == "site:diario_astral")
-    assert lua_ar["price_label"] == "ARS 9.900"
+    assert lua_ar["price_label"] == "ARS 14.900"
 
 
 def test_order_uses_server_price_and_opens_a_checkout_pro_preference(client, monkeypatch):
