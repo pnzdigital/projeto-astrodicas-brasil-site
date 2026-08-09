@@ -877,7 +877,7 @@
       'site:content:mapa_da_carreira': { icon: '✧', kicker: 'Leitura avulsa', meta: 'Desbloqueie para ler', reading: '<p>Seu mapa também fala sobre trabalho, visibilidade e a maneira como você constrói algo que importa.</p>' },
       'site:content:mapa_da_prosperidade': { icon: '◇', kicker: 'Leitura avulsa', meta: 'Desbloqueie para ler', reading: '<p>Prosperidade é relação: com tempo, recursos, prazer e segurança. Esta leitura abre novas perguntas para suas escolhas.</p>' },
       'site:content:previsao_semanal': { icon: '◷', kicker: 'Diário Astral', meta: 'Sábado · automático', reading: '<p>A previsão semanal combina os movimentos do céu com o seu mapa. Ela chega no sábado e fica disponível nesta biblioteca durante todo o ciclo.</p><h3>Como usar</h3><ul><li>Leia no início da semana.</li><li>Marque o tema que mais ressoa.</li><li>Retorne no fim para observar o que mudou.</li></ul>' },
-      'site:content:calendario_lunar': { icon: '☾', kicker: 'Bônus Premium', meta: 'Incluído no Premium', reading: '<p>Um calendário para acompanhar luas novas, cheias e os momentos de recolhimento e expansão do ano.</p>' },
+      'site:content:calendario_lunar': { icon: '☾', kicker: 'Bônus Premium', meta: 'Incluído no Premium', reading: '<p>Um calendário para acompanhar luas novas, cheias e os momentos de recolhimento e expansão do ciclo lunar em curso.</p>' },
       'site:content:guia_dos_retrogrados': { icon: '↺', kicker: 'Bônus Premium', meta: 'Incluído no Premium', reading: '<p>Retrogradações são convites para rever. Use este guia para atravessar cada fase com menos pressa e mais contexto.</p>' },
       'site:content:manual_do_ascendente': { icon: '↑', kicker: 'Bônus Premium', meta: 'Incluído no Premium', reading: '<p>Seu Ascendente fala sobre a primeira impressão, o corpo e a forma como você encontra o mundo. Uma leitura para voltar muitas vezes.</p>' },
     });
@@ -890,7 +890,7 @@
       { id: 'site:content:mapa_da_carreira', productId: 'site:mapa_carreira', title: 'Mapa da Carreira', description: 'Talentos, direção e escolhas profissionais vistos pelo seu céu.' },
       { id: 'site:content:mapa_da_prosperidade', productId: 'site:mapa_prosperidade', title: 'Mapa da Prosperidade', description: 'Uma leitura sobre recursos, merecimento e a forma como você sustenta seus planos.' },
       { id: 'site:content:previsao_semanal', productId: 'site:diario_astral_completo', title: 'Previsão da semana', description: 'Uma lente personalizada para atravessar a semana com mais clareza.' },
-      { id: 'site:content:calendario_lunar', productId: 'site:diario_astral_completo', title: 'Calendário lunar', description: 'As fases do ano organizadas para você planejar, pausar e recomeçar.' },
+      { id: 'site:content:calendario_lunar', productId: 'site:diario_astral_completo', title: 'Calendário lunar', description: 'As fases do mês atual, revalidadas mensalmente, para você planejar, pausar e recomeçar.' },
       { id: 'site:content:guia_dos_retrogrados', productId: 'site:diario_astral_completo', title: 'Guia dos retrógrados', description: 'O que revisar, recalibrar e observar quando os planetas parecem voltar.' },
       { id: 'site:content:manual_do_ascendente', productId: 'site:diario_astral_completo', title: 'Manual do Ascendente', description: 'A presença que chega antes das palavras — e como cuidar dela.' },
     ].map((item) => ({
@@ -902,7 +902,7 @@
     }));
 
     const OFFER_COPY_BR = Object.freeze({
-      'site:diario_astral': ['Assinatura', 'Diário Astral', 'Horóscopo personalizado, Mapa Astral e Guia do Mês na sua área.', 'R$ 27,90', '/mês · cancela quando quiser', 'Conhecer Diário Astral'],
+      'site:diario_astral': ['Assinatura', 'Diário Astral', 'Horóscopo personalizado, Guia do Mês e Mapa Astral Completo em PDF (brinde).', 'R$ 27,90', '/mês · cancela quando quiser', 'Conhecer Diário Astral'],
       'site:mapa_astral': ['Leitura avulsa', 'Mapa Astral Completo', 'A leitura natal completa para guardar, revisitar e compartilhar quando quiser.', 'A partir de R$ 47,00', 'acesso permanente', 'Ver Mapa Astral'],
       'site:mapa_amor_sinastria': ['Leitura avulsa', 'Mapa do Amor · Sinastria', 'Duas histórias, uma leitura cuidadosa sobre encontro, desejo e parceria.', 'A partir de R$ 47,00', 'acesso permanente', 'Ver Mapa do Amor'],
       'site:mapa_carreira': ['Leitura avulsa', 'Mapa da Carreira', 'Talentos e direção para tomar decisões profissionais com mais presença.', 'A partir de R$ 47,00', 'acesso permanente', 'Ver Mapa da Carreira'],
@@ -919,7 +919,7 @@
       'site:combo_diario_astral_mapa_prosperidade': ['Combinação', 'Diário Astral + Mapa da Prosperidade', 'Seu acompanhamento diário e uma leitura para prosperar.', 'R$ 67,00', 'pagamento único', 'Conhecer combinação'],
     });
     const OFFER_COPY_AR = Object.freeze({
-      'site:diario_astral': ['Acceso 30 días', 'Diario Astral', 'Horóscopo personalizado, Mapa Astral y Guía del Mes en tu área.', 'ARS 14.900', '30 días · sin renovación automática', 'Conocer Diario Astral'],
+      'site:diario_astral': ['Acceso 30 días', 'Diario Astral', 'Horóscopo personalizado, Guía del Mes y Mapa Astral Completo en PDF (regalo).', 'ARS 14.900', '30 días · sin renovación automática', 'Conocer Diario Astral'],
       'site:mapa_astral': ['Lectura individual', 'Mapa Astral Completo', 'Una lectura profunda para guardar y volver a consultar.', 'Desde ARS 14.570', 'acceso permanente', 'Ver Mapa Astral'],
       'site:mapa_amor_sinastria': ['Lectura individual', 'Mapa del Amor · Sinastría', 'Dos historias y una lectura cuidadosa sobre el encuentro.', 'Desde ARS 14.570', 'acceso permanente', 'Ver Mapa del Amor'],
       'site:mapa_carreira': ['Lectura individual', 'Mapa de la Carrera', 'Talentos y dirección para tus próximas decisiones profesionales.', 'Desde ARS 14.570', 'acceso permanente', 'Ver Mapa de la Carrera'],
@@ -946,7 +946,7 @@
       { id: 'site:mapa-amor-sinastria', title: 'Mapa do Amor · Sinastria', kicker: 'Produto avulso', icon: '♡', description: 'Encontre os pontos de encontro, desejo e cuidado entre dois mapas.', meta: 'Desbloqueie para ler', unlocked: false, checkoutKey: 'mapa_amor', reading: '<p>Uma leitura para compreender a dinâmica entre duas pessoas com delicadeza e profundidade — sem transformar vínculo em sentença.</p>' },
       { id: 'site:mapa-carreira', title: 'Mapa da Carreira', kicker: 'Produto avulso', icon: '✧', description: 'Talentos, direção e escolhas profissionais vistos pelo seu céu.', meta: 'Desbloqueie para ler', unlocked: false, checkoutKey: 'mapa_carreira', reading: '<p>Seu mapa também fala sobre trabalho, visibilidade e a maneira como você constrói algo que importa.</p>' },
       { id: 'site:mapa-prosperidade', title: 'Mapa da Prosperidade', kicker: 'Produto avulso', icon: '◇', description: 'Uma leitura sobre recursos, merecimento e a forma como você sustenta seus planos.', meta: 'Desbloqueie para ler', unlocked: false, checkoutKey: 'mapa_prosperidade', reading: '<p>Prosperidade é relação: com tempo, recursos, prazer e segurança. Esta leitura abre novas perguntas para suas escolhas.</p>' },
-      { id: 'site:calendario-lunar', title: 'Calendário lunar', kicker: 'Bônus Premium', icon: '☾', description: 'As fases do ano organizadas para você planejar, pausar e recomeçar.', meta: 'Incluído no Premium', unlocked: false, checkoutKey: 'diario_astral_premium', reading: '<p>Um calendário para acompanhar luas novas, cheias e os momentos de recolhimento e expansão do ano.</p>' },
+      { id: 'site:calendario-lunar', title: 'Calendário lunar', kicker: 'Bônus Premium', icon: '☾', description: 'As fases do mês atual, revalidadas mensalmente, para você planejar, pausar e recomeçar.', meta: 'Incluído no Premium', unlocked: false, checkoutKey: 'diario_astral_premium', reading: '<p>Um calendário para acompanhar luas novas, cheias e os momentos de recolhimento e expansão do ciclo lunar em curso.</p>' },
       { id: 'site:guia-retrogrados', title: 'Guia dos retrógrados', kicker: 'Bônus Premium', icon: '↺', description: 'O que revisar, recalibrar e observar quando os planetas parecem voltar.', meta: 'Incluído no Premium', unlocked: false, checkoutKey: 'diario_astral_premium', reading: '<p>Retrogradações são convites para rever. Use este guia para atravessar cada fase com menos pressa e mais contexto.</p>' },
       { id: 'site:manual-ascendente', title: 'Manual do Ascendente', kicker: 'Bônus Premium', icon: '↑', description: 'A presença que chega antes das palavras — e como cuidar dela.', meta: 'Incluído no Premium', unlocked: false, checkoutKey: 'diario_astral_premium', reading: '<p>Seu Ascendente fala sobre a primeira impressão, o corpo e a forma como você encontra o mundo. Uma leitura para voltar muitas vezes.</p>' }
     ]; */
@@ -1333,6 +1333,8 @@
         'Seu acesso continua até o fim do período já pago. Nada mais será cobrado depois disso.': 'Tu acceso sigue activo hasta el fin del período ya pagado. No se te va a cobrar de nuevo después de eso.',
         'Manter minha assinatura': 'Mantener mi suscripción',
         'Sim, cancelar': 'Sí, cancelar',
+        'Um calendário para acompanhar luas novas, cheias e os momentos de recolhimento e expansão do ciclo lunar em curso.': 'Un calendario para seguir lunas nuevas, llenas y los momentos de recogimiento y expansión del ciclo lunar en curso.',
+        'As fases do mês atual, revalidadas mensalmente, para você planejar, pausar e recomeçar.': 'Las fases del mes actual, revalidadas mensualmente, para que planifiques, pauses y recomiences.',
       });
       const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
       const nodes = [];
