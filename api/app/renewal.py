@@ -190,7 +190,7 @@ def run_renewal_reminders(db: Session) -> dict:
     run_trial_reminders para que os textos e a lógica de conversão sejam corretos.
     """
     now = _now()
-    stats: dict[str, int] = {"7d": 0, "today": 0, "winback": 0, "skipped": 0, "errors": 0}
+    stats: dict[str, int] = {"7d": 0, "1d": 0, "today": 0, "winback": 0, "skipped": 0, "errors": 0}
 
     candidates = db.scalars(
         select(Entitlement).where(
@@ -221,6 +221,9 @@ def run_renewal_reminders(db: Session) -> dict:
 
         if timedelta(days=6) <= delta <= timedelta(days=8):
             _process_reminder(db, ent, user, "7d", expiry_key, expires_at, renewal_link, stats)
+
+        elif timedelta(hours=12) < delta <= timedelta(hours=36):
+            _process_reminder(db, ent, user, "1d", expiry_key, expires_at, renewal_link, stats)
 
         elif timedelta(hours=-12) <= delta <= timedelta(hours=12):
             _process_reminder(db, ent, user, "today", expiry_key, expires_at, renewal_link, stats)
@@ -332,6 +335,8 @@ async def renewal_reminders_task(request: Request, db: Session = Depends(get_db)
         **stats,
         "trial_ending": trial_stats["trial_ending"],
         "trial_winback": trial_stats["trial_winback"],
+        "coupon_10": trial_stats.get("coupon_10", 0) + stats.get("coupon_10", 0),
+        "coupon_15": trial_stats.get("coupon_15", 0) + stats.get("coupon_15", 0),
     }
 
 
