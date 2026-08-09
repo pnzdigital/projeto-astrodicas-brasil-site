@@ -596,12 +596,12 @@ def send_trial_ending_email(
 <p>Tu acceso gratis al Diario Astral vence el <strong>{ends_label}</strong>.</p>
 <p>Si querés seguir recibiendo tu horóscopo diario y desbloquear el resto:</p>
 <div class="info-box">
-    <strong>Con la suscripción se agregan:</strong><br>
+    <strong>Con tus 30 días se agregan:</strong><br>
     ✦ Mapa Astral Completo en PDF (una vez, tuyo para siempre)<br>
-    ✦ Guía del Mes — nueva cada mes<br>
+    ✦ Guía del Mes<br>
     ✦ Previsión personalizada de la semana<br>
     <br>
-    Cancelás cuando quieras, sin fidelidad.
+    Es una compra única de 30 días: no queda tarjeta guardada ni se renueva solo.
 </div>
 <a href="{url_safe}" class="cta-button">Activar el Diario Astral →</a>
 <p>Si no querés continuar, no hace falta hacer nada — el acceso se cierra solo. Sin cobros.</p>
@@ -620,12 +620,12 @@ def send_trial_ending_email(
 <p>Seu acesso grátis ao Diário Astral vence em <strong>{ends_label}</strong>.</p>
 <p>Se quiser continuar recebendo seu horóscopo diário e desbloquear o restante:</p>
 <div class="info-box">
-    <strong>Com a assinatura você ganha:</strong><br>
+    <strong>Com seus 30 dias você ganha:</strong><br>
     ✦ Mapa Astral Completo em PDF (uma vez, seu para sempre)<br>
-    ✦ Guia do Mês — brinde novo todo mês<br>
+    ✦ Guia do Mês<br>
     ✦ Previsão personalizada da semana<br>
     <br>
-    Cancela quando quiser, sem fidelidade.
+    É compra única de 30 dias: não fica cartão salvo nem renova sozinho.
 </div>
 <a href="{url_safe}" class="cta-button">Entrar no Diário Astral →</a>
 <p>Se não quiser continuar, não precisa fazer nada — o acesso fecha sozinho. Sem cobranças.</p>
