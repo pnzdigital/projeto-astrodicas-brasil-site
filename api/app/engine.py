@@ -365,6 +365,35 @@ SECTIONS_BY_CONTENT_ID: dict[str, list[tuple[str, str]]] = {
         ("Plano de Abundância", "Prática mensal"),
         ("Mensagem Final", "Você em fluxo"),
     ],
+    # Manual do Ascendente: não veio do bot (produto novo, sem equivalente em
+    # astrodicas-telegram/src/vendas_bot/mapa_premium.py), então não é um
+    # porte — seções montadas do zero a partir do que o produto realmente
+    # cobre (Ascendente calculado, regente, presença, corpo, primeira
+    # impressão, casas). Entrou aqui em 2026-08-09 para igualar o mesmo
+    # pacote de R$97 que já traz Mapa do Amor e Mapa da Prosperidade
+    # seccionados — antes disso o Ascendente vinha em parágrafo corrido
+    # (8-10 parágrafos), entrega desigual dentro do mesmo preço. A regra
+    # antiga de "8 a 10 parágrafos" em ``legacy_rules`` foi removida (contradiz
+    # o formato seccionado); a honestidade "sem Ascendente calculado, explique
+    # que falta hora de nascimento" continua garantida por
+    # ``_assumed_warning_text``, que se aplica a toda leitura seccionada, não
+    # só a esta. NÃO entra em ``_LONG_CONTENT_IDS`` (decisão da dona: roteamento
+    # M3 fica desligado para este content_id de propósito).
+    "site:content:manual_do_ascendente": [
+        ("Introdução ao Ascendente", "O que é e por que importa"),
+        ("Ascendente Calculado", "Seu signo no horizonte"),
+        ("Regente do Ascendente", "O planeta que comanda sua vida"),
+        ("Presença e Postura", "Como você entra numa sala"),
+        ("Corpo e Vitalidade", "Energia física e saúde"),
+        ("Primeira Impressão", "O que os outros veem primeiro"),
+        ("Máscara Social", "Persona e essência"),
+        ("Casa 1 em Ação", "Identidade em movimento"),
+        ("Casas Angulares", "A estrutura da sua vida"),
+        ("Ascendente nos Relacionamentos", "Como você se aproxima"),
+        ("Ascendente na Carreira", "Imagem profissional"),
+        ("Desafios do Ascendente", "Pontos de tensão a observar"),
+        ("Mensagem Final", "Integrando persona e essência"),
+    ],
     # Portado de _SECOES_POR_TIPO["sinastria"] no bot (variante COM dados do
     # parceiro completos). Ver SINASTRIA_SEM_PARCEIRO_SECTIONS para a variante
     # sem parceiro e sections_for() para a escolha entre as duas.
@@ -612,7 +641,6 @@ def _prompt(content_id: str, title: str, profile, locale: str, customer_name: st
             "site:content:previsao_semanal": "Escreva 7 parágrafos, um para o panorama e seis para temas e decisões da semana, usando os trânsitos atuais calculados.",
             "site:content:calendario_lunar": "Escreva um guia editorial do ciclo lunar atual em 7 a 9 parágrafos. Não invente datas que não estejam nos dados; quando faltarem, trate como guia de uso das fases.",
             "site:content:guia_dos_retrogrados": "Escreva 7 a 9 parágrafos explicando os planetas retrógrados presentes no céu calculado e como atravessar revisões sem fatalismo.",
-            "site:content:manual_do_ascendente": "Escreva 8 a 10 parágrafos sobre o Ascendente calculado, seu regente simbólico, presença, corpo e primeira impressão. Se não houver Ascendente calculado, explique que a hora exata é necessária.",
         }
         content_rule = legacy_rules.get(content_id, "Escreva uma leitura premium profunda, com 7 a 10 parágrafos.")
     language_lock = _language_lock_text(locale)

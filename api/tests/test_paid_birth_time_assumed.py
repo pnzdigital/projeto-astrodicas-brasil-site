@@ -102,7 +102,7 @@ def test_profile_context_propagates_birth_time_assumed_to_prompt():
 
     real_call = engine._call_minimax
 
-    def spy(prompt, locale="pt-BR", max_tokens=None, timeout=None):
+    def spy(prompt, locale="pt-BR", max_tokens=None, timeout=None, **_kwargs):
         # Geração seção-a-seção: guarda só o primeiro prompt capturado (todas
         # as seções levam o mesmo aviso de hora assumida).
         captured.setdefault("prompt", prompt)
@@ -280,9 +280,9 @@ def test_paid_reading_pdf_carries_ascendant_warning(client, monkeypatch):
     captured = {}
     real_build_pdf = main_module.build_pdf
 
-    def spy_build_pdf(title, sections, customer_name="", warning=""):
+    def spy_build_pdf(title, sections, customer_name="", warning="", body_html=""):
         captured["warning"] = warning
-        return real_build_pdf(title, sections, customer_name=customer_name, warning=warning)
+        return real_build_pdf(title, sections, customer_name=customer_name, warning=warning, body_html=body_html)
 
     monkeypatch.setattr(main_module, "build_pdf", spy_build_pdf)
 

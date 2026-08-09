@@ -734,10 +734,6 @@ def reading_pdf(content_id: str, request: Request, site_session: str | None = Co
         msg = "Gere a leitura antes de baixar o PDF." if locale == "pt-BR" else "Genera la lectura antes de descargar el PDF."
         raise HTTPException(status_code=404, detail=msg)
     sections = reading.content_sections or []
-    if not sections:
-        locale = _pick_locale(user.locale if user else None, request.headers.get("accept-language"))
-        msg = "PDF disponível apenas para leituras seccionadas." if locale == "pt-BR" else "PDF disponible solo para lecturas seccionadas."
-        raise HTTPException(status_code=422, detail=msg)
     locale = _pick_locale(user.locale if user else None, request.headers.get("accept-language"))
     ascendant_warning = getattr(reading, "ascendant_warning", None) or {}
     ascendant_text = ascendant_warning.get(locale) or ascendant_warning.get("pt-BR") or ""
@@ -745,7 +741,11 @@ def reading_pdf(content_id: str, request: Request, site_session: str | None = Co
     # PDF baixado precisa carregar o mesmo aviso da tela — cliente guarda o
     # arquivo, então a ressalva de Ascendente estimado não pode ficar só na UI.
     warning = "\n\n".join(text for text in (fallback_text, ascendant_text) if text)
-    pdf_bytes = build_pdf(reading.title, sections, customer_name=user.name, warning=warning)
+    try:
+        pdf_bytes = build_pdf(reading.title, sections, customer_name=user.name, warning=warning, body_html=reading.body_html or "")
+    except ValueError:
+        msg = "Leitura sem conteúdo para gerar PDF." if locale == "pt-BR" else "Lectura sin contenido para generar el PDF."
+        raise HTTPException(status_code=422, detail=msg)
     filename = f"{content_id.split(':')[-1]}.pdf"
     return Response(
         content=pdf_bytes,

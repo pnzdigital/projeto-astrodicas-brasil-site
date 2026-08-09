@@ -16,6 +16,7 @@ suficiente para pt-BR e es-AR — sem precisar embutir um arquivo .ttf.
 
 from __future__ import annotations
 
+import html
 import io
 import re
 
@@ -55,13 +56,27 @@ def _clean(text: str) -> str:
     return text.encode("latin-1", "replace").decode("latin-1")
 
 
-def build_pdf(title: str, sections: list[dict], customer_name: str = "", warning: str = "") -> bytes:
-    """Gera o PDF a partir de seções {"title", "subtitle", "content"}.
+def _paragraphs_from_html(body_html: str) -> list[str]:
+    """Extrai os parágrafos de ``<p>...</p>`` (formato de content_ids não
+    seccionados, ver ``Reading.body_html``) de volta para texto puro."""
+    return [html.unescape(p).strip() for p in re.findall(r"<p>(.*?)</p>", body_html, re.DOTALL) if p.strip()]
 
-    ``warning`` (ex.: aviso de hora de nascimento assumida, ou aviso de
-    fallback editorial) é impresso logo após a capa quando presente — nunca
-    escondido do cliente pagante.
+
+def build_pdf(title: str, sections: list[dict], customer_name: str = "", warning: str = "", body_html: str = "") -> bytes:
+    """Gera o PDF a partir de seções {"title", "subtitle", "content"} OU,
+    quando ``sections`` está vazio, a partir de ``body_html`` (formato de
+    parágrafo corrido usado pelos content_ids fora de SECTIONS_BY_CONTENT_ID —
+    ver engine.py). Mesma capa, aviso e paleta nos dois casos; a única
+    diferença é que o corpo vira uma única página de parágrafos em vez de
+    uma página por seção, já que não há título de seção para ancorar o layout.
+
+    Levanta ``ValueError`` se não houver nem seções nem parágrafos de
+    ``body_html`` — nunca devolve um PDF em branco.
     """
+    paragraphs_from_body = [] if sections else _paragraphs_from_html(body_html)
+    if not sections and not paragraphs_from_body:
+        raise ValueError("Sem conteúdo para gerar PDF (nem seções, nem parágrafos).")
+
     pdf = ReadingPDF()
 
     # Capa
@@ -95,6 +110,22 @@ def build_pdf(title: str, sections: list[dict], customer_name: str = "", warning
         pdf.set_font("Helvetica", "", 12)
         pdf.set_text_color(*PALETTE["cor_texto"])
         pdf.multi_cell(0, 7, _clean(warning))
+
+    if paragraphs_from_body:
+        pdf.add_page()
+        pdf.set_fill_color(*PALETTE["cor_fundo"])
+        pdf.rect(0, 0, pdf.w, pdf.h, style="F")
+        pdf.set_xy(pdf.l_margin, 20)
+        pdf.set_font("Helvetica", "B", 20)
+        pdf.set_text_color(*PALETTE["cor_destaque"])
+        pdf.multi_cell(0, 11, _clean(title))
+        pdf.ln(4)
+        pdf.set_font("Helvetica", "", 12)
+        pdf.set_text_color(*PALETTE["cor_texto"])
+        for paragraph in paragraphs_from_body:
+            pdf.set_x(pdf.l_margin)
+            pdf.multi_cell(0, 7, _clean(re.sub(r"\s*\n\s*", " ", paragraph)))
+            pdf.ln(3)
 
     for section in sections:
         pdf.add_page()
