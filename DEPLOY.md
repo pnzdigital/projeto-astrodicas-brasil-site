@@ -210,10 +210,11 @@ os pega na próxima iteração do loop. Nenhuma leitura é perdida.
 ```
 / → 200 (storefront.html)
 /es/ → 200 (storefront.html)
-/oferta-lua-1 → 200 (lp-plano-lua/v1)
-/oferta-lua-2 → 200 (lp-plano-lua/v2)
-/es/oferta-lua-1 → 200
-/es/oferta-lua-2 → 200
+/diario-astral-1 → 200 (lp-diario-astral/v1)
+/diario-astral-2 → 200 (lp-diario-astral/v2)
+/es/diario-astral-1 → 200
+/es/diario-astral-2 → 200
+/oferta-lua-1 → 301 → /diario-astral-1 (retrocompatibilidade)
 /checkout → 200 (checkout.html)
 /obrigado → 200 (obrigado.html)
 /admin → 404 ✓ (correto: vendas só em public)
@@ -223,8 +224,8 @@ os pega na próxima iteração do loop. Nenhuma leitura é perdida.
 **Host dash (`dash.astrodicas.pnzdigital.com.br`):**
 ```
 / → 200 (index.html — portal logado)
-/oferta-lua-1 → 404 ✓ (correto: vendas bloqueadas em dash)
-/oferta-lua-2 → 404 ✓
+/diario-astral-1 → 404 ✓ (correto: vendas bloqueadas em dash)
+/diario-astral-2 → 404 ✓
 /checkout → 200 (checkout.html)
 /admin → 200 (admin.html)
 /api/health → 200 JSON
@@ -257,7 +258,7 @@ os pega na próxima iteração do loop. Nenhuma leitura é perdida.
 | Webhook Cakto 403 | Secret errado/não setado | Confirmar `CAKTO_WEBHOOK_SECRET` no Coolify |
 | Compra paga não libera acesso | Webhook não chegando ou not processando merchant_order | Confirmar eventos `payment.updated`, `merchant_order.closed` marcados no painel; checar logs da app |
 | Cookies de sessão não persistem | `COOKIE_SECURE=1` mas HTTP | Ativar HTTPS no proxy reverso ou setar `COOKIE_SECURE=0` (dev only) |
-| `/oferta-lua-*` serve 200 em dash | `ROLE` env incorreto ou nginx config errada | Verificar nginx.runtime.conf mapeamento Host |
+| `/diario-astral-*` serve 200 em dash | `ROLE` env incorreto ou nginx config errada | Verificar nginx.runtime.conf mapeamento Host |
 | E-mail não chega | `RESEND_API_KEY` vazio ou inválido | Checar API key no Resend; logs da app |
 | LLM lento/timeout | MiniMax indisponível; fallback ativo | App continua, usa texto estático; OK |
 | 429 MiniMax | Rate limit; esperar ou upgrade plano | Logs da app mostram `429`; retry automático em 10s |

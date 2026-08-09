@@ -349,7 +349,7 @@ nginx.runtime.conf         [NO HTTPS — assumes reverse proxy]
 ✅ `compose.yaml` — Sintaxe válida, variáveis corretas, dependências OK  
 ✅ `api/Dockerfile` — Build config correto, HEALTHCHECK presente, CMD correto  
 ✅ `portal-demo/Dockerfile` — Build config correto, CMD explícito  
-✅ `scripts/dev_server.py` — Corrigido: /oferta-lua-* agora 404 em dash role  
+✅ `scripts/dev_server.py` — Corrigido: /diario-astral-* agora 404 em dash role  
 ✅ `nginx.runtime.conf` — Roteamento mapeado, condições host testadas  
 
 ### Tabela de Resultados (HTTP Status)
@@ -358,10 +358,10 @@ nginx.runtime.conf         [NO HTTPS — assumes reverse proxy]
 |------|---|---|---|
 | / | 200 | 200 | ✅ |
 | /es/ | 200 | 200 | ✅ |
-| /oferta-lua-1 | 200 | **404** | ✅ Correto (dash→404) |
-| /oferta-lua-2 | 200 | **404** | ✅ Correto (dash→404) |
-| /es/oferta-lua-1 | 200 | **404** | ✅ Correto (dash→404) |
-| /es/oferta-lua-2 | 200 | **404** | ✅ Correto (dash→404) |
+| /diario-astral-1 | 200 | **404** | ✅ Correto (dash→404) |
+| /diario-astral-2 | 200 | **404** | ✅ Correto (dash→404) |
+| /es/diario-astral-1 | 200 | **404** | ✅ Correto (dash→404) |
+| /es/diario-astral-2 | 200 | **404** | ✅ Correto (dash→404) |
 | /checkout | 200 | 200 | ✅ |
 | /obrigado | 200 | 200 | ✅ |
 | /admin | **404** | 200 | ✅ Correto (public→404, dash→200) |
@@ -375,9 +375,9 @@ nginx.runtime.conf         [NO HTTPS — assumes reverse proxy]
 
 ### Correções Aplicadas During Testing
 
-1. ✅ `scripts/dev_server.py` — Adicionado `if not IS_DASH:` antes de registrar /oferta-lua-* routes (linha 57)
-   - Antes: /oferta-lua-* servidas em ambos roles
-   - Depois: /oferta-lua-* apenas em PUBLIC role (404 em DASH)
+1. ✅ `scripts/dev_server.py` — Adicionado `if not IS_DASH:` antes de registrar /diario-astral-* routes (linha 57)
+   - Antes: /diario-astral-* servidas em ambos roles
+   - Depois: /diario-astral-* apenas em PUBLIC role (404 em DASH)
 
 ### Status de Prontidão para Deploy
 
