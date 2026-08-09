@@ -653,9 +653,12 @@ def generate(content_id: str, request: Request, response: Response, background_t
     product_id = content_product(content_id)
     # Entitlement checado ANTES do cache: sem isso, quem cancelou/venceu ainda
     # veria a leitura de hoje se ela já tivesse sido gerada antes de expirar.
-    if product_id and not entitlements.active(db, user.id, product_id):
-        msg = "Este conteúdo ainda não está liberado para sua conta." if locale == "pt-BR" else "Este contenido todavía no está disponible para tu cuenta."
-        raise HTTPException(status_code=403, detail=msg)
+    # Conteúdos PAID_ONLY_CONTENT exigem acesso pago — trial não abre.
+    if product_id:
+        checker = entitlements.active_paid if content_id in PAID_ONLY_CONTENT else entitlements.active
+        if not checker(db, user.id, product_id):
+            msg = "Este conteúdo ainda não está liberado para sua conta." if locale == "pt-BR" else "Este contenido todavía no está disponible para tu cuenta."
+            raise HTTPException(status_code=403, detail=msg)
     existing = db.scalar(select(Reading).where(Reading.user_id == user.id, Reading.content_id == content_id, Reading.status.in_(["ready", "fallback"])).order_by(Reading.created_at.desc()))
     if existing and existing.status == "ready" and reading_is_current(existing, content_id, snapshot, locale):
         # Já pronta: nada para gerar, devolve 200 de verdade (não 202).
@@ -773,6 +776,9 @@ async def webhook(provider: str, body: WebhookBody, request: Request, db: Sessio
             db.add(Entitlement(user_id=user.id, product_id=product_id, status="available", source="site"))
         else:
             entitlement.status = "available"
+            # Pagamento real promove trial → pago: garante que active_paid() passe.
+            if entitlement.source == "trial":
+                entitlement.source = "site"
     db.commit()
 
     # Depois do commit de propósito: o acesso é o que a pessoa pagou, e ele não
@@ -796,15 +802,26 @@ async def webhook(provider: str, body: WebhookBody, request: Request, db: Sessio
     return {"ok": True, "user_id": user.id, "product_id": body.product_id}
 
 
+# Conteúdos que exigem acesso PAGO (source != "trial") ao diário astral.
+# Trial libera apenas o horóscopo diário. Guia do Mês e Previsão Semanal
+# pertencem ao Diário Astral pago — não ao Mapa Astral avulso (que dá
+# site:mapa_astral, não site:diario_astral) e não ao trial.
+PAID_ONLY_CONTENT: frozenset[str] = frozenset({
+    "site:content:guia_do_mes",
+    "site:content:previsao_semanal",
+})
+
+
 def content_product(content_id: str) -> str | None:
     return {
         # trial + pago: horóscopo diário desbloqueado durante os 3 dias grátis
         "site:content:horoscopo_diario": "site:diario_astral",
-        # pós-pagamento (site:mapa_astral = brinde do 1º mês, concedido após
-        # primeira cobrança confirmada — não durante o trial)
-        "site:content:guia_do_mes": "site:mapa_astral",
+        # Guia do Mês e Previsão Semanal pertencem ao Diário Astral pago.
+        # Exigem active_paid (ver PAID_ONLY_CONTENT): trial não abre, Mapa
+        # Astral avulso (site:mapa_astral) não abre — só quem pagou o Diário.
+        "site:content:guia_do_mes": "site:diario_astral",
         "site:content:mapa_astral_completo": "site:mapa_astral",
-        "site:content:previsao_semanal": "site:mapa_astral",
+        "site:content:previsao_semanal": "site:diario_astral",
         # Círculo Completo (pagamento único / oferta premium)
         "site:content:mapa_do_amor_sinastria": "site:mapa_amor_sinastria",
         "site:content:mapa_da_carreira": "site:mapa_carreira",

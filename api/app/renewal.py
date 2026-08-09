@@ -465,19 +465,21 @@ async def renewal_reminders_task(request: Request, db: Session = Depends(get_db)
     }
 
 
-WEEKLY_FORECAST_PRODUCT = "site:mapa_astral"
+# Previsão semanal pertence ao Diário Astral pago (source != "trial").
+# Era "mapa_astral" como atalho histórico; quem compra o mapa avulso não
+# deve receber a previsão semanal — ela é do plano, não do produto avulso.
+WEEKLY_FORECAST_PRODUCT = "site:diario_astral"
 WEEKLY_FORECAST_CONTENT = "site:content:previsao_semanal"
 
 
 def run_weekly_forecast(db: Session) -> dict:
-    """Gera e envia a previsão semanal para assinantes ativas com mapa_astral.
+    """Gera e envia a previsão semanal para assinantes pagas do Diário Astral.
 
     Chamado pelo cron do Coolify todo sábado via POST /api/tasks/weekly-forecast.
-    Idempotente: a chave (user_id, iso_week) evita reenvio na mesma semana.
+    Idempotente: a chave (entitlement_id, iso_week) evita reenvio na mesma semana.
     Inclui o texto completo da previsão no e-mail — não só aviso.
     """
     from .engine import generate_reading
-    from datetime import date
 
     now = _now()
     # ISO week de referência (YYYY-Www) — chave de idempotência por semana
@@ -489,6 +491,8 @@ def run_weekly_forecast(db: Session) -> dict:
         select(Entitlement).where(
             Entitlement.product_id == WEEKLY_FORECAST_PRODUCT,
             Entitlement.status == "available",
+            # Trial não recebe previsão semanal — só acesso pago.
+            Entitlement.source != "trial",
         )
     ).all()
 

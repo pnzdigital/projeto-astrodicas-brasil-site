@@ -52,3 +52,21 @@ def active(db: Session, user_id: str, product_id: str, now: datetime | None = No
             or_(Entitlement.expires_at.is_(None), Entitlement.expires_at >= moment),
         )
     )
+
+
+def active_paid(db: Session, user_id: str, product_id: str, now: datetime | None = None) -> Entitlement | None:
+    """Entitlement válido e pago (exclui trial) para este produto.
+
+    Trial desbloqueia só horóscopo diário. Guia do Mês e Previsão Semanal
+    exigem acesso pago — quem pagou pelo produto (source != "trial").
+    """
+    moment = now or datetime.now(timezone.utc)
+    return db.scalar(
+        select(Entitlement).where(
+            Entitlement.user_id == user_id,
+            Entitlement.product_id == product_id,
+            Entitlement.status == "available",
+            Entitlement.source != "trial",
+            or_(Entitlement.expires_at.is_(None), Entitlement.expires_at >= moment),
+        )
+    )
