@@ -64,24 +64,42 @@ export const CONTENT = Object.freeze({
   ASCENDANT_MANUAL: "site:content:manual_do_ascendente",
 });
 
-const content = (id, title, productId, type, summary, options = {}) => ({
-  id,
-  source_channel,
-  sourceChannel: source_channel,
-  title,
-  productId,
-  type,
-  summary,
-  delivery: "web",
-  defaultState: ACCESS_STATES.LOCKED,
-  downloadable: true,
-  download: {
-    format: "pdf",
-    // Endpoint preenchido pelo backend do site quando o download existir.
-    url: "",
-  },
-  ...options,
-});
+// Conteúdo efêmero: o backend recusa gerar PDF de leitura sem seções fixas
+// (api/app/main.py, geração de PDF). Horóscopo diário e previsão semanal
+// mudam todo dia/semana e não viram arquivo — o botão "Baixar PDF" mentiria.
+// Única lista: quem nasce aqui nasce sem download prometido; quem não está
+// aqui precisa passar `downloadable` explícito na chamada de content() ou o
+// factory quebra — ninguém herda a promessa por acidente de novo.
+const EPHEMERAL_CONTENT_IDS = Object.freeze([
+  CONTENT.HOROSCOPE_DAILY,
+  CONTENT.WEEKLY_FORECAST,
+]);
+
+const content = (id, title, productId, type, summary, options = {}) => {
+  if (!("downloadable" in options)) {
+    throw new Error(`content(${id}): informe "downloadable" explicitamente — sem padrão implícito.`);
+  }
+  if (EPHEMERAL_CONTENT_IDS.includes(id) && options.downloadable) {
+    throw new Error(`content(${id}): conteúdo efêmero não pode anunciar download.`);
+  }
+  return {
+    id,
+    source_channel,
+    sourceChannel: source_channel,
+    title,
+    productId,
+    type,
+    summary,
+    delivery: "web",
+    defaultState: ACCESS_STATES.LOCKED,
+    download: {
+      format: "pdf",
+      // Endpoint preenchido pelo backend do site quando o download existir.
+      url: "",
+    },
+    ...options,
+  };
+};
 
 /** Conteúdos são leituras web primeiro; o PDF é apenas uma saída opcional. */
 export const WEB_CONTENT = Object.freeze([
@@ -100,7 +118,8 @@ export const WEB_CONTENT = Object.freeze([
     CONTENT_TYPES.DAILY,
     "Trânsitos do dia interpretados a partir do seu mapa natal.",
     // recurring: true indica que o conteúdo se renova todo dia — não é cobrança recorrente.
-    { recurring: true, defaultState: ACCESS_STATES.AVAILABLE },
+    // downloadable: false — conteúdo muda todo dia, backend não gera PDF sem seções fixas.
+    { recurring: true, defaultState: ACCESS_STATES.AVAILABLE, downloadable: false },
   ),
   content(
     CONTENT.MONTHLY_GUIDE,
@@ -108,6 +127,7 @@ export const WEB_CONTENT = Object.freeze([
     PRODUCTS.DIARIO_ASTRAL,
     CONTENT_TYPES.GUIDE,
     "Os movimentos mais importantes do mês, em uma leitura contínua.",
+    { downloadable: true },
   ),
   content(
     CONTENT.ASTRAL_MAP,
@@ -115,6 +135,7 @@ export const WEB_CONTENT = Object.freeze([
     PRODUCTS.MAPA_ASTRAL,
     CONTENT_TYPES.PROFILE,
     "Sol, Lua, Ascendente, casas e aspectos traduzidos para a sua vida.",
+    { downloadable: true },
   ),
   content(
     CONTENT.LOVE_MAP,
@@ -122,6 +143,7 @@ export const WEB_CONTENT = Object.freeze([
     PRODUCTS.MAPA_AMOR,
     CONTENT_TYPES.READING,
     "Padrões afetivos, compatibilidade e caminhos para relações mais conscientes.",
+    { downloadable: true },
   ),
   content(
     CONTENT.CAREER_MAP,
@@ -129,6 +151,7 @@ export const WEB_CONTENT = Object.freeze([
     PRODUCTS.MAPA_CARREIRA,
     CONTENT_TYPES.READING,
     "Talentos, ambientes de trabalho e direção profissional do seu mapa.",
+    { downloadable: true },
   ),
   content(
     CONTENT.PROSPERITY_MAP,
@@ -136,6 +159,7 @@ export const WEB_CONTENT = Object.freeze([
     PRODUCTS.MAPA_PROSPERIDADE,
     CONTENT_TYPES.READING,
     "Sua relação com dinheiro, abundância e oportunidades de crescimento.",
+    { downloadable: true },
   ),
   content(
     CONTENT.WEEKLY_FORECAST,
@@ -143,6 +167,8 @@ export const WEB_CONTENT = Object.freeze([
     PRODUCTS.DIARIO_ASTRAL_COMPLETO,
     CONTENT_TYPES.GUIDE,
     "Uma visão prática dos próximos sete dias e seus melhores momentos.",
+    // downloadable: false — conteúdo muda toda semana, mesma razão do horóscopo diário.
+    { downloadable: false },
   ),
   content(
     CONTENT.LUNAR_CALENDAR,
@@ -150,6 +176,7 @@ export const WEB_CONTENT = Object.freeze([
     PRODUCTS.DIARIO_ASTRAL_COMPLETO,
     CONTENT_TYPES.GUIDE,
     "Fases da Lua e datas para planejar seus próximos movimentos.",
+    { downloadable: true },
   ),
   content(
     CONTENT.RETROGRADES_GUIDE,
@@ -157,6 +184,7 @@ export const WEB_CONTENT = Object.freeze([
     PRODUCTS.DIARIO_ASTRAL_COMPLETO,
     CONTENT_TYPES.GUIDE,
     "Como atravessar os principais ciclos retrógrados com mais clareza.",
+    { downloadable: true },
   ),
   content(
     CONTENT.ASCENDANT_MANUAL,
@@ -164,6 +192,7 @@ export const WEB_CONTENT = Object.freeze([
     PRODUCTS.DIARIO_ASTRAL_COMPLETO,
     CONTENT_TYPES.PROFILE,
     "Um guia para reconhecer a forma como você chega ao mundo.",
+    { downloadable: true },
   ),
 ]);
 
