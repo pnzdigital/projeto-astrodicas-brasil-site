@@ -41,7 +41,7 @@ COPY api/app ./app
 # (checkout.html, termos.html, suporte.html, horoscopo-gratis.html) que a lista
 # não copiava — o visitante recebia 404 numa rota que existe na configuração.
 COPY portal-demo/ /usr/share/nginx/html/
-COPY lp-plano-lua /usr/share/nginx/html/lp-plano-lua
+COPY lp-diario-astral /usr/share/nginx/html/lp-diario-astral
 RUN rm -f /usr/share/nginx/html/Dockerfile /usr/share/nginx/html/*.test.mjs
 
 COPY nginx.runtime.conf /etc/nginx/conf.d/default.conf
