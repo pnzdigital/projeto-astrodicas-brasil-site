@@ -259,7 +259,6 @@
     ['Previsão personalizada da semana', 'Previsión personalizada de la semana'],
     ['Avisos de lua e retrógrados', 'Avisos de luna y retrógrados'],
     ['Calendário Lunar + Guia dos Retrógrados', 'Calendario Lunar + Guía de los Retrógrados'],
-    ['Suporte prioritário', 'Soporte prioritario'],
     ['QUERO O DIÁRIO ASTRAL', 'QUIERO EL DIARIO ASTRAL'],
     ['Você recebe no e-mail o acesso à sua área, já com o mapa liberado. Sem senha pra inventar.', 'Recibís por e-mail el acceso a tu área con la carta ya habilitada. Sin inventar contraseñas.'],
     ['Completo', 'Completo'],
