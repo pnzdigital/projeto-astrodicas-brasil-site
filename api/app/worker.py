@@ -273,11 +273,14 @@ def worker_loop() -> None:  # pragma: no cover
             db = SessionLocal()
             try:
                 job = _claim_next_job(db)
+                # Lê o id DENTRO da sessão: depois do close() o objeto está
+                # destacado e qualquer atributo levanta DetachedInstanceError,
+                # derrubando o worker em loop (aconteceu em produção).
+                job_id = job.id if job else None
             finally:
                 db.close()
 
-            if job:
-                job_id = job.id
+            if job_id:
                 t = threading.Thread(
                     target=run_job,
                     args=(job_id,),
