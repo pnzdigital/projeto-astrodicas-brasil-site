@@ -856,3 +856,70 @@ def send_coupon_winback_email(
 
     html_content = _html_template(content, footer)
     return _send_email(email, subject, html_content, text_content)
+
+
+def send_astro_alert_email(
+    email: str,
+    name: str,
+    event_type: str,
+    planet: str | None,
+    portal_url: str,
+    locale: str = "pt-BR",
+) -> dict[str, Any]:
+    """Aviso de lua nova, lua cheia ou início de retrogradação.
+
+    event_type: 'lua_nova' | 'lua_cheia' | 'retrogrado'
+    planet: nome do planeta (só para 'retrogrado'), ex: 'Mercúrio'
+    """
+    name_safe = _escape_html(name)
+    portal_safe = _escape_html(portal_url)
+
+    if locale == "es-AR":
+        if event_type == "lua_nova":
+            title = "🌑 Luna Nueva hoy"
+            body = "<p>Hoy es <strong>Luna Nueva</strong> — el momento ideal para plantear intenciones y empezar proyectos. Tu mapa natal muestra cómo este ciclo te afecta personalmente.</p>"
+            subject = "Luna Nueva hoy — AstroDicas"
+            text = f"Hola, {name}. Hoy es Luna Nueva. Consultá tu portal para ver cómo te afecta."
+        elif event_type == "lua_cheia":
+            title = "🌕 Luna Llena hoy"
+            body = "<p>Hoy es <strong>Luna Llena</strong> — energía de culminación, claridad y cierre de ciclos. Un buen momento para soltar lo que ya no sirve.</p>"
+            subject = "Luna Llena hoy — AstroDicas"
+            text = f"Hola, {name}. Hoy es Luna Llena. Consultá tu portal para ver cómo te afecta."
+        else:
+            planet_safe = _escape_html(planet or "")
+            title = f"⟲ {planet_safe} retrógrado"
+            body = f"<p><strong>{planet_safe}</strong> inicia su movimiento retrógrado hoy. Revisiones, reencuentros y pausas pueden surgir en las áreas que este planeta rige en tu carta.</p>"
+            subject = f"{planet_safe} retrógrado — AstroDicas"
+            text = f"Hola, {name}. {planet} está retrógrado a partir de hoy. Consultá tu portal."
+        footer = "¿Dudas? Escribinos a contato@astrodicas.pnzdigital.com.br"
+        content = f"""<h2>Hola, {name_safe}.</h2>
+<h3>{title}</h3>
+{body}
+<a href="{portal_safe}" class="cta-button">Ver en el portal</a>
+"""
+    else:
+        if event_type == "lua_nova":
+            title = "🌑 Lua Nova hoje"
+            body = "<p>Hoje é <strong>Lua Nova</strong> — o momento ideal para plantar intenções e iniciar projetos. Seu mapa natal mostra como esse ciclo afeta você pessoalmente.</p>"
+            subject = "Lua Nova hoje — AstroDicas"
+            text = f"Olá, {name}. Hoje é Lua Nova. Acesse seu portal para ver como isso te afeta."
+        elif event_type == "lua_cheia":
+            title = "🌕 Lua Cheia hoje"
+            body = "<p>Hoje é <strong>Lua Cheia</strong> — energia de culminação, clareza e fechamento de ciclos. Um bom momento para soltar o que não serve mais.</p>"
+            subject = "Lua Cheia hoje — AstroDicas"
+            text = f"Olá, {name}. Hoje é Lua Cheia. Acesse seu portal para ver como isso te afeta."
+        else:
+            planet_safe = _escape_html(planet or "")
+            title = f"⟲ {planet_safe} retrógrado"
+            body = f"<p><strong>{planet_safe}</strong> inicia seu movimento retrógrado hoje. Revisões, reencontros e pausas podem surgir nas áreas que esse planeta rege no seu mapa.</p>"
+            subject = f"{planet_safe} retrógrado — AstroDicas"
+            text = f"Olá, {name}. {planet} entra em retrógrado hoje. Acesse seu portal."
+        footer = "Dúvidas? Nos escreva em contato@astrodicas.pnzdigital.com.br"
+        content = f"""<h2>Olá, {name_safe}.</h2>
+<h3>{title}</h3>
+{body}
+<a href="{portal_safe}" class="cta-button">Acessar portal</a>
+"""
+
+    html_content = _html_template(content, footer)
+    return _send_email(email, subject, html_content, text)

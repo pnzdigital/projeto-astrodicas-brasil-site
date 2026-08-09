@@ -36,7 +36,7 @@ from sqlalchemy.orm import Mapped, Session, mapped_column
 
 from .checkout import gg_checkout_url, portal_url
 from .db import Base, get_db
-from .mailer import send_coupon_winback_email, send_renewal_reminder_email, send_trial_ending_email, send_weekly_forecast_email, send_winback_email
+from .mailer import send_astro_alert_email, send_coupon_winback_email, send_renewal_reminder_email, send_trial_ending_email, send_weekly_forecast_email, send_winback_email
 from .models import Entitlement, Profile, User
 
 logger = logging.getLogger(__name__)
@@ -568,4 +568,137 @@ async def weekly_forecast_task(request: Request, db: Session = Depends(get_db)) 
         raise HTTPException(status_code=401, detail="Segredo inválido.")
 
     stats = run_weekly_forecast(db)
+    return {"ok": True, **stats}
+
+
+# ---------------------------------------------------------------------------
+# Avisos de lua nova, lua cheia e retrogradações
+# ---------------------------------------------------------------------------
+
+class AstroAlertSent(Base):
+    """Idempotência de aviso astral: (user_id, event_type, event_date) único.
+
+    Evita reenvio do mesmo alerta no mesmo dia, mesmo que o cron dispare
+    duas vezes (falha + retry, ou deploy duplo).
+    """
+
+    __tablename__ = "site_astro_alerts_sent"
+    __table_args__ = (
+        UniqueConstraint("user_id", "event_type", "event_date", name="uq_astro_alert"),
+    )
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=lambda: str(uuid4()))
+    user_id: Mapped[str] = mapped_column(String(36), index=True)
+    event_type: Mapped[str] = mapped_column(String(40))   # lua_nova | lua_cheia | retrogrado:Mercúrio
+    event_date: Mapped[str] = mapped_column(String(10))   # YYYY-MM-DD UTC
+    sent_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+
+
+def _alert_already_sent(db: Session, user_id: str, event_type: str, event_date: str) -> bool:
+    return bool(db.scalar(
+        select(AstroAlertSent).where(
+            AstroAlertSent.user_id == user_id,
+            AstroAlertSent.event_type == event_type,
+            AstroAlertSent.event_date == event_date,
+        )
+    ))
+
+
+def _mark_alert_sent(db: Session, user_id: str, event_type: str, event_date: str) -> None:
+    db.add(AstroAlertSent(user_id=user_id, event_type=event_type, event_date=event_date, sent_at=_now()))
+    db.commit()
+
+
+def run_astro_alerts(db: Session) -> dict:
+    """Detecta eventos astronômicos de hoje e envia e-mail para assinantes pagas.
+
+    Chamado pelo cron diário via POST /api/tasks/astro-alerts.
+    Idempotente por (user_id, event_type, event_date): o mesmo alerta não
+    sai duas vezes para o mesmo usuário no mesmo dia.
+    Só para quem tem acesso pago (source != "trial") ao Diário Astral.
+    """
+    from .astrology import lunar_event_today, retrograde_starts_today
+
+    now = _now()
+    today_str = now.strftime("%Y-%m-%d")
+    today_date = now.date()
+
+    # Detecta eventos do dia
+    events: list[tuple[str, str | None]] = []  # (event_type, planet_or_None)
+    lunar = lunar_event_today(today_date)
+    if lunar:
+        events.append((lunar, None))
+    for planet in retrograde_starts_today(today_date):
+        events.append((f"retrogrado:{planet}", planet))
+
+    if not events:
+        return {"sent": 0, "skipped": 0, "errors": 0, "events": []}
+
+    event_labels = [e[0] for e in events]
+    stats: dict[str, int] = {"sent": 0, "skipped": 0, "errors": 0}
+    portal = portal_url()
+
+    # Assinantes com acesso pago ativo ao Diário Astral
+    candidates = db.scalars(
+        select(Entitlement).where(
+            Entitlement.product_id == PRODUCT_ID,
+            Entitlement.status == "available",
+            Entitlement.source != "trial",
+        )
+    ).all()
+
+    for ent in candidates:
+        if ent.expires_at is not None and _aware(ent.expires_at) < now:
+            stats["skipped"] += 1
+            continue
+
+        user = db.get(User, ent.user_id)
+        if not user:
+            stats["skipped"] += 1
+            continue
+
+        locale = getattr(user, "locale", "pt-BR") or "pt-BR"
+
+        for event_type, planet in events:
+            if _alert_already_sent(db, user.id, event_type, today_str):
+                stats["skipped"] += 1
+                continue
+
+            mail_event = event_type.split(":")[0] if event_type.startswith("retrogrado:") else event_type
+            delivery = send_astro_alert_email(
+                email=user.email,
+                name=user.name or user.email,
+                event_type=mail_event,
+                planet=planet,
+                portal_url=portal,
+                locale=locale,
+            )
+            if delivery.get("sent"):
+                _mark_alert_sent(db, user.id, event_type, today_str)
+                stats["sent"] += 1
+            else:
+                logger.error(
+                    "Falha ao enviar alerta %s para %s: %s",
+                    event_type, user.email, delivery.get("error"),
+                )
+                stats["errors"] += 1
+
+    return {**stats, "events": event_labels}
+
+
+@router.post("/api/tasks/astro-alerts")
+async def astro_alerts_task(request: Request, db: Session = Depends(get_db)) -> dict:
+    """Cron diário para disparar avisos de lua e retrógrados.
+
+    Mesmo mecanismo de autenticação dos outros tasks.
+    Configurar no Coolify: cron diário (ex.: 07:00 UTC) + header x-task-secret.
+    """
+    secret = os.getenv("TASK_SECRET", "").strip()
+    if not secret:
+        raise HTTPException(status_code=503, detail="TASK_SECRET não configurado.")
+    provided = request.headers.get("x-task-secret", "")
+    if not hmac.compare_digest(secret.encode(), provided.encode()):
+        raise HTTPException(status_code=401, detail="Segredo inválido.")
+
+    stats = run_astro_alerts(db)
     return {"ok": True, **stats}

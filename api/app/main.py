@@ -567,6 +567,26 @@ def readings(request: Request, site_session: str | None = Cookie(default=None), 
     return {"readings": [reading_to_dict(row, user.locale) for row in rows]}
 
 
+@app.get("/api/me/alerts")
+def astro_alerts(request: Request, site_session: str | None = Cookie(default=None), db: Session = Depends(get_db)) -> dict:
+    """Eventos astronômicos de hoje visíveis no painel (só para assinantes pagas)."""
+    user = current_user(site_session, db, accept_language=request.headers.get("accept-language"))
+    if not entitlements.active_paid(db, user.id, "site:diario_astral"):
+        return {"alerts": []}
+
+    from .astrology import lunar_event_today, retrograde_starts_today
+
+    today = datetime.now(timezone.utc).date()
+    alerts = []
+    event = lunar_event_today(today)
+    if event:
+        alerts.append({"type": event, "date": today.isoformat()})
+    for planet in retrograde_starts_today(today):
+        alerts.append({"type": "retrogrado", "planet": planet, "date": today.isoformat()})
+
+    return {"alerts": alerts}
+
+
 def _run_generation_job(reading_id: str, content_id: str, title: str, user_id: str, locale: str, customer_name: str) -> None:
     """Roda `generate_reading` fora do ciclo request/response.
 

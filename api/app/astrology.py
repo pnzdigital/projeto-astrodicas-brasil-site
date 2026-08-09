@@ -2,7 +2,7 @@ import json
 import os
 import re
 import unicodedata
-from datetime import datetime, timezone
+from datetime import date, datetime, timezone
 from urllib.parse import urlencode
 from urllib.request import Request, urlopen
 from zoneinfo import ZoneInfo
@@ -153,6 +153,90 @@ def _aspects(left: dict, right: dict | None = None, orb_limit: float = 5.0) -> l
                     matches.append({"from": left_name, "aspect": label, "to": right_name, "orb": round(orb, 2)})
                     break
     return sorted(matches, key=lambda item: item["orb"])
+
+
+# Planetas que retrógrados — Sol e Lua nunca retrogradam.
+_RETROGRADE_PLANETS = tuple(
+    (name, pid) for name, pid in PLANETS if pid not in (swe.SUN, swe.MOON)
+)
+
+
+def _jd_from_date(d: "date") -> float:
+    """Data UTC → Julian Day (UTC noon)."""
+    return swe.julday(d.year, d.month, d.day, 12.0)
+
+
+def _elongation_at(jd: float) -> float:
+    """Elongação Moon-Sun em [0, 360)."""
+    flags = swe.FLG_MOSEPH
+    sun_lon = swe.calc_ut(jd, swe.SUN, flags)[0][0]
+    moon_lon = swe.calc_ut(jd, swe.MOON, flags)[0][0]
+    return (moon_lon - sun_lon) % 360
+
+
+def lunar_event_today(d: date | None = None) -> str | None:
+    """Retorna 'lua_nova', 'lua_cheia' ou None se o evento ocorreu hoje (UTC).
+
+    Compara a elongação Moon-Sun ao redor de UTC noon: nova = crossing 0°,
+    cheia = crossing 180°. A Lua percorre ~13°/dia, então checar yesterday e
+    today noon captura qualquer cruzamento dentro do dia com margem suficiente.
+    Guarda de proximidade (< 25°) evita falso-positivo: elongação próxima de
+    180° não dispara "lua nova" mesmo que o sinal normalizado cruze zero.
+    """
+    from datetime import timedelta
+
+    today = d or datetime.now(timezone.utc).date()
+    yesterday = today - timedelta(days=1)
+
+    e_yst = _elongation_at(_jd_from_date(yesterday))
+    e_tod = _elongation_at(_jd_from_date(today))
+
+    def _dist0(e: float) -> float:
+        return min(e, 360 - e)
+
+    def _dist180(e: float) -> float:
+        return min(abs(e - 180), 360 - abs(e - 180))
+
+    # Lua nova: elongação cruza 0°; ao menos um dos dias deve estar a < 25° de 0°
+    if _dist0(e_yst) < 25 or _dist0(e_tod) < 25:
+        def _n(e: float) -> float:
+            return e if e <= 180 else e - 360
+        if _n(e_yst) <= 0 <= _n(e_tod) or _n(e_tod) <= 0 <= _n(e_yst):
+            return "lua_nova"
+
+    # Lua cheia: elongação cruza 180°; ao menos um dos dias deve estar a < 25° de 180°
+    if _dist180(e_yst) < 25 or _dist180(e_tod) < 25:
+        def _n180(e: float) -> float:
+            shifted = (e - 180) % 360
+            return shifted if shifted <= 180 else shifted - 360
+        if _n180(e_yst) <= 0 <= _n180(e_tod) or _n180(e_tod) <= 0 <= _n180(e_yst):
+            return "lua_cheia"
+
+    return None
+
+
+def retrograde_starts_today(d: date | None = None) -> list[str]:
+    """Planetas que iniciaram retrogradação hoje (UTC).
+
+    Compara a velocidade longitudinal ao redor de ontem e hoje UTC noon:
+    velocidade positiva ontem + negativa hoje = estação → retrógrado hoje.
+    """
+    from datetime import timedelta
+
+    today = d or datetime.now(timezone.utc).date()
+    yesterday = today - timedelta(days=1)
+
+    flags = swe.FLG_MOSEPH | swe.FLG_SPEED
+    jd_yst = _jd_from_date(yesterday)
+    jd_tod = _jd_from_date(today)
+
+    starts = []
+    for name, planet_id in _RETROGRADE_PLANETS:
+        speed_yst = swe.calc_ut(jd_yst, planet_id, flags)[0][3]
+        speed_tod = swe.calc_ut(jd_tod, planet_id, flags)[0][3]
+        if speed_yst > 0 and speed_tod < 0:
+            starts.append(name)
+    return starts
 
 
 def astrology_context(profile) -> dict:
