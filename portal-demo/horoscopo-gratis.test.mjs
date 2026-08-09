@@ -79,11 +79,16 @@ test('oferta es-AR usa formulário de trial e chama /api/trial/start', () => {
   assert.ok(body.includes('trial-form'), 'formulário de trial ausente no caminho es-AR');
 });
 
-test('fluxo de trial es-AR chama POST /api/trial/start sem cartão no front e redireciona pro init_point', () => {
+test('fluxo de trial es-AR chama POST /api/trial/start sem cartão no front e redireciona pro portal', () => {
+  // Trial virou sem cartão em 08/08/2026 (api/app/subscriptions.py:start_trial):
+  // só nome + e-mail, sem tokenizar cartão, sem preapproval no MP. O backend
+  // devolve {status:"trialing"}, nunca init_point — não existe mais checkout
+  // de cartão nesse fluxo, então o front não deve esperar um.
   assert.ok(!/sdk\.mercadopago\.com\/js\/v2/.test(html), 'SDK do Mercado Pago não deve mais ser carregado no front');
   assert.ok(!/new window\.MercadoPago\(/.test(html), 'Brick do Mercado Pago não deve mais ser montado no front');
   assert.match(html, /\/api\/trial\/start/);
-  assert.match(html, /data\.init_point/);
+  assert.match(html, /data\.status\s*!==\s*['"]trialing['"]/, 'front precisa validar status:"trialing" da resposta antes de redirecionar');
+  assert.match(html, /window\.location\.href\s*=\s*PORTAL/, 'sucesso do trial deve redirecionar pro portal, não pra um checkout de cartão');
 });
 
 test('oferta es-AR só revela os campos de nome/e-mail depois do clique num CTA — <details> nativo, sem reload', () => {
@@ -100,21 +105,21 @@ test('oferta es-AR só revela os campos de nome/e-mail depois do clique num CTA 
   assert.match(body, /id="trial-submit">\$\{escapeHtml\(copy\.mpCta\)\}/);
 });
 
-test('copy es-AR deixa claro que o cartão é obrigatório e é digitado no Mercado Pago, não no site', () => {
-  assert.match(html, /Pedimos tu tarjeta para arrancar la suscripción/);
-  assert.match(html, /la cargás en el checkout de Mercado Pago, no acá/);
+// Mesmo motivo das 4 acima: trial não pede cartão nenhum desde 08/08/2026,
+// então não existe mais "cartão digitado no Mercado Pago" pra afirmar.
+test('copy es-AR deixa claro que não pede cartão pra ativar o trial', () => {
+  assert.match(html, /Solo tu e-mail — sin tarjeta\./);
+  assert.match(html, /No pedimos e-mail ni tarjeta para mostrarte tu horóscopo de hoy\./);
 });
 
-test('honesty es-AR cobre os 5 pontos: cartão pedido, cobrança só dia 4, cancelamento grátis na área do site', () => {
+test('honesty es-AR cobre os 4 pontos reais do trial sem cartão: sem tarjeta, dia 4, não cobra nada, compra os 30 dias é voluntária', () => {
   const match = html.match(/honesty:\s*'([^']+)'/);
   assert.ok(match, 'chave honesty do es-AR não encontrada');
   const honesty = match[1];
-  assert.match(honesty, /tarjeta/i);
-  assert.match(honesty, /Mercado Pago/);
+  assert.match(honesty, /no hay tarjeta/i);
   assert.match(honesty, /no se cobra nada/i);
   assert.match(honesty, /[Dd]ía 4/);
-  assert.match(honesty, /se cobra el Plan Luna/);
-  assert.match(honesty, /área en el sitio/);
+  assert.match(honesty, /comprás 30 días por \{price\} cuando vos quieras/);
 });
 
 test('renderReading escolhe a oferta certa por idioma: es -> trial, pt -> Diário Astral', () => {
@@ -123,12 +128,18 @@ test('renderReading escolhe a oferta certa por idioma: es -> trial, pt -> Diári
 
 // ── Copy honesta do trial: cancelamento explícito, sem cobrança nos 3 dias ──
 
-test('copy es-AR do trial deixa explícito que dá pra cancelar sem pagar nada', () => {
-  assert.match(html, /cancelás cuando quieras y no pagás nada/i);
+// As 4 asserções abaixo eram do modelo antigo de trial COM cartão (cobrança
+// automática no dia 4, salvo cancelamento). O trial virou sem cartão em
+// 08/08/2026 (api/app/subscriptions.py:start_trial) — não existe mais cartão
+// pra tokenizar, cobrança automática pra evitar, nem "Plan Luna" (produto
+// se chama Diário Astral). Reescrito pra cobrir o que a copy promete hoje.
+
+test('copy es-AR do trial deixa explícito que não fica nada salvo e não cobra sozinho, porque não pede cartão', () => {
+  assert.match(html, /No pedimos tarjeta, así que no queda nada guardado ni se cobra solo/);
 });
 
-test('copy es-AR deixa explícita a cobrança futura: dia 4 cobra o Plan Luna', () => {
-  assert.match(html, /día 4.*se cobra el Plan Luna/i);
+test('copy es-AR deixa explícito que o acesso grátis só termina no dia 4, sem cobrança automática', () => {
+  assert.match(html, /Día 4: tu acceso gratis termina y listo — no se cobra nada, porque no hay tarjeta/);
 });
 
 test('copy pt-BR vende os 3 dias grátis, sem pegadinha', () => {
@@ -136,14 +147,15 @@ test('copy pt-BR vende os 3 dias grátis, sem pegadinha', () => {
   assert.ok(match, 'objeto de copy pt-BR não encontrado');
   const ptCopy = match[1];
   assert.ok(ptCopy.includes('3 dias grátis'), 'pt-BR não promete os 3 dias grátis');
-  assert.ok(ptCopy.toLowerCase().includes('cancela quando quiser'), 'pt-BR não deixa explícito o cancelamento');
-  assert.ok(ptCopy.toLowerCase().includes('não paga nada'), 'pt-BR não deixa explícito que não cobra durante o teste');
+  assert.ok(ptCopy.toLowerCase().includes('não pedimos cartão'), 'pt-BR não deixa explícito que não pede cartão');
+  assert.ok(ptCopy.toLowerCase().includes('não fica nada salvo'), 'pt-BR não deixa explícito que nada fica salvo sem cartão');
 });
 
-test('copy pt-BR deixa explícito que só cobra depois dos 3 dias, e o CTA de trial ainda aponta pro checkout avulso', () => {
-  assert.match(html, /[Dd]ia 4:.*cobramos \{price\}/);
-  assert.match(html, /cancela quando quiser e para de cobrar no ciclo seguinte/i);
-  assert.match(html, /CTA de trial pt-BR pendente de meio de pagamento/);
+test('copy pt-BR deixa explícito que o acesso grátis termina no dia 4 sem cobrar nada, e pt-BR não usa CTA de trial (vai direto pro checkout avulso)', () => {
+  assert.match(html, /[Dd]ia 4: seu acesso grátis termina e pronto — não cobramos nada, porque não há cartão/);
+  const match = html.match(/function renderDiarioAstralOffer\s*\(\)\s*\{([\s\S]*?)\n    \}/);
+  assert.ok(match, 'função renderDiarioAstralOffer não encontrada');
+  assert.ok(!match[1].includes('trial-form'), 'pt-BR não deveria ter CTA de trial — vai direto pro checkout avulso');
 });
 
 test('bullets do Diário Astral batem com o que o produto realmente entrega (horóscopo diário + guia do mês), sem prometer Mapa Astral de brinde', () => {
