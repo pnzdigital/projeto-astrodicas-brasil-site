@@ -184,7 +184,7 @@ def run_trial_reminders(db: Session) -> dict:
             _process_coupon_winback(
                 db, ent, user, expiry_key, "coupon_10",
                 _get_coupon_code(_GG_COUPON_D1_ENV, _COUPON_D1_DEFAULT), 10,
-                is_last_chance=False, renewal_link=renewal_link,
+                is_last_chance=False, renewal_link=subscribe_link,
                 winback_link=winback_link, locale=locale, stats=stats,
             )
 
@@ -213,7 +213,7 @@ def run_trial_reminders(db: Session) -> dict:
             _process_coupon_winback(
                 db, ent, user, expiry_key, "coupon_15",
                 _get_coupon_code(_GG_COUPON_D7_ENV, _COUPON_D7_DEFAULT), 15,
-                is_last_chance=True, renewal_link=renewal_link,
+                is_last_chance=True, renewal_link=subscribe_link,
                 winback_link=winback_link, locale=locale, stats=stats,
             )
 

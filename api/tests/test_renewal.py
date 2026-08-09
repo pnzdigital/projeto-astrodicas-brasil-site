@@ -451,3 +451,201 @@ def test_access_vitalicio_sem_days_remaining(client):
     assert mapa["days_remaining"] is None
     assert mapa["needs_renewal"] is None
     assert mapa["active"] is True
+
+
+# ── Lembrete 1d (pago) ────────────────────────────────────────────────────────
+
+def test_lembrete_1d_enviado(db_session, renewal_emails, renewal_url, monkeypatch):
+    """Disparado 24h antes do vencimento (janela 12h–36h)."""
+    fake_now = NOW + timedelta(hours=24) - timedelta(hours=24)  # = NOW
+    # expires_at = NOW + 24h → delta = +24h, dentro de (12h, 36h]
+    expires = NOW + timedelta(hours=24)
+    user = _make_user(db_session, "oneda@test.com")
+    _make_entitlement(db_session, user, expires_at=expires)
+    monkeypatch.setattr(renewal_module, "_now", lambda: fake_now)
+
+    stats = run_renewal_reminders(db_session)
+
+    assert stats["1d"] == 1
+    assert len([e for e in renewal_emails if e[0] == "reminder" and e[1].get("reminder_type") == "1d"]) == 1
+
+
+def test_lembrete_1d_fora_da_janela_nao_dispara(db_session, renewal_emails, renewal_url, monkeypatch):
+    """Fora da janela (ex: 5h antes) o lembrete 1d não dispara."""
+    monkeypatch.setattr(renewal_module, "_now", lambda: NOW)
+    # 5h antes: delta = +5h, < 12h → cai em 'today', não em '1d'
+    user = _make_user(db_session, "noone@test.com")
+    _make_entitlement(db_session, user, expires_at=NOW + timedelta(hours=5))
+
+    stats = run_renewal_reminders(db_session)
+
+    assert stats["1d"] == 0
+
+
+def test_lembrete_1d_idempotente(db_session, renewal_emails, renewal_url, monkeypatch):
+    """Segunda execução encontra marca e não reenvia."""
+    monkeypatch.setattr(renewal_module, "_now", lambda: NOW)
+    user = _make_user(db_session, "idempotent1d@test.com")
+    _make_entitlement(db_session, user, expires_at=NOW + timedelta(hours=24))
+
+    run_renewal_reminders(db_session)
+    run_renewal_reminders(db_session)
+
+    assert len([e for e in renewal_emails if e[0] == "reminder" and e[1].get("reminder_type") == "1d"]) == 1
+
+
+# ── Cupons de recuperação D+1 e D+7 ──────────────────────────────────────────
+
+@pytest.fixture()
+def coupon_emails(monkeypatch):
+    outbox = []
+    monkeypatch.setattr(renewal_module, "send_coupon_winback_email", lambda **kw: outbox.append(("coupon", kw)) or {"sent": True})
+    monkeypatch.setattr(renewal_module, "send_winback_email", lambda **kw: outbox.append(("winback", kw)) or {"sent": True})
+    monkeypatch.setattr(renewal_module, "send_renewal_reminder_email", lambda **kw: {"sent": True})
+    monkeypatch.setattr(renewal_module, "send_trial_ending_email", lambda **kw: {"sent": True})
+    return outbox
+
+
+def test_coupon_10_enviado_d1(db_session, coupon_emails, renewal_url, monkeypatch):
+    """coupon_10 dispara 24h pós-vencimento (janela 12-36h)."""
+    monkeypatch.setattr(renewal_module, "_now", lambda: NOW)
+    user = _make_user(db_session, "coupon10@test.com")
+    # Venceu há 24h → delta = -24h ∈ [-36h, -12h)
+    _make_entitlement(db_session, user, expires_at=NOW - timedelta(hours=24))
+
+    stats = run_renewal_reminders(db_session)
+
+    assert stats["coupon_10"] == 1
+    coupon_calls = [e for e in coupon_emails if e[0] == "coupon"]
+    assert len(coupon_calls) == 1
+    assert coupon_calls[0][1]["discount_pct"] == 10
+    assert coupon_calls[0][1]["is_last_chance"] is False
+
+
+def test_coupon_10_nao_dispara_antes_da_janela(db_session, coupon_emails, renewal_url, monkeypatch):
+    """Venceu há apenas 6h (< 12h) → não está na janela coupon_10."""
+    monkeypatch.setattr(renewal_module, "_now", lambda: NOW)
+    user = _make_user(db_session, "coupon10early@test.com")
+    _make_entitlement(db_session, user, expires_at=NOW - timedelta(hours=6))
+
+    stats = run_renewal_reminders(db_session)
+
+    assert stats["coupon_10"] == 0
+    assert stats["today"] == 1  # cai na janela "today"
+
+
+def test_coupon_10_nao_dispara_depois_da_janela(db_session, coupon_emails, renewal_url, monkeypatch):
+    """Venceu há 3 dias → cai no winback, não coupon_10."""
+    monkeypatch.setattr(renewal_module, "_now", lambda: NOW)
+    user = _make_user(db_session, "coupon10late@test.com")
+    _make_entitlement(db_session, user, expires_at=NOW - timedelta(days=3))
+
+    stats = run_renewal_reminders(db_session)
+
+    assert stats["coupon_10"] == 0
+    assert stats["winback"] == 1
+
+
+def test_coupon_10_idempotente(db_session, coupon_emails, renewal_url, monkeypatch):
+    """Dois crons no mesmo dia não duplicam o coupon_10."""
+    monkeypatch.setattr(renewal_module, "_now", lambda: NOW)
+    user = _make_user(db_session, "c10idem@test.com")
+    _make_entitlement(db_session, user, expires_at=NOW - timedelta(hours=24))
+
+    run_renewal_reminders(db_session)
+    run_renewal_reminders(db_session)
+
+    assert len([e for e in coupon_emails if e[0] == "coupon" and e[1]["discount_pct"] == 10]) == 1
+
+
+def test_coupon_15_enviado_d7(db_session, coupon_emails, renewal_url, monkeypatch):
+    """coupon_15 dispara 7 dias pós-vencimento (janela 6-8 dias)."""
+    monkeypatch.setattr(renewal_module, "_now", lambda: NOW)
+    user = _make_user(db_session, "coupon15@test.com")
+    # Venceu há 7 dias → delta = -7d ∈ [-8d, -6d)
+    _make_entitlement(db_session, user, expires_at=NOW - timedelta(days=7))
+
+    stats = run_renewal_reminders(db_session)
+
+    assert stats["coupon_15"] == 1
+    coupon_calls = [e for e in coupon_emails if e[0] == "coupon"]
+    assert len(coupon_calls) == 1
+    assert coupon_calls[0][1]["discount_pct"] == 15
+    assert coupon_calls[0][1]["is_last_chance"] is True
+
+
+def test_coupon_15_nao_dispara_fora_da_janela(db_session, coupon_emails, renewal_url, monkeypatch):
+    """Venceu há 5 dias → não está na janela coupon_15 (6-8 dias)."""
+    monkeypatch.setattr(renewal_module, "_now", lambda: NOW)
+    user = _make_user(db_session, "coupon15early@test.com")
+    _make_entitlement(db_session, user, expires_at=NOW - timedelta(days=5))
+
+    stats = run_renewal_reminders(db_session)
+
+    assert stats["coupon_15"] == 0
+
+
+def test_coupon_15_idempotente(db_session, coupon_emails, renewal_url, monkeypatch):
+    """Dois crons na mesma semana não duplicam o coupon_15."""
+    monkeypatch.setattr(renewal_module, "_now", lambda: NOW)
+    user = _make_user(db_session, "c15idem@test.com")
+    _make_entitlement(db_session, user, expires_at=NOW - timedelta(days=7))
+
+    run_renewal_reminders(db_session)
+    run_renewal_reminders(db_session)
+
+    assert len([e for e in coupon_emails if e[0] == "coupon" and e[1]["discount_pct"] == 15]) == 1
+
+
+def test_coupon_env_ausente_bloqueia_envio(db_session, coupon_emails, renewal_url, monkeypatch):
+    """GG_COUPON_D1 vazio → logger.error + skip, e-mail não sai."""
+    monkeypatch.setattr(renewal_module, "_now", lambda: NOW)
+    monkeypatch.setenv("GG_COUPON_D1", "")
+    user = _make_user(db_session, "nocoupon@test.com")
+    _make_entitlement(db_session, user, expires_at=NOW - timedelta(hours=24))
+
+    stats = run_renewal_reminders(db_session)
+
+    assert stats["coupon_10"] == 0
+    assert stats["errors"] >= 1
+    assert all(e[0] != "coupon" for e in coupon_emails)
+
+
+def test_trial_coupon_10_d1(db_session, coupon_emails, renewal_url, monkeypatch):
+    """Trial não convertido ganha coupon_10 em D+1."""
+    monkeypatch.setattr(renewal_module, "_now", lambda: NOW)
+    user = _make_user(db_session, "trial_c10@test.com")
+    ent = Entitlement(
+        user_id=user.id,
+        product_id="site:diario_astral",
+        status="available",
+        source="trial",
+        expires_at=NOW - timedelta(hours=24),
+    )
+    db_session.add(ent)
+    db_session.commit()
+
+    from app.renewal import run_trial_reminders
+    stats = run_trial_reminders(db_session)
+
+    assert stats["coupon_10"] == 1
+
+
+def test_trial_coupon_15_d7(db_session, coupon_emails, renewal_url, monkeypatch):
+    """Trial não convertido ganha coupon_15 em D+7."""
+    monkeypatch.setattr(renewal_module, "_now", lambda: NOW)
+    user = _make_user(db_session, "trial_c15@test.com")
+    ent = Entitlement(
+        user_id=user.id,
+        product_id="site:diario_astral",
+        status="available",
+        source="trial",
+        expires_at=NOW - timedelta(days=7),
+    )
+    db_session.add(ent)
+    db_session.commit()
+
+    from app.renewal import run_trial_reminders
+    stats = run_trial_reminders(db_session)
+
+    assert stats["coupon_15"] == 1
