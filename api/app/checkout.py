@@ -42,8 +42,8 @@ PAID_STATUSES = {"paid", "approved"}
 # Ambos liberam site:diario_astral; o prazo é carimbado no entitlement diario_astral.
 # Outros produtos (mapas, combos) continuam vitalícios.
 TIMED_ACCESS_PRODUCTS = {"site:diario_astral", "site:diario_astral_oferta_saida"}
-PLANO_LUA_PRODUCT_ID = "site:diario_astral"
-PLANO_LUA_ACCESS_DAYS = 30
+DIARIO_ASTRAL_PRODUCT_ID = "site:diario_astral"
+DIARIO_ASTRAL_ACCESS_DAYS = 30
 
 
 class OrderBody(BaseModel):
@@ -396,7 +396,7 @@ def fulfill_order(db: Session, order: Order) -> User:
         # é de um produto avulso com prazo. Estende a partir do vencimento atual
         # se ainda ativo, para não cortar dias já pagos.
         new_expires_at = None
-        if timed and product_id == PLANO_LUA_PRODUCT_ID:
+        if timed and product_id == DIARIO_ASTRAL_PRODUCT_ID:
             now = datetime.now(timezone.utc)
             if entitlement and entitlement.expires_at is not None:
                 current = entitlement.expires_at
@@ -405,7 +405,7 @@ def fulfill_order(db: Session, order: Order) -> User:
                 base = max(current, now)
             else:
                 base = now
-            new_expires_at = base + timedelta(days=PLANO_LUA_ACCESS_DAYS)
+            new_expires_at = base + timedelta(days=DIARIO_ASTRAL_ACCESS_DAYS)
 
         if entitlement:
             if entitlement.status != "available":

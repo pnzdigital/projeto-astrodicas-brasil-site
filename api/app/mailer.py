@@ -763,3 +763,96 @@ def send_winback_email(
     )
     html_content = _html_template(content, footer)
     return _send_email(email, subject, html_content, text_content)
+
+
+def send_coupon_winback_email(
+    email: str,
+    name: str,
+    checkout_url: str,
+    coupon_code: str,
+    discount_pct: int,
+    is_last_chance: bool,
+    locale: str = "pt-BR",
+) -> dict[str, Any]:
+    """Recuperação pós-vencimento com cupom de desconto.
+
+    Para Argentina (locale es-AR) não há cupom nativo via Mercado Pago: o
+    parâmetro coupon_code chega vazio e o e-mail usa a URL de oferta de saída
+    com copy de 'precio especial' sem mencionar percentual — evita prometer
+    desconto que o checkout MP não aplica.
+    """
+    name_safe = _escape_html(name)
+    url_safe = _escape_html(checkout_url)
+    has_coupon = bool(coupon_code)
+    code_safe = _escape_html(coupon_code) if has_coupon else ""
+
+    if locale == "es-AR":
+        subject = (
+            "Última oportunidad — volvé al Diario Astral con precio especial"
+            if is_last_chance
+            else "Te extrañamos — volvé al Diario Astral con precio especial"
+        )
+        offer_box = (
+            "<strong>Diario Astral</strong> — 30 días de acceso<br>"
+            "<strong>Precio especial exclusivo</strong> para clientes que volvieron"
+        )
+        cta_label = "Quiero volver →"
+        body_intro = (
+            "Es tu última oportunidad de volver al Diario Astral con condición especial."
+            if is_last_chance
+            else "Tu Diario Astral venció y te extrañamos. Preparamos una condición especial para que vuelvas:"
+        )
+        body_closing = "Sin suscripción, sin compromiso. Pagás una vez y disfrutás 30 días."
+        footer = "¿Dudas? Escribinos a contato@astrodicas.pnzdigital.com.br"
+        content = f"""<h2>Hola, {name_safe}. Tu cielo sigue esperándote.</h2>
+<p>{body_intro}</p>
+<div class="info-box">{offer_box}</div>
+<p>{body_closing}</p>
+<a href="{url_safe}" class="cta-button">{cta_label}</a>
+<p>Esta oferta es exclusiva y puede no estar disponible en el sitio principal.</p>
+"""
+        text_content = (
+            f"Hola, {name_safe}. Tu cielo sigue esperándote.\n\n"
+            f"{body_intro}\n\n"
+            f"Diario Astral — 30 días con precio especial\n\n"
+            f"{body_closing}\n\n"
+            f"Acceder: {checkout_url}\n\n"
+            f"¿Dudas? contato@astrodicas.pnzdigital.com.br"
+        )
+    else:
+        subject = (
+            f"Última chance com {discount_pct}% off — volte ao Diário Astral"
+            if is_last_chance
+            else f"Sentimos sua falta — {discount_pct}% off para você voltar"
+        )
+        coupon_block = (
+            f'<div class="info-box"><strong>Cupom: <code>{code_safe}</code></strong> — {discount_pct}% de desconto<br>'
+            f"Aplique no checkout antes de finalizar a compra.</div>"
+            if has_coupon
+            else '<div class="info-box"><strong>Diário Astral</strong> — condição especial para você voltar</div>'
+        )
+        body_intro = (
+            f"É sua última chance de voltar ao Diário Astral com {discount_pct}% de desconto."
+            if is_last_chance
+            else f"Seu Diário Astral venceu e sentimos sua falta. Use o cupom abaixo para voltar com {discount_pct}% off:"
+        )
+        footer = "Dúvidas? Nos escreva em contato@astrodicas.pnzdigital.com.br"
+        content = f"""<h2>Olá, {name_safe}. Seu céu ainda tem muito a revelar.</h2>
+<p>{body_intro}</p>
+{coupon_block}
+<p>Sem assinatura, sem compromisso. Pague uma vez e aproveite por 30 dias.</p>
+<a href="{url_safe}" class="cta-button">Quero voltar →</a>
+<p>Desconto aplicado no checkout com o código acima. Oferta exclusiva.</p>
+"""
+        coupon_text = f"\nCupom: {coupon_code} ({discount_pct}% off — aplique no checkout)\n" if has_coupon else ""
+        text_content = (
+            f"Olá, {name_safe}. Seu céu ainda tem muito a revelar.\n\n"
+            f"{body_intro}\n"
+            f"{coupon_text}\n"
+            f"Sem assinatura, sem compromisso.\n\n"
+            f"Ir para o checkout: {checkout_url}\n\n"
+            f"Dúvidas? contato@astrodicas.pnzdigital.com.br"
+        )
+
+    html_content = _html_template(content, footer)
+    return _send_email(email, subject, html_content, text_content)

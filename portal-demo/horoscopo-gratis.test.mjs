@@ -2,7 +2,7 @@
 //
 // Cobre: presença do formulário completo de nascimento nos dois idiomas, ausência
 // de vazamento de idioma (PT em ES e vice-versa), diferença obrigatória de oferta
-// entre pt-BR (Plano Lua via checkout) e es-AR (trial de 3 dias com cartão via
+// entre pt-BR (Diário Astral via checkout) e es-AR (trial de 3 dias com cartão via
 // Mercado Pago), disparo dos eventos do Meta Pixel e ausência de prova social falsa.
 //
 // Roda com: ``node portal-demo/horoscopo-gratis.test.mjs``.
@@ -49,7 +49,7 @@ test('renderiza title e body_html da resposta', () => {
 
 // ── Preço vem da API, nunca hardcoded ───────────────────────────────────────
 
-test('preço do Plano Lua vem de /api/catalog, não está hardcoded', () => {
+test('preço do Diário Astral vem de /api/catalog, não está hardcoded', () => {
   assert.match(html, /\/api\/catalog\?locale=/);
   assert.match(html, /price_label/);
   // Nenhum valor monetário fixo tipo "R$ 27,90" ou "ARS 27" deve aparecer no HTML.
@@ -60,15 +60,15 @@ test('preço do Plano Lua vem de /api/catalog, não está hardcoded', () => {
 // ── Diferença obrigatória: trial com cartão só em es-AR ─────────────────────
 
 test('oferta pt-BR não tem formulário de trial nem chama /api/trial/start', () => {
-  const match = html.match(/function renderPlanoLuaOffer\s*\(\)\s*\{([\s\S]*?)\n    \}/);
-  assert.ok(match, 'função renderPlanoLuaOffer não encontrada');
+  const match = html.match(/function renderDiarioAstralOffer\s*\(\)\s*\{([\s\S]*?)\n    \}/);
+  assert.ok(match, 'função renderDiarioAstralOffer não encontrada');
   const body = match[1];
   assert.ok(!body.includes('trial-form'), 'formulário de trial vazou pro caminho pt-BR');
   assert.ok(!body.includes('/api/trial/start'), 'chamada de trial vazou pro caminho pt-BR');
-  assert.ok(body.includes('offerCta'), 'CTA do Plano Lua ausente no caminho pt-BR');
+  assert.ok(body.includes('offerCta'), 'CTA do Diário Astral ausente no caminho pt-BR');
 });
 
-test('oferta pt-BR aponta para o checkout existente do Plano Lua', () => {
+test('oferta pt-BR aponta para o checkout do Diário Astral', () => {
   assert.match(html, /checkout\?product=site:diario_astral/);
 });
 
@@ -117,8 +117,8 @@ test('honesty es-AR cobre os 5 pontos: cartão pedido, cobrança só dia 4, canc
   assert.match(honesty, /área en el sitio/);
 });
 
-test('renderReading escolhe a oferta certa por idioma: es -> trial, pt -> Plano Lua', () => {
-  assert.match(html, /const offerHtml = es \? renderTrialOffer\(\) : renderPlanoLuaOffer\(\);/);
+test('renderReading escolhe a oferta certa por idioma: es -> trial, pt -> Diário Astral', () => {
+  assert.match(html, /const offerHtml = es \? renderTrialOffer\(\) : renderDiarioAstralOffer\(\);/);
 });
 
 // ── Copy honesta do trial: cancelamento explícito, sem cobrança nos 3 dias ──
@@ -146,11 +146,11 @@ test('copy pt-BR deixa explícito que só cobra depois dos 3 dias, e o CTA de tr
   assert.match(html, /CTA de trial pt-BR pendente de meio de pagamento/);
 });
 
-test('bullets do Plano Lua batem com o que o produto realmente entrega (horóscopo diário + guia do mês), sem prometer Mapa Astral de brinde', () => {
+test('bullets do Diário Astral batem com o que o produto realmente entrega (horóscopo diário + guia do mês), sem prometer Mapa Astral de brinde', () => {
   const match = html.match(/\} : \{([\s\S]*?)\n\s*\};/);
   const ptCopy = match[1];
   assert.ok(/[Gg]uia do [Mm]ês/.test(ptCopy), 'bullet do Guia do Mês ausente no pt-BR');
-  assert.ok(!/[Mm]apa [Aa]stral.*brinde/.test(ptCopy), 'pt-BR promete Mapa Astral de brinde, que o Plano Lua não entrega');
+  assert.ok(!/[Mm]apa [Aa]stral.*brinde/.test(ptCopy), 'pt-BR promete Mapa Astral de brinde, que o Diário Astral não entrega');
   const esMatch = html.match(/const copy = es \? \{([\s\S]*?)\n\s*\} : \{/);
   const esCopy = esMatch[1];
   assert.ok(/[Gg]uía del mes/.test(esCopy), 'bullet da Guía del mes ausente no es-AR');
@@ -166,7 +166,7 @@ test('bloco de copy es-AR não contém palavras em português', () => {
   const match = html.match(/const copy = es \? \{([\s\S]*?)\n\s*\} : \{/);
   assert.ok(match, 'objeto de copy es-AR não encontrado');
   const esCopy = match[1];
-  for (const palavraPt of ['grátis', 'horóscopo grátis', 'não pedimos', 'Plano Lua']) {
+  for (const palavraPt of ['grátis', 'horóscopo grátis', 'não pedimos']) {
     assert.ok(!esCopy.includes(palavraPt), `português vazou no bloco es-AR: "${palavraPt}"`);
   }
 });

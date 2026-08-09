@@ -2,7 +2,7 @@
   'use strict';
 
   var script = document.currentScript;
-  var page = script && script.dataset.page || (location.pathname.includes('oferta-lua-2') ? 'v2' : 'v1');
+  var page = script && script.dataset.page || (location.pathname.includes('diario-astral-2') ? 'v2' : 'v1');
   var argentina = location.pathname.startsWith('/es/');
   if (!argentina) return;
 
@@ -393,7 +393,7 @@
     if (ogDescription) ogDescription.content = page === 'v2'
       ? 'Horóscopo diario calculado sobre tu carta natal. Carta Astral Completa de regalo.'
       : 'Horóscopo diario calculado sobre tu carta natal. Carta Astral Completa de regalo.';
-    var esUrl = 'https://astrodicas.pnzdigital.com.br/es/' + (page === 'v2' ? 'oferta-lua-2' : 'oferta-lua-1');
+    var esUrl = 'https://astrodicas.pnzdigital.com.br/es/' + (page === 'v2' ? 'diario-astral-2' : 'diario-astral-1');
     var canonical = document.querySelector('link[rel="canonical"]');
     if (canonical) canonical.href = esUrl;
     var ogUrl = document.querySelector('meta[property="og:url"]');

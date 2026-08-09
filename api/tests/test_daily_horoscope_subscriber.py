@@ -37,7 +37,7 @@ def _register_with_profile(client, email="lua@example.com", locale="pt-BR", birt
     )
 
 
-def _grant_plano_lua(client, email):
+def _grant_diario_astral(client, email):
     granted = client.post(
         "/api/webhooks/cakto",
         json={"event_id": f"evt-{email}", "email": email, "product_id": "site:diario_astral"},
@@ -57,7 +57,7 @@ def test_assinante_com_entitlement_recebe_o_horoscopo_de_hoje(client, monkeypatc
     calls: list[str] = []
     _fake_generate_reading(monkeypatch, calls)
     _register_with_profile(client)
-    _grant_plano_lua(client, "lua@example.com")
+    _grant_diario_astral(client, "lua@example.com")
 
     response = client.post(f"/api/me/readings/{CONTENT_ID}/generate")
     assert response.status_code == 202, response.text
@@ -73,7 +73,7 @@ def test_segunda_chamada_no_mesmo_dia_usa_cache_sem_gerar_de_novo(client, monkey
     calls: list[str] = []
     _fake_generate_reading(monkeypatch, calls)
     _register_with_profile(client, email="cache@example.com")
-    _grant_plano_lua(client, "cache@example.com")
+    _grant_diario_astral(client, "cache@example.com")
 
     primeira = client.post(f"/api/me/readings/{CONTENT_ID}/generate")
     assert primeira.status_code == 202
@@ -94,7 +94,7 @@ def test_novo_dia_local_gera_um_horoscopo_novo(client, monkeypatch, db_session):
     calls: list[str] = []
     _fake_generate_reading(monkeypatch, calls)
     _register_with_profile(client, email="novodia@example.com")
-    _grant_plano_lua(client, "novodia@example.com")
+    _grant_diario_astral(client, "novodia@example.com")
 
     primeira = client.post(f"/api/me/readings/{CONTENT_ID}/generate")
     assert primeira.status_code == 202
@@ -116,7 +116,7 @@ def test_assinante_sem_entitlement_recebe_403_nao_pagina_em_branco(client, monke
     calls: list[str] = []
     _fake_generate_reading(monkeypatch, calls)
     _register_with_profile(client, email="semplano@example.com")
-    # Sem _grant_plano_lua: conta existe, perfil existe, mas nunca pagou.
+    # Sem _grant_diario_astral: conta existe, perfil existe, mas nunca pagou.
 
     response = client.post(f"/api/me/readings/{CONTENT_ID}/generate")
 
@@ -130,7 +130,7 @@ def test_assinante_sem_perfil_e_convidada_a_completar_dados_nao_erro_generico(cl
     _fake_generate_reading(monkeypatch, calls)
     response = _register(client, "semdados@example.com", "senha-segura", name="Cliente Lua")
     assert response.status_code == 200, response.text
-    _grant_plano_lua(client, "semdados@example.com")
+    _grant_diario_astral(client, "semdados@example.com")
     # Nenhum PUT /api/me/profile: a conta nunca informou data/cidade de nascimento.
 
     response = client.post(f"/api/me/readings/{CONTENT_ID}/generate")
@@ -147,7 +147,7 @@ def test_cancelada_com_leitura_de_hoje_ja_gerada_perde_acesso_mesmo_assim(client
     calls: list[str] = []
     _fake_generate_reading(monkeypatch, calls)
     _register_with_profile(client, email="cancelada@example.com")
-    _grant_plano_lua(client, "cancelada@example.com")
+    _grant_diario_astral(client, "cancelada@example.com")
 
     gerada = client.post(f"/api/me/readings/{CONTENT_ID}/generate")
     assert gerada.status_code == 202

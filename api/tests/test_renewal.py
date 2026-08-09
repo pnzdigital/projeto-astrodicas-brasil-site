@@ -3,7 +3,7 @@
 Cobre:
 - Diário Astral compra avulsa recebe expires_at = now + 30 dias
 - Renovação estende a partir do vencimento atual, não de hoje
-- oferta_plano_lua_exit também carrega prazo no plano_lua
+- oferta_exit também carrega prazo no diario_astral
 - Outros produtos (mapa_astral) continuam vitalícios
 - Cron dispara lembrete 7d
 - Cron dispara lembrete today
@@ -58,7 +58,7 @@ def renewal_emails_fail(monkeypatch):
 
 @pytest.fixture()
 def renewal_url(monkeypatch):
-    monkeypatch.setenv("GG_CHECKOUT_URLS", '{"site:diario_astral": "https://gg.test/plano-lua", "site:diario_astral_oferta_saida": "https://gg.test/oferta-exit"}')
+    monkeypatch.setenv("GG_CHECKOUT_URLS", '{"site:diario_astral": "https://gg.test/diario-astral", "site:diario_astral_oferta_saida": "https://gg.test/oferta-exit"}')
 
 
 def _make_user(db, email: str = "lua@test.com") -> User:
@@ -111,7 +111,7 @@ def _gg_payload(payment_id, email, gg_product_id="gg-lua"):
     }
 
 
-def test_plano_lua_recebe_expires_at_30_dias(client, _supress_purchase_email):
+def test_diario_astral_recebe_expires_at_30_dias(client, _supress_purchase_email):
     client.post(
         "/api/webhooks/ggcheckout",
         json=_gg_payload("pay-lua-prazo", "prazo@test.com"),
@@ -176,7 +176,7 @@ def test_renovacao_estende_a_partir_do_vencimento_atual(client, _supress_purchas
     assert timedelta(days=29) < extension <= timedelta(days=31)
 
 
-def test_oferta_exit_carrega_prazo_no_plano_lua(client, _supress_purchase_email):
+def test_oferta_exit_carrega_prazo_no_diario_astral(client, _supress_purchase_email):
     client.post(
         "/api/webhooks/ggcheckout",
         json=_gg_payload("pay-exit-01", "exit@test.com", gg_product_id="gg-exit"),

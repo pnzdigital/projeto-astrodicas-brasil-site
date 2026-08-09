@@ -27,9 +27,9 @@ from app.models import Entitlement, Order, User, WebhookEvent
 
 
 GG_SECRET = "gg-secret-de-teste-32-bytes-min!"
-GG_PRODUCT_ID = "gg-uuid-plano-lua"
+GG_PRODUCT_ID = "gg-uuid-diario-astral"
 GG_PRODUCT_MAP_JSON = json.dumps({GG_PRODUCT_ID: "site:diario_astral"})
-GG_CHECKOUT_URLS_JSON = json.dumps({"site:diario_astral": "https://checkout.gg.test/plano-lua"})
+GG_CHECKOUT_URLS_JSON = json.dumps({"site:diario_astral": "https://checkout.gg.test/diario-astral"})
 
 
 def _gg_payload(
@@ -352,7 +352,7 @@ def test_order_br_com_url_retorna_init_point_com_email_e_ref(client):
     )
     assert response.status_code == 200, response.text
     body = response.json()
-    assert body["init_point"].startswith("https://checkout.gg.test/plano-lua")
+    assert body["init_point"].startswith("https://checkout.gg.test/diario-astral")
     assert "email=oi%40cliente.com.br" in body["init_point"] or "email=oi@cliente.com.br" in body["init_point"]
     assert "ref=" in body["init_point"]
     assert body["redirect"] is True

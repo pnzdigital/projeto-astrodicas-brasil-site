@@ -36,7 +36,7 @@ from sqlalchemy.orm import Mapped, Session, mapped_column
 
 from .checkout import gg_checkout_url, portal_url
 from .db import Base, get_db
-from .mailer import send_renewal_reminder_email, send_trial_ending_email, send_weekly_forecast_email, send_winback_email
+from .mailer import send_coupon_winback_email, send_renewal_reminder_email, send_trial_ending_email, send_weekly_forecast_email, send_winback_email
 from .models import Entitlement, Profile, User
 
 logger = logging.getLogger(__name__)
@@ -44,6 +44,27 @@ router = APIRouter()
 
 PRODUCT_ID = "site:diario_astral"
 WINBACK_PRODUCT_ID = "site:diario_astral_oferta_saida"
+
+# Cupons criados no GG Checkout (IDs: ASTRO10=eRf1ULgblcDrm4a94FEe, ASTRO15=OPqAQ0UHD8bokeoJM1NZ).
+# Env vars substituem os defaults em caso de rotação de código.
+_GG_COUPON_D1_ENV = "GG_COUPON_D1"
+_GG_COUPON_D7_ENV = "GG_COUPON_D7"
+_COUPON_D1_DEFAULT = "ASTRO10"
+_COUPON_D7_DEFAULT = "ASTRO15"
+
+
+def _get_coupon_code(env_key: str, default: str) -> str | None:
+    """Retorna o código do cupom ou None se ausente — loga error nesse caso."""
+    code = os.getenv(env_key, default).strip()
+    if not code:
+        logger.error(
+            "Cupom de recuperação não configurado (%s). "
+            "Configure %s=<código> para habilitar e-mails com desconto.",
+            env_key,
+            env_key,
+        )
+        return None
+    return code
 
 
 class RenewalReminder(Base):
@@ -113,7 +134,7 @@ def run_trial_reminders(db: Session) -> dict:
     não manda e-mail de renovação paga para quem ainda está no trial.
     """
     now = _now()
-    stats: dict[str, int] = {"trial_ending": 0, "trial_winback": 0, "skipped": 0, "errors": 0}
+    stats: dict[str, int] = {"trial_ending": 0, "trial_winback": 0, "coupon_10": 0, "coupon_15": 0, "skipped": 0, "errors": 0}
 
     subscribe_link = _renewal_url()
     winback_link = _winback_url()
@@ -134,6 +155,7 @@ def run_trial_reminders(db: Session) -> dict:
         expires_at = _aware(ent.expires_at)
         expiry_key = _expiry_date_key(expires_at)
         delta = expires_at - now
+        locale = getattr(user, "locale", "pt-BR") or "pt-BR"
 
         if timedelta(hours=0) <= delta <= timedelta(hours=36):
             # Trial acaba nas próximas 36h: convite para assinar
@@ -143,7 +165,6 @@ def run_trial_reminders(db: Session) -> dict:
             if not subscribe_link:
                 stats["skipped"] += 1
                 continue
-            locale = getattr(user, "locale", "pt-BR") or "pt-BR"
             result = send_trial_ending_email(
                 email=user.email,
                 name=user.name or user.email,
@@ -158,8 +179,17 @@ def run_trial_reminders(db: Session) -> dict:
                 logger.warning("Falha ao enviar trial_ending para %s: %s", user.email, result.get("error"))
                 stats["errors"] += 1
 
-        elif timedelta(days=-4) <= delta < timedelta(days=-1) and expires_at < now:
-            # Trial vencido há 1-4 dias sem conversão
+        elif timedelta(hours=-36) <= delta < timedelta(hours=-12) and expires_at < now:
+            # Trial vencido há 12-36h: cupom de recuperação D+1 (10% off)
+            _process_coupon_winback(
+                db, ent, user, expiry_key, "coupon_10",
+                _get_coupon_code(_GG_COUPON_D1_ENV, _COUPON_D1_DEFAULT), 10,
+                is_last_chance=False, renewal_link=renewal_link,
+                winback_link=winback_link, locale=locale, stats=stats,
+            )
+
+        elif timedelta(days=-4) <= delta < timedelta(hours=-36) and expires_at < now:
+            # Trial vencido há 36h-4 dias sem conversão
             if winback_link:
                 if _already_sent(db, ent.id, "trial_winback", expiry_key):
                     stats["skipped"] += 1
@@ -177,6 +207,16 @@ def run_trial_reminders(db: Session) -> dict:
                     stats["errors"] += 1
             else:
                 stats["skipped"] += 1
+
+        elif timedelta(days=-8) <= delta < timedelta(days=-6) and expires_at < now:
+            # Trial vencido há 6-8 dias: última chance com 15% off
+            _process_coupon_winback(
+                db, ent, user, expiry_key, "coupon_15",
+                _get_coupon_code(_GG_COUPON_D7_ENV, _COUPON_D7_DEFAULT), 15,
+                is_last_chance=True, renewal_link=renewal_link,
+                winback_link=winback_link, locale=locale, stats=stats,
+            )
+
         else:
             stats["skipped"] += 1
 
@@ -190,7 +230,7 @@ def run_renewal_reminders(db: Session) -> dict:
     run_trial_reminders para que os textos e a lógica de conversão sejam corretos.
     """
     now = _now()
-    stats: dict[str, int] = {"7d": 0, "1d": 0, "today": 0, "winback": 0, "skipped": 0, "errors": 0}
+    stats: dict[str, int] = {"7d": 0, "1d": 0, "today": 0, "winback": 0, "coupon_10": 0, "coupon_15": 0, "skipped": 0, "errors": 0}
 
     candidates = db.scalars(
         select(Entitlement).where(
@@ -228,12 +268,32 @@ def run_renewal_reminders(db: Session) -> dict:
         elif timedelta(hours=-12) <= delta <= timedelta(hours=12):
             _process_reminder(db, ent, user, "today", expiry_key, expires_at, renewal_link, stats)
 
-        elif timedelta(days=-4) <= delta < timedelta(days=-1) and expires_at < now:
-            # Vencido há 1-4 dias e ainda não renovado (expires_at segue no passado)
+        elif timedelta(hours=-36) <= delta < timedelta(hours=-12) and expires_at < now:
+            # Vencido há 12-36h (D+1): cupom 10% off
+            locale = getattr(user, "locale", "pt-BR") or "pt-BR"
+            _process_coupon_winback(
+                db, ent, user, expiry_key, "coupon_10",
+                _get_coupon_code(_GG_COUPON_D1_ENV, _COUPON_D1_DEFAULT), 10,
+                is_last_chance=False, renewal_link=renewal_link,
+                winback_link=winback_link, locale=locale, stats=stats,
+            )
+
+        elif timedelta(days=-4) <= delta < timedelta(hours=-36) and expires_at < now:
+            # Vencido há 36h-4 dias e ainda não renovado
             if winback_link:
                 _process_winback(db, ent, user, expiry_key, winback_link, stats)
             else:
                 stats["skipped"] += 1
+
+        elif timedelta(days=-8) <= delta < timedelta(days=-6) and expires_at < now:
+            # Vencido há 6-8 dias (D+7): última chance 15% off
+            locale = getattr(user, "locale", "pt-BR") or "pt-BR"
+            _process_coupon_winback(
+                db, ent, user, expiry_key, "coupon_15",
+                _get_coupon_code(_GG_COUPON_D7_ENV, _COUPON_D7_DEFAULT), 15,
+                is_last_chance=True, renewal_link=renewal_link,
+                winback_link=winback_link, locale=locale, stats=stats,
+            )
 
         else:
             stats["skipped"] += 1

@@ -7,7 +7,7 @@ const pixel = await readFile(new URL('./meta-pixel.js', import.meta.url), 'utf8'
 for (const [pathname, expectedLocale] of [
   ['/', 'pt-BR'],
   ['/es', 'es-AR'],
-  ['/es/oferta-lua-1', 'es-AR'],
+  ['/es/diario-astral-1', 'es-AR'],
 ]) {
   const document = {
     createElement: () => ({}),
@@ -24,8 +24,8 @@ for (const [pathname, expectedLocale] of [
 
 const checkout = await readFile(new URL('./checkout.html', import.meta.url), 'utf8');
 const thankYou = await readFile(new URL('./obrigado.html', import.meta.url), 'utf8');
-const lpV1 = await readFile(new URL('../lp-plano-lua/v1/index.html', import.meta.url), 'utf8');
-const lpV2 = await readFile(new URL('../lp-plano-lua/v2/index.html', import.meta.url), 'utf8');
+const lpV1 = await readFile(new URL('../lp-diario-astral/v1/index.html', import.meta.url), 'utf8');
+const lpV2 = await readFile(new URL('../lp-diario-astral/v2/index.html', import.meta.url), 'utf8');
 
 assert.match(lpV1, /fbq\('track','ViewContent'/);
 assert.match(lpV2, /fbq\('track','ViewContent'/);

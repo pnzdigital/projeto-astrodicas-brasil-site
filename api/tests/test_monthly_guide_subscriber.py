@@ -40,7 +40,7 @@ def _register_with_profile(client, email="lua@example.com", locale="pt-BR", birt
     )
 
 
-def _grant_plano_lua(client, email):
+def _grant_diario_astral(client, email):
     granted = client.post(
         "/api/webhooks/cakto",
         json={"event_id": f"evt-{email}", "email": email, "product_id": "site:diario_astral"},
@@ -61,7 +61,7 @@ def test_assinante_com_entitlement_recebe_o_guia_do_mes_corrente(client, monkeyp
     calls: list[str] = []
     _fake_generate_reading(monkeypatch, calls)
     _register_with_profile(client)
-    _grant_plano_lua(client, "lua@example.com")
+    _grant_diario_astral(client, "lua@example.com")
 
     response = client.post(f"/api/me/readings/{CONTENT_ID}/generate")
     assert response.status_code == 202, response.text
@@ -77,7 +77,7 @@ def test_segunda_chamada_no_mesmo_mes_usa_cache_sem_gerar_de_novo(client, monkey
     calls: list[str] = []
     _fake_generate_reading(monkeypatch, calls)
     _register_with_profile(client, email="cache@example.com")
-    _grant_plano_lua(client, "cache@example.com")
+    _grant_diario_astral(client, "cache@example.com")
 
     primeira = client.post(f"/api/me/readings/{CONTENT_ID}/generate")
     assert primeira.status_code == 202
@@ -99,7 +99,7 @@ def test_assinar_no_dia_20_da_o_guia_do_mes_atual_na_hora(client, monkeypatch):
     calls: list[str] = []
     _fake_generate_reading(monkeypatch, calls)
     _register_with_profile(client, email="dia20@example.com")
-    _grant_plano_lua(client, "dia20@example.com")
+    _grant_diario_astral(client, "dia20@example.com")
 
     response = client.post(f"/api/me/readings/{CONTENT_ID}/generate")
     assert response.status_code == 202, response.text
@@ -110,7 +110,7 @@ def test_novo_mes_local_gera_um_guia_novo(client, monkeypatch, db_session):
     calls: list[str] = []
     _fake_generate_reading(monkeypatch, calls)
     _register_with_profile(client, email="novomes@example.com")
-    _grant_plano_lua(client, "novomes@example.com")
+    _grant_diario_astral(client, "novomes@example.com")
 
     primeira = client.post(f"/api/me/readings/{CONTENT_ID}/generate")
     assert primeira.status_code == 202
@@ -178,7 +178,7 @@ def test_assinante_sem_perfil_e_convidada_a_completar_dados(client, monkeypatch)
     _fake_generate_reading(monkeypatch, calls)
     response = _register(client, "semdados@example.com", "senha-segura", name="Cliente Lua")
     assert response.status_code == 200, response.text
-    _grant_plano_lua(client, "semdados@example.com")
+    _grant_diario_astral(client, "semdados@example.com")
 
     response = client.post(f"/api/me/readings/{CONTENT_ID}/generate")
 
@@ -192,13 +192,13 @@ def test_duas_assinantes_com_mapas_diferentes_recebem_guias_diferentes(client, m
     _fake_generate_reading(monkeypatch, calls)
 
     _register_with_profile(client, email="alice@example.com", birth_date="1990-05-20")
-    _grant_plano_lua(client, "alice@example.com")
+    _grant_diario_astral(client, "alice@example.com")
     alice = client.post(f"/api/me/readings/{CONTENT_ID}/generate")
     assert alice.status_code == 202
     client.post("/api/auth/logout")
 
     _register_with_profile(client, email="bea@example.com", birth_date="1985-11-03")
-    _grant_plano_lua(client, "bea@example.com")
+    _grant_diario_astral(client, "bea@example.com")
     bea = client.post(f"/api/me/readings/{CONTENT_ID}/generate")
     assert bea.status_code == 202
 

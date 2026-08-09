@@ -21,7 +21,7 @@ async function loadPage(pathname) {
   window.location = { pathname, search: '', href: 'http://localhost' + pathname };
   window.scrollTo = () => {};
   // linkedom não implementa scrollIntoView; sem o polyfill, renderReading()
-  // lança nessa chamada e o restante da função (wirePlanoLuaCta/wireTrialCard)
+  // lança nessa chamada e o restante da função (wireDiarioAstralCta/wireTrialCard)
   // nunca roda — quebra em browser real não acontece, é limitação só do DOM de teste.
   window.HTMLElement.prototype.scrollIntoView = window.HTMLElement.prototype.scrollIntoView || (() => {});
 
@@ -78,7 +78,7 @@ test('Lead dispara ao enviar o formulário e receber a leitura (pt-BR)', async (
   assert.ok(lead, 'Lead não disparou após envio do formulário');
 });
 
-test('InitiateCheckout dispara ao clicar no CTA do Plano Lua (pt-BR)', async () => {
+test('InitiateCheckout dispara ao clicar no CTA do Diário Astral (pt-BR)', async () => {
   const { window, document, fbqCalls } = await loadPage('/horoscopo-gratis');
   document.getElementById('f-name').value = 'Maria';
   document.getElementById('f-date').value = '1990-01-01';

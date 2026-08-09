@@ -4,7 +4,7 @@
 // Cobre: hero + card "seu momento agora" ligados ao content_id real
 // (site:content:horoscopo_diario), geração automática ao abrir o painel
 // (POST assíncrono 202 + polling em /api/me/readings), estados honestos
-// (sem dados de nascimento, sem Plano Lua ativo, gerando, falha real) e
+// (sem dados de nascimento, sem Diário Astral ativo, gerando, falha real) e
 // o mês do guia calculado a partir da data, nunca fixo.
 //
 // Roda com: ``node portal-demo/daily-horoscope.test.mjs``.
@@ -64,10 +64,10 @@ test('sem dados de nascimento: pede pra completar o perfil, não mostra leitura 
   assert.ok(match[0].includes("dailyAction = 'profile'"), 'não direciona pro fluxo de completar perfil');
 });
 
-test('sem Plano Lua ativo: explica o que o plano libera em vez de esconder ou mostrar erro', () => {
+test('sem Diário Astral ativo: explica o que o plano libera em vez de esconder ou mostrar erro', () => {
   const match = script.match(/function renderDailyHoroscope\(\)\s*\{[\s\S]*?\n    \}/);
-  assert.ok(match[0].includes("entitlement.status !== 'available'") || match[0].includes('!entitlement'), 'não checa entitlement do Plano Lua');
-  assert.ok(match[0].includes("dailyAction = 'plan'"), 'não oferece caminho pra conhecer o Plano Lua');
+  assert.ok(match[0].includes("entitlement.status !== 'available'") || match[0].includes('!entitlement'), 'não checa entitlement do Diário Astral');
+  assert.ok(match[0].includes("dailyAction = 'plan'"), 'não oferece caminho pra conhecer o Diário Astral');
 });
 
 test('gerando (in_progress ou sem reading ainda): avisa que está gerando, botão fica aria-busy', () => {

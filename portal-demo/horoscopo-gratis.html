@@ -306,16 +306,16 @@
         ? `<p class="notice" role="status">⚠️ ${escapeHtml(data.ascendant_warning)}</p>`
         : '';
       const readingHtml = `<article class="reading"><h2>${escapeHtml(title)}</h2>${ascendantWarning}<div class="body">${bodyHtml}</div></article>`;
-      const offerHtml = es ? renderTrialOffer() : renderPlanoLuaOffer();
+      const offerHtml = es ? renderTrialOffer() : renderDiarioAstralOffer();
       result.innerHTML = readingHtml + offerHtml;
       result.scrollIntoView({ behavior: 'smooth', block: 'start' });
       if (es) wireTrialCard();
-      else wirePlanoLuaCta();
+      else wireDiarioAstralCta();
     }
 
     // pt-BR: trial sem cartão — botão abre a oferta, formulário coleta só e-mail,
     // backend cria acesso local e redireciona pro portal.
-    function renderPlanoLuaOffer() {
+    function renderDiarioAstralOffer() {
       return `<section class="offer" id="offer">
         <details class="trial-reveal" id="trial-reveal">
           <summary class="button">${escapeHtml(copy.startTrialCta)}</summary>
@@ -330,9 +330,9 @@
       </section>`;
     }
 
-    function wirePlanoLuaCta() {
+    function wireDiarioAstralCta() {
       document.getElementById('offer-cta')?.addEventListener('click', () => {
-        if (window.fbq) fbq('track', 'InitiateCheckout', { content_name: 'plano-lua', content_language: locale });
+        if (window.fbq) fbq('track', 'InitiateCheckout', { content_name: 'diario-astral', content_language: locale });
       });
     }
 

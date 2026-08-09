@@ -12,7 +12,7 @@ def _label(product_id: str) -> str:
     return pricing.format_amount(pricing.amount_minor(product_id, "es-AR"), "ARS")
 
 
-def test_plano_lua_has_its_own_ar_price():
+def test_diario_astral_has_its_own_ar_price():
     assert _label("site:diario_astral") == "ARS 9.900"
 
 
