@@ -34,7 +34,7 @@ from starlette.staticfiles import StaticFiles  # noqa: E402
 from app.main import app  # noqa: E402
 
 PORTAL = ROOT / "portal-demo"
-LANDING = ROOT / "lp-plano-lua"
+LANDING = ROOT / "lp-diario-astral"
 IS_DASH = os.getenv("ROLE", "public") == "dash"
 
 
@@ -55,9 +55,9 @@ def root():
 
 
 if not IS_DASH:
-    for route in ("/oferta-lua-1", "/es/oferta-lua-1"):
+    for route in ("/diario-astral-1", "/es/diario-astral-1"):
         app.get(route)(lambda: page(LANDING / "v1" / "index.html"))
-    for route in ("/oferta-lua-2", "/es/oferta-lua-2"):
+    for route in ("/diario-astral-2", "/es/diario-astral-2"):
         app.get(route)(lambda: page(LANDING / "v2" / "index.html"))
 for route in ("/checkout", "/es/checkout"):
     app.get(route)(lambda: page(PORTAL / "checkout.html"))
@@ -94,7 +94,7 @@ async def not_found(request, exc):
     return FileResponse(PORTAL / "404.html", status_code=404)
 
 
-app.mount("/lp-plano-lua", StaticFiles(directory=LANDING), name="landing")
+app.mount("/lp-diario-astral", StaticFiles(directory=LANDING), name="landing")
 app.mount("/", StaticFiles(directory=PORTAL), name="portal")
 
 
