@@ -26,7 +26,11 @@ uvicorn app.main:app \
 U=$!
 
 # Worker de geração (processo separado — não disputa o event loop do uvicorn)
-python -m app.worker &
+# NÃO use `python -m app.worker`: com -m o módulo vira __main__, e o import
+# tardio de main.py dentro de run_job carrega uma SEGUNDA cópia como
+# app.worker, re-executando o topo do arquivo dentro de uma thread de job.
+# Importando pelo nome real, o módulo é único e o cache do Python resolve.
+python -c "from app.worker import worker_loop; worker_loop()" &
 W=$!
 
 # Proxy reverso público (porta 80)

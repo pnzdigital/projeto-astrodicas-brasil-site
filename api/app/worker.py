@@ -39,8 +39,16 @@ def _handle_signal(signum, frame) -> None:  # pragma: no cover
     _stop_event.set()
 
 
-signal.signal(signal.SIGTERM, _handle_signal)
-signal.signal(signal.SIGINT, _handle_signal)
+# Só a thread principal pode registrar handler de sinal. Se este módulo for
+# importado de dentro de uma thread (aconteceu quando o worker rodava como
+# `python -m app.worker`: o módulo virava __main__ e o import tardio de main.py
+# carregava uma SEGUNDA cópia como app.worker, já fora da thread principal),
+# registrar aqui levantaria ValueError e derrubaria o job.
+try:
+    signal.signal(signal.SIGTERM, _handle_signal)
+    signal.signal(signal.SIGINT, _handle_signal)
+except ValueError:  # pragma: no cover — import fora da thread principal
+    logger.debug("Handlers de sinal não registrados: import fora da thread principal.")
 
 
 # ---------------------------------------------------------------------------
