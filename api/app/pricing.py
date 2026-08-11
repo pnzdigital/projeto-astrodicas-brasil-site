@@ -21,11 +21,37 @@ BRL_TO_ARS = 310  # taxa de referência entre catálogos; valores próprios em P
 # product_id -> preço em centavos de BRL.
 PRICES_BRL_MINOR: dict[str, int] = {
     "site:diario_astral": 2790,
+    "site:mapa_astral": 3490,
+    "site:mapa_amor_sinastria": 3490,
+    "site:mapa_carreira": 3490,
+    "site:mapa_prosperidade": 3490,
+    "site:diario_astral_completo": 9700,
+    "site:combo_mapa_astral_amor": 5890,
+    "site:combo_mapa_astral_carreira": 5890,
+    "site:combo_mapa_astral_prosperidade": 5890,
+    "site:combo_amor_carreira": 5890,
+    "site:combo_amor_prosperidade": 5890,
+    "site:combo_carreira_prosperidade": 5890,
+    "site:combo_diario_astral_mapa_astral": 4990,
+    "site:combo_diario_astral_mapa_amor": 4990,
+    "site:combo_diario_astral_mapa_prosperidade": 4990,
+    # Ofertas de desconto da página V2: order bump do Completo e oferta de saída
+    # do Diário Astral. Entram na conversão argentina pela mesma taxa, então o
+    # percentual de desconto é idêntico nos dois mercados.
+    "site:diario_astral_completo_bump": 5790,
+    "site:diario_astral_oferta_saida": 2090,
+}
+
+# product_id -> preço ANCORADO ("de") em centavos de BRL, só exibição.
+# É o preço praticado antes do corte de 08/2026; a vitrine risca este valor ao
+# lado do preço vigente. NUNCA entra em amount_minor() nem vai para gateway:
+# quem cobra continua sendo PRICES_BRL_MINOR. Produto fora deste dict não tem
+# âncora — a vitrine mostra só o preço.
+ANCHOR_BRL_MINOR: dict[str, int] = {
     "site:mapa_astral": 4700,
     "site:mapa_amor_sinastria": 4700,
     "site:mapa_carreira": 4700,
     "site:mapa_prosperidade": 4700,
-    "site:diario_astral_completo": 9700,
     "site:combo_mapa_astral_amor": 7900,
     "site:combo_mapa_astral_carreira": 7900,
     "site:combo_mapa_astral_prosperidade": 7900,
@@ -35,11 +61,6 @@ PRICES_BRL_MINOR: dict[str, int] = {
     "site:combo_diario_astral_mapa_astral": 6700,
     "site:combo_diario_astral_mapa_amor": 6700,
     "site:combo_diario_astral_mapa_prosperidade": 6700,
-    # Ofertas de desconto da página V2: order bump do Completo e oferta de saída
-    # do Diário Astral. Entram na conversão argentina pela mesma taxa, então o
-    # percentual de desconto é idêntico nos dois mercados.
-    "site:diario_astral_completo_bump": 5790,
-    "site:diario_astral_oferta_saida": 2090,
 }
 
 # product_id -> preço em centavos de ARS.
@@ -136,13 +157,31 @@ def is_known_product(product_id: str) -> bool:
     return product_id in PRICES_BRL_MINOR
 
 
-def amount_minor(product_id: str, locale: str | None) -> int:
-    """Preço em centavos da moeda do mercado."""
-    base = PRICES_BRL_MINOR[product_id]
+def _to_market_minor(product_id: str, base_brl_minor: int, locale: str | None) -> int:
+    """Leva um valor em centavos de BRL para a moeda do mercado do locale."""
     if market_for(locale) == "AR":
         override = PRICES_ARS_MINOR.get(product_id)
-        return override if override is not None else base * BRL_TO_ARS
-    return base
+        return override if override is not None else base_brl_minor * BRL_TO_ARS
+    return base_brl_minor
+
+
+def amount_minor(product_id: str, locale: str | None) -> int:
+    """Preço em centavos da moeda do mercado."""
+    return _to_market_minor(product_id, PRICES_BRL_MINOR[product_id], locale)
+
+
+def anchor_minor(product_id: str, locale: str | None) -> int | None:
+    """Preço ancorado (riscado) em centavos da moeda do mercado, ou ``None``.
+
+    Segue a mesma regra de mercado do preço cobrado, para o desconto exibido
+    ser o mesmo percentual nos dois catálogos. Âncora que não fique acima do
+    preço vigente é descartada: riscar um valor igual ou menor seria mentira.
+    """
+    base = ANCHOR_BRL_MINOR.get(product_id)
+    if base is None:
+        return None
+    anchor = _to_market_minor(product_id, base, locale)
+    return anchor if anchor > amount_minor(product_id, locale) else None
 
 
 def amount_units(product_id: str, locale: str | None) -> float:
@@ -175,6 +214,7 @@ def catalog(locale: str | None) -> list[dict]:
     rows = []
     for product_id in PRICES_BRL_MINOR:
         minor = amount_minor(product_id, locale)
+        anchor = anchor_minor(product_id, locale)
         rows.append(
             {
                 "product_id": product_id,
@@ -183,6 +223,9 @@ def catalog(locale: str | None) -> list[dict]:
                 "amount_minor": minor,
                 "amount": round(minor / 100, 2),
                 "price_label": format_amount(minor, currency),
+                # Só exibição: a vitrine risca este valor. Nunca é cobrado.
+                "anchor_minor": anchor,
+                "anchor_label": format_amount(anchor, currency) if anchor is not None else None,
                 "recurring": product_id in RECURRING,
                 "listed": product_id not in UNLISTED,
             }

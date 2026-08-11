@@ -45,12 +45,11 @@
     document.title = isEs ? (variant === 'es-v2' ? 'Diario Astral completo · AstroDicas' : 'Diario Astral · AstroDicas') : (variant === 'br-v2' ? 'Diário Astral completo · AstroDicas' : 'Diário Astral · AstroDicas');
     if (!selected.oldPrice) document.querySelector('.price-old')?.remove();
     Object.entries(selected).forEach(([key, value]) => document.querySelectorAll(`[data-copy="${key}"]`).forEach((node) => { node.textContent = value; }));
-    document.querySelectorAll('[data-checkout]').forEach((button) => button.addEventListener('click', async () => {
-      const config = (await import(isEs ? '/portal-config-ar.js' : '/portal-config.js')).default;
-      const provider = config.checkout?.defaultProvider || (isEs ? 'mercado_pago' : 'cakto');
-      const url = config.checkout?.providers?.[provider]?.checkoutUrls?.[selected.product] || '';
-      if (url) location.href = url;
-      else document.getElementById('checkout-notice')?.classList.add('show');
+    // Página interna de checkout: cria o pedido em /api/checkout/order e
+    // redireciona para o gateway do mercado. A config de provedor ficou
+    // defasada e deixava o botão mudo, então não dependemos mais dela.
+    document.querySelectorAll('[data-checkout]').forEach((button) => button.addEventListener('click', () => {
+      location.href = `${isEs ? '/es' : ''}/checkout?product=${encodeURIComponent(selected.product)}`;
     }));
   </script>
 </body>

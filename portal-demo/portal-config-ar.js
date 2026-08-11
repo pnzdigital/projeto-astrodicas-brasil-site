@@ -8,11 +8,29 @@ import base from "./portal-config.js";
 
 const ARS_PRICES = Object.freeze({
   "site:diario_astral": "ARS 14.900",
+  "site:mapa_astral": "ARS 10.819",
+  "site:mapa_amor_sinastria": "ARS 10.819",
+  "site:mapa_carreira": "ARS 10.819",
+  "site:mapa_prosperidade": "ARS 10.819",
+  "site:diario_astral_completo": "ARS 34.900",
+  "site:combo_mapa_astral_amor": "ARS 18.259",
+  "site:combo_mapa_astral_carreira": "ARS 18.259",
+  "site:combo_mapa_astral_prosperidade": "ARS 18.259",
+  "site:combo_amor_carreira": "ARS 18.259",
+  "site:combo_amor_prosperidade": "ARS 18.259",
+  "site:combo_carreira_prosperidade": "ARS 18.259",
+  "site:combo_diario_astral_mapa_astral": "ARS 15.469",
+  "site:combo_diario_astral_mapa_amor": "ARS 15.469",
+  "site:combo_diario_astral_mapa_prosperidade": "ARS 15.469",
+});
+
+// Precio anclado (tachado): sólo exhibición, espejo de pricing.ANCHOR_BRL_MINOR
+// convertido por BRL_TO_ARS. Nunca se cobra — el monto sale del backend.
+const ARS_ANCHORS = Object.freeze({
   "site:mapa_astral": "ARS 14.570",
   "site:mapa_amor_sinastria": "ARS 14.570",
   "site:mapa_carreira": "ARS 14.570",
   "site:mapa_prosperidade": "ARS 14.570",
-  "site:diario_astral_completo": "ARS 34.900",
   "site:combo_mapa_astral_amor": "ARS 24.490",
   "site:combo_mapa_astral_carreira": "ARS 24.490",
   "site:combo_mapa_astral_prosperidade": "ARS 24.490",
@@ -58,7 +76,7 @@ const CONTENT_COPY = Object.freeze({
 
 const productCatalog = base.catalog.map((product) => {
   const [name, description] = PRODUCT_COPY[product.id] || [product.name, product.description];
-  return { ...product, name, description, locale: "es-AR", currency: "ARS", localizedPrice: ARS_PRICES[product.id] || "Consultar precio" };
+  return { ...product, name, description, locale: "es-AR", currency: "ARS", localizedPrice: ARS_PRICES[product.id] || "Consultar precio", localizedAnchor: ARS_ANCHORS[product.id] || null };
 });
 
 const webContent = base.content.map((entry) => {

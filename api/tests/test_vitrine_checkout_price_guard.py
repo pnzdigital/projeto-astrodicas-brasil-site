@@ -91,14 +91,24 @@ def _extract_prices_br_in_storefront(html: str) -> dict[str, str]:
     return out
 
 
-def _extract_ars_prices_in_js(js_text: str) -> dict[str, str]:
-    """Pega ``const ARS_PRICES = Object.freeze({ 'site:x': 'ARS 9.999', ... })``."""
+def _extract_anchors_br_in_storefront(html: str) -> dict[str, str]:
+    """Pega o literal ``const anchorsBR={'site:x':'R$ 47,00', ...}`` (preço riscado)."""
+    match = re.search(r"const anchorsBR\s*=\s*\{(?P<body>[^}]+)\}", html)
+    assert match, "Bloco anchorsBR não encontrado no storefront"
+    return {
+        sku: price
+        for sku, price in (pair.groups() for pair in re.finditer(r"'([^']+)'\s*:\s*'([^']*)'", match.group("body")))
+    }
+
+
+def _extract_ars_object_in_js(js_text: str, var_name: str) -> dict[str, str]:
+    """Pega ``const <var_name> = Object.freeze({ 'site:x': 'ARS 9.999', ... })``."""
     match = re.search(
-        r"const\s+ARS_PRICES\s*=\s*Object\.freeze\(\s*\{(?P<body>.*?)\}\s*\);",
+        rf"const\s+{var_name}\s*=\s*Object\.freeze\(\s*\{{(?P<body>.*?)\}}\s*\);",
         js_text,
         re.DOTALL,
     )
-    assert match, "Bloco ARS_PRICES não encontrado"
+    assert match, f"Bloco {var_name} não encontrado"
     body = match.group("body")
     out: dict[str, str] = {}
     for pair in re.finditer(r'"([^"]+)":\s*"([^"]*)"', body):
@@ -159,7 +169,17 @@ def vitrine_prices_br_storefront():
 
 @pytest.fixture(scope="module")
 def vitrine_ars_prices_js():
-    return _extract_ars_prices_in_js(_read(PORTAL_CONFIG_AR_JS))
+    return _extract_ars_object_in_js(_read(PORTAL_CONFIG_AR_JS), "ARS_PRICES")
+
+
+@pytest.fixture(scope="module")
+def vitrine_anchors_br_storefront():
+    return _extract_anchors_br_in_storefront(_read(STOREFRONT_HTML))
+
+
+@pytest.fixture(scope="module")
+def vitrine_ars_anchors_js():
+    return _extract_ars_object_in_js(_read(PORTAL_CONFIG_AR_JS), "ARS_ANCHORS")
 
 
 def _assert_pair(sku: str, vitrine_label: str, locale: str):
@@ -205,6 +225,49 @@ def test_br_prices_in_storefront_match_checkout_amount(vitrine_prices_br_storefr
 def test_ar_prices_in_portal_config_ar_match_checkout_amount(vitrine_ars_prices_js):
     for sku, vitrine_price in vitrine_ars_prices_js.items():
         _assert_pair(sku, vitrine_price, "es-AR")
+
+
+# ─── Âncora ("de" riscado) — vitrine × pricing.anchor_minor ───────────────
+
+
+def _assert_anchor(sku: str, vitrine_label: str, locale: str):
+    """A âncora é só exibição, mas mentir no riscado é publicidade enganosa:
+    o valor exibido tem que ser exatamente o que o backend anuncia como âncora
+    e tem que ficar acima do preço cobrado."""
+    currency = CURRENCY_BY_LOCALE[locale]
+    vitrine_minor = _parse_price_to_minor(vitrine_label, currency)
+    backend_anchor = pricing.anchor_minor(sku, locale)
+    assert backend_anchor is not None, (
+        f"{sku} mostra o riscado {vitrine_label!r} em {locale} mas o backend não "
+        f"tem âncora para ele. Riscar preço que nunca existiu é propaganda enganosa."
+    )
+    assert vitrine_minor == backend_anchor, (
+        f"ÂNCORA DIVERGENTE {sku} em {locale}: vitrine risca {vitrine_label!r} "
+        f"(={vitrine_minor} minor) mas pricing diz {backend_anchor} minor."
+    )
+    assert backend_anchor > _backend_minor(sku, locale), (
+        f"{sku}: âncora {backend_anchor} não está acima do preço cobrado."
+    )
+
+
+def test_br_anchors_in_storefront_match_pricing(vitrine_anchors_br_storefront):
+    for sku, label in vitrine_anchors_br_storefront.items():
+        _assert_anchor(sku, label, "pt-BR")
+
+
+def test_ar_anchors_in_portal_config_ar_match_pricing(vitrine_ars_anchors_js):
+    for sku, label in vitrine_ars_anchors_js.items():
+        _assert_anchor(sku, label, "es-AR")
+
+
+def test_vitrine_anchors_cover_exactly_the_anchored_skus(
+    vitrine_anchors_br_storefront, vitrine_ars_anchors_js
+):
+    """Produto com âncora no backend e sem riscado na vitrine desperdiça a
+    decisão comercial; o contrário anuncia desconto que o backend não conhece."""
+    expected = set(pricing.ANCHOR_BRL_MINOR)
+    assert set(vitrine_anchors_br_storefront) == expected
+    assert set(vitrine_ars_anchors_js) == expected
 
 
 # ─── Cakto (BR) — o checkout também tem que mandar o preço do servidor ────
@@ -287,6 +350,8 @@ def test_a_partir_de_copy_in_br_vitrine_is_truthful(vitrine_offer_br):
         ("OFFER_COPY_BR (index.html)", "vitrine_offer_br"),
         ("pricesBR (storefront.html)", "vitrine_prices_br_storefront"),
         ("ARS_PRICES (portal-config-ar.js)", "vitrine_ars_prices_js"),
+        ("anchorsBR (storefront.html)", "vitrine_anchors_br_storefront"),
+        ("ARS_ANCHORS (portal-config-ar.js)", "vitrine_ars_anchors_js"),
     ],
 )
 def test_every_vitrine_sku_is_known_in_pricing(vitrine_name, fixture_name, request):

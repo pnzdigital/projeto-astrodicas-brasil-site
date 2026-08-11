@@ -45,8 +45,8 @@ def test_argentine_price_is_the_brazilian_price_converted():
     """A conversão vale para o catálogo geral. Diário Astral, Completo e a oferta de
     saída têm preço argentino próprio, definido comercialmente — esses estão em
     test_pricing_ar_overrides."""
-    assert pricing.amount_minor("site:mapa_astral", "pt-BR") == 4700
-    assert pricing.amount_minor("site:mapa_astral", "es-AR") == 4700 * 310
+    assert pricing.amount_minor("site:mapa_astral", "pt-BR") == 3490
+    assert pricing.amount_minor("site:mapa_astral", "es-AR") == 3490 * 310
     ratio_mapa = pricing.amount_minor("site:mapa_astral", "es-AR") / pricing.amount_minor("site:mapa_astral", "pt-BR")
     ratio_combo = pricing.amount_minor("site:combo_mapa_astral_amor", "es-AR") / pricing.amount_minor("site:combo_mapa_astral_amor", "pt-BR")
     assert ratio_mapa == ratio_combo
