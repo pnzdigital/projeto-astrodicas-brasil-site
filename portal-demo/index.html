@@ -443,7 +443,7 @@
     .reading-birth { margin: 0 0 20px; color: var(--cream-dim); font-size: 12px; }
     .reading-birth p { margin: 0; }
     .reading-header-actions { display: flex; flex-wrap: wrap; gap: 10px; }
-    .reading-ascendant-warning { margin: 22px 0 0; padding: 14px 16px; border: 2px solid #ffcf4d; border-radius: 8px; background: rgba(255, 207, 77, 0.14); color: var(--cream); font-size: 14px; font-weight: 500; line-height: 1.5; }
+    .reading-ascendant-warning { margin: 30px 0 0; padding: 10px 14px; border-left: 3px solid rgba(255,207,77,.5); border-radius: 0 4px 4px 0; background: transparent; color: var(--cream-dim); font-size: 12px; font-weight: 400; line-height: 1.6; }
     .reading-fallback-notice { margin: 22px 0 0; padding: 12px 14px; border: 1px solid var(--gold-lit); border-radius: 8px; color: var(--cream); font-size: 13px; }
     .reading-toc { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; margin: 26px 0 0; padding: 18px 20px; border: 1px solid rgba(244,239,228,.12); background: rgba(19, 15, 59, .5); }
     .reading-toc a { color: var(--cream-dim); font-size: 12px; }
@@ -599,6 +599,7 @@
       *, *::before, *::after { scroll-behavior: auto !important; transition-duration: .01ms !important; animation-duration: .01ms !important; }
     }
   </style>
+  <script src="/push.js"></script>
 </head>
 <body>
   <p class="boot-status" id="boot-status" role="status" aria-live="polite">Carregando seu portal…</p>
@@ -757,9 +758,9 @@
             <button class="button ghost" type="button" data-print-reading-page>Imprimir / PDF</button>
           </div>
         </header>
-        <div id="reading-page-warning"></div>
         <nav class="reading-toc" id="reading-page-toc" aria-label="Índice da leitura" hidden></nav>
         <div class="reading-body" id="reading-page-body"></div>
+        <div id="reading-page-warning"></div>
         <a class="back-link back-link-bottom" href="#entregaveis" data-back-to-library>← <span data-reading-back-label>Voltar para minha biblioteca</span></a>
       </div>
     </main>
@@ -772,6 +773,26 @@
     <button type="button" data-dialog="upgrade-dialog"><span>✧</span><span>Upgrade</span></button>
   </nav>
   <div class="toast" role="status" aria-live="polite"></div>
+
+  <!-- Banner de instalação como app (Android/Desktop) -->
+  <div id="pwa-install-banner" hidden style="position:fixed;bottom:1rem;left:50%;transform:translateX(-50%);background:var(--surface,#1a1735);border:1px solid var(--border,#2d2a5e);border-radius:12px;padding:.75rem 1rem;display:flex;align-items:center;gap:.75rem;z-index:9998;max-width:360px;width:calc(100% - 2rem);box-shadow:0 4px 24px rgba(0,0,0,.4)">
+    <span style="font-size:1.4rem">✦</span>
+    <span style="flex:1;font-size:.9rem">Adicionar AstroDicas à tela de início</span>
+    <button id="pwa-install-btn" class="button small" type="button">Instalar</button>
+    <button id="pwa-install-dismiss" class="button ghost small" type="button" aria-label="Dispensar">×</button>
+  </div>
+
+  <!-- Instrução para iOS (sem beforeinstallprompt) -->
+  <div id="pwa-ios-hint" hidden style="position:fixed;bottom:1rem;left:50%;transform:translateX(-50%);background:var(--surface,#1a1735);border:1px solid var(--border,#2d2a5e);border-radius:12px;padding:.75rem 1rem;font-size:.85rem;z-index:9998;max-width:360px;width:calc(100% - 2rem);box-shadow:0 4px 24px rgba(0,0,0,.4)"></div>
+
+  <!-- Banner de permissão de notificações push -->
+  <div id="push-permission-banner" hidden style="position:fixed;bottom:1rem;left:50%;transform:translateX(-50%);background:var(--surface,#1a1735);border:1px solid var(--border,#2d2a5e);border-radius:12px;padding:.75rem 1rem;display:flex;flex-direction:column;gap:.6rem;z-index:9997;max-width:360px;width:calc(100% - 2rem);box-shadow:0 4px 24px rgba(0,0,0,.4)">
+    <p id="push-permission-msg" style="margin:0;font-size:.9rem"></p>
+    <div style="display:flex;gap:.5rem;justify-content:flex-end">
+      <button id="push-permission-no" class="button ghost small" type="button">Agora não</button>
+      <button id="push-permission-yes" class="button small" type="button">Ativar</button>
+    </div>
+  </div>
 
   <dialog id="upgrade-dialog" aria-labelledby="upgrade-title">
     <div class="dialog-inner">
@@ -811,6 +832,11 @@
           <button class="button ghost small" type="button" id="cancel-subscription-trigger" data-dialog="cancel-dialog">Cancelar assinatura</button>
         </div>
         <div class="dialog-actions"><button class="button ghost small" type="button" data-dialog="profile-dialog">Editar dados</button><button class="button small" type="button" data-logout>Sair</button></div>
+        <div id="push-settings" style="margin-top:.75rem;padding-top:.75rem;border-top:1px solid var(--border,#2d2a5e)">
+          <p style="font-size:.8rem;color:var(--text-muted,#888);margin:0 0 .4rem">Notificações</p>
+          <button id="push-enable-btn" class="button ghost small" type="button">Ativar notificações</button>
+          <button id="push-disable-btn" class="button ghost small" type="button" hidden>Desativar notificações</button>
+        </div>
       </div>
     </div>
   </dialog>
@@ -909,7 +935,7 @@
       { id: 'site:content:mapa_do_amor_sinastria', productId: 'site:mapa_amor_sinastria', title: 'Mapa do Amor · Sinastria', description: 'Encontre os pontos de encontro, desejo e cuidado entre dois mapas.' },
       { id: 'site:content:mapa_da_carreira', productId: 'site:mapa_carreira', title: 'Mapa da Carreira', description: 'Talentos, direção e escolhas profissionais vistos pelo seu céu.' },
       { id: 'site:content:mapa_da_prosperidade', productId: 'site:mapa_prosperidade', title: 'Mapa da Prosperidade', description: 'Uma leitura sobre recursos, merecimento e a forma como você sustenta seus planos.' },
-      { id: 'site:content:previsao_semanal', productId: 'site:diario_astral_completo', title: 'Previsão da semana', description: 'Uma lente personalizada para atravessar a semana com mais clareza.' },
+      { id: 'site:content:previsao_semanal', productId: 'site:diario_astral', title: 'Previsão da semana', description: 'Uma lente personalizada para atravessar a semana com mais clareza.' },
       { id: 'site:content:calendario_lunar', productId: 'site:diario_astral_completo', title: 'Calendário lunar', description: 'As fases do mês atual, revalidadas mensalmente, para você planejar, pausar e recomeçar.' },
       { id: 'site:content:guia_dos_retrogrados', productId: 'site:diario_astral_completo', title: 'Guia dos retrógrados', description: 'O que revisar, recalibrar e observar quando os planetas parecem voltar.' },
       { id: 'site:content:manual_do_ascendente', productId: 'site:diario_astral_completo', title: 'Manual do Ascendente', description: 'A presença que chega antes das palavras — e como cuidar dela.' },
@@ -1710,6 +1736,8 @@
       div.innerHTML = `<p>✦ ${msg}</p><div class="notif-actions"><button class="button small" type="button" data-read="${escapeHtml(item.id)}">${cta}</button><button class="button ghost small" type="button" data-dismiss-notification="${escapeHtml(item.id)}" aria-label="${dismiss}">×</button></div>`;
       notifs.prepend(div);
       setTimeout(() => { if (div.isConnected) div.remove(); }, 30000);
+      // Solicita permissão de push na primeira leitura concluída (gesto implícito)
+      if (typeof _maybeSolicitarPush === 'function') _maybeSolicitarPush();
     }
     async function generateReading(item) {
       if (!appState.apiAvailable || !appState.authenticated) { showStaticReading(item); return; }
@@ -1923,7 +1951,13 @@
       // Só existe assinatura pra quem entrou pelo trial argentino (Checkout
       // Pro). Falha aqui não pode travar o resto do painel: quem comprou
       // pelo Cakto simplesmente não tem GET /api/me/subscription pra achar.
-      apiRequest('/api/me/subscription').then((data) => { appState.subscription = data.subscription; syncAccountDialog(); renderExpiryBanner(); }).catch(() => {});
+      // Assinatura carrega async: sem ela o trial lock não dispara. Por isso
+      // applyRemoteState() roda de novo no .then(). No .catch(), mantemos o
+      // default seguro: sem confirmação de plano, conteúdo fica bloqueado —
+      // appState.subscription já é null, então inTrial=false e TRIAL_LOCKED_CONTENT não precisa mudar.
+      apiRequest('/api/me/subscription')
+        .then((data) => { appState.subscription = data.subscription; syncAccountDialog(); renderExpiryBanner(); applyRemoteState(); })
+        .catch(() => { applyRemoteState(); });  // re-render com subscription=null → conteúdo fica bloqueado
       applyRemoteState(); syncAccountDialog();
       void ensureDailyHoroscope();
     }
@@ -2031,6 +2065,87 @@
     window.addEventListener('hashchange', handleHashRoute);
     window.addEventListener('popstate', handleHashRoute);
     void bootstrap();
+
+    // -----------------------------------------------------------------------
+    // PWA / Push — inicializa após showToast estar disponível
+    // -----------------------------------------------------------------------
+    if (typeof AstroPush !== 'undefined') {
+      AstroPush.init(API_BASE, showToast);
+
+      // Banner de instalação — mostra após 3 s se não estiver em standalone
+      if (!AstroPush.isInStandaloneMode()) {
+        setTimeout(() => {
+          if (AstroPush.isIos()) {
+            // iOS: instrução manual
+            const hint = document.getElementById('pwa-ios-hint');
+            if (hint) AstroPush.showIosInstallHint(hint);
+          } else if (AstroPush.canPromptInstall()) {
+            const banner = document.getElementById('pwa-install-banner');
+            if (banner) banner.hidden = false;
+          }
+        }, 3000);
+      }
+
+      // Botão "Instalar app"
+      document.getElementById('pwa-install-btn')?.addEventListener('click', () => {
+        AstroPush.promptInstall();
+        document.getElementById('pwa-install-banner').hidden = true;
+      });
+      document.getElementById('pwa-install-dismiss')?.addEventListener('click', () => {
+        document.getElementById('pwa-install-banner').hidden = true;
+      });
+
+      // Botão de ativar notificações nas configurações de conta
+      document.getElementById('push-enable-btn')?.addEventListener('click', async () => {
+        const ok = await AstroPush.requestPushPermission();
+        updatePushSettingsUI();
+        if (ok) showToast(IS_ARGENTINA ? 'Notificaciones activadas.' : 'Notificações ativadas.');
+      });
+      document.getElementById('push-disable-btn')?.addEventListener('click', async () => {
+        await AstroPush.unsubscribePush();
+        updatePushSettingsUI();
+        showToast(IS_ARGENTINA ? 'Notificaciones desactivadas.' : 'Notificações desativadas.');
+      });
+
+      function updatePushSettingsUI() {
+        const granted = AstroPush.isPushGranted();
+        document.getElementById('push-enable-btn')?.toggleAttribute('hidden', granted);
+        document.getElementById('push-disable-btn')?.toggleAttribute('hidden', !granted);
+      }
+      updatePushSettingsUI();
+    }
+
+    // Pede permissão de push no momento certo: quando leitura terminar pela 1a vez
+    let _pushAsked = false;
+    function _maybeSolicitarPush() {
+      if (_pushAsked || typeof AstroPush === 'undefined') return;
+      if (AstroPush.isPushGranted()) return;
+      if (!('Notification' in window) || Notification.permission === 'denied') return;
+      _pushAsked = true;
+      // Delay de 2 s para não soprepar a notificação in-app de leitura pronta
+      setTimeout(() => {
+        const msg = IS_ARGENTINA
+          ? '¿Querés recibir notificaciones cuando tu lectura esté lista?'
+          : 'Quer receber notificações quando sua leitura ficar pronta?';
+        const cta = IS_ARGENTINA ? 'Ativar' : 'Ativar';
+        const banner = document.getElementById('push-permission-banner');
+        if (banner) {
+          document.getElementById('push-permission-msg').textContent = msg;
+          document.getElementById('push-permission-yes').textContent = cta;
+          banner.hidden = false;
+        }
+      }, 2000);
+    }
+
+    document.getElementById('push-permission-yes')?.addEventListener('click', async () => {
+      document.getElementById('push-permission-banner').hidden = true;
+      const ok = await AstroPush.requestPushPermission();
+      if (ok) showToast(IS_ARGENTINA ? 'Notificaciones activadas.' : 'Notificações ativadas.');
+    });
+    document.getElementById('push-permission-no')?.addEventListener('click', () => {
+      document.getElementById('push-permission-banner').hidden = true;
+    });
+
   </script>
 </body>
 </html>
