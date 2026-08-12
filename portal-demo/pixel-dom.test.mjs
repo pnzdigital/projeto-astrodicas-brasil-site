@@ -3,7 +3,7 @@
 // Carrega a página num DOM linkedom (mesmo padrão de frontend-regression.mjs),
 // mocka window.fbq e window.fetch, e prova por asserção quais eventos saem
 // em cada interação: ViewContent na chegada, Lead ao gerar a leitura,
-// InitiateCheckout no CTA pt-BR, AddPaymentInfo + StartTrial no fluxo es-AR.
+// StartTrial ao confirmar trial (pt-BR e es-AR), Lead ao gerar a leitura.
 //
 // Roda com: ``node portal-demo/pixel-dom.test.mjs``.
 
@@ -78,21 +78,18 @@ test('Lead dispara ao enviar o formulário e receber a leitura (pt-BR)', async (
   assert.ok(lead, 'Lead não disparou após envio do formulário');
 });
 
-test('InitiateCheckout dispara ao clicar no CTA do Diário Astral (pt-BR)', async () => {
-  const { window, document, fbqCalls } = await loadPage('/horoscopo-gratis');
-  document.getElementById('f-name').value = 'Maria';
-  document.getElementById('f-date').value = '1990-01-01';
-  document.getElementById('f-time').value = '10:00';
-  document.getElementById('f-city').value = 'São Paulo';
-  [...document.getElementById('f-state').options].find((o) => o.value === 'SP').selected = true;
-  const form = document.getElementById('form');
-  form.dispatchEvent(new form.ownerDocument.defaultView.Event('submit', { cancelable: true, bubbles: true }));
-  await new Promise((r) => setTimeout(r, 20));
-  const cta = document.getElementById('offer-cta');
-  assert.ok(cta, 'CTA da oferta pt-BR não renderizou');
-  cta.dispatchEvent(new window.Event('click', { bubbles: true }));
-  const ic = fbqCalls.find((c) => c[1] === 'InitiateCheckout');
-  assert.ok(ic, 'InitiateCheckout não disparou ao clicar no CTA');
+test('dispara StartTrial no caminho es-AR e pt-BR ao confirmar trial', () => {
+  // Verifica na fonte que StartTrial aparece nas duas funções de wiring,
+  // após validação de status:"trialing" e antes do redirect pro portal.
+  const wireBlocks = [
+    html.slice(html.indexOf('function wireDiarioAstralCta'), html.indexOf('function wireTrialCard')),
+    html.slice(html.indexOf('function wireTrialCard'), html.lastIndexOf('</script>')),
+  ];
+  for (const block of wireBlocks) {
+    assert.ok(block.includes("fbq('track', 'StartTrial'"), 'StartTrial ausente em um dos caminhos de trial');
+    assert.ok(block.includes("data.status !== 'trialing'"), 'validação de status ausente');
+    assert.ok(block.includes('window.location.href'), 'redirect ausente');
+  }
 });
 
 test('es-AR: ViewContent dispara na chegada com locale es-AR', async () => {

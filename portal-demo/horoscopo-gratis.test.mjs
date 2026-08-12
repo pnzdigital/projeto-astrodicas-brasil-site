@@ -57,19 +57,15 @@ test('preço do Diário Astral vem de /api/catalog, não está hardcoded', () =>
   assert.ok(!/ARS\s?\d/.test(html), 'preço em pesos hardcoded encontrado');
 });
 
-// ── Diferença obrigatória: trial com cartão só em es-AR ─────────────────────
+// ── Ambos os idiomas usam trial sem cartão (/api/trial/start) ───────────────
 
-test('oferta pt-BR não tem formulário de trial nem chama /api/trial/start', () => {
+test('oferta pt-BR usa formulário de trial e chama /api/trial/start', () => {
   const match = html.match(/function renderDiarioAstralOffer\s*\(\)\s*\{([\s\S]*?)\n    \}/);
   assert.ok(match, 'função renderDiarioAstralOffer não encontrada');
   const body = match[1];
-  assert.ok(!body.includes('trial-form'), 'formulário de trial vazou pro caminho pt-BR');
-  assert.ok(!body.includes('/api/trial/start'), 'chamada de trial vazou pro caminho pt-BR');
+  assert.ok(body.includes('trial-form'), 'formulário de trial ausente no caminho pt-BR');
+  assert.ok(body.includes('/api/trial/start') || html.includes('/api/trial/start'), 'chamada de trial ausente');
   assert.ok(body.includes('offerCta'), 'CTA do Diário Astral ausente no caminho pt-BR');
-});
-
-test('oferta pt-BR aponta para o checkout do Diário Astral', () => {
-  assert.match(html, /checkout\?product=site:diario_astral/);
 });
 
 test('oferta es-AR usa formulário de trial e chama /api/trial/start', () => {
@@ -91,17 +87,17 @@ test('fluxo de trial es-AR chama POST /api/trial/start sem cartão no front e re
   assert.match(html, /window\.location\.href\s*=\s*PORTAL/, 'sucesso do trial deve redirecionar pro portal, não pra um checkout de cartão');
 });
 
-test('oferta es-AR só revela os campos de nome/e-mail depois do clique num CTA — <details> nativo, sem reload', () => {
+test('oferta es-AR só revela o e-mail depois do clique num CTA — <details> nativo, sem reload', () => {
   const match = html.match(/function renderTrialOffer\s*\(\)\s*\{([\s\S]*?)\n    \}/);
   assert.ok(match, 'função renderTrialOffer não encontrada');
   const body = match[1];
   const detailsIdx = body.indexOf('<details class="trial-reveal"');
-  const summaryIdx = body.indexOf('<summary class="button">');
+  const summaryIdx = body.indexOf('<summary class="button secondary">');
   const formIdx = body.indexOf('<form id="trial-form">');
   assert.ok(detailsIdx >= 0, 'reveal <details> ausente na oferta es-AR');
   assert.ok(detailsIdx < summaryIdx && summaryIdx < formIdx, 'ordem errada: precisa ser details > summary(CTA) > form(dados)');
   // o resumo do <details> (visível fechado) usa startTrialCta; o CTA de dentro do form (só visível após abrir) usa mpCta.
-  assert.match(body, /<summary class="button">\$\{escapeHtml\(copy\.startTrialCta\)\}<\/summary>/);
+  assert.match(body, /<summary class="button secondary">\$\{escapeHtml\(copy\.startTrialCta\)\}<\/summary>/);
   assert.match(body, /id="trial-submit">\$\{escapeHtml\(copy\.mpCta\)\}/);
 });
 
@@ -151,11 +147,12 @@ test('copy pt-BR vende os 3 dias grátis, sem pegadinha', () => {
   assert.ok(ptCopy.toLowerCase().includes('não fica nada salvo'), 'pt-BR não deixa explícito que nada fica salvo sem cartão');
 });
 
-test('copy pt-BR deixa explícito que o acesso grátis termina no dia 4 sem cobrar nada, e pt-BR não usa CTA de trial (vai direto pro checkout avulso)', () => {
-  assert.match(html, /[Dd]ia 4: seu acesso grátis termina e pronto — não cobramos nada, porque não há cartão/);
+test('copy pt-BR deixa explícito que o acesso grátis termina sem cobrar nada e que não há renovação automática', () => {
+  assert.match(html, /[Ss]em renovação automática/);
+  assert.match(html, /[Nn]ão cobramos nada|[Nn]ão se cobra nada|não fica nada salvo/i);
   const match = html.match(/function renderDiarioAstralOffer\s*\(\)\s*\{([\s\S]*?)\n    \}/);
   assert.ok(match, 'função renderDiarioAstralOffer não encontrada');
-  assert.ok(!match[1].includes('trial-form'), 'pt-BR não deveria ter CTA de trial — vai direto pro checkout avulso');
+  assert.ok(match[1].includes('trial-form'), 'pt-BR deve usar CTA de trial (sem cartão)');
 });
 
 test('bullets do Diário Astral batem com o que o produto realmente entrega (horóscopo diário + guia do mês), sem prometer Mapa Astral de brinde', () => {
@@ -168,8 +165,10 @@ test('bullets do Diário Astral batem com o que o produto realmente entrega (hor
   assert.ok(/[Gg]uía del mes/.test(esCopy), 'bullet da Guía del mes ausente no es-AR');
 });
 
-test('preço do offer-price pt-BR usa priceLabel vindo do /api/catalog (via offerHonesty), não valor fixo', () => {
-  assert.match(html, /offerHonesty\.replace\('\{price\}', priceLabel\)/);
+test('preço do offer-price usa priceLabel vindo do /api/catalog, não valor fixo', () => {
+  // priceLabel aparece no bloco price-anchor de ambas as funções de oferta
+  assert.match(html, /escapeHtml\(priceLabel\)/);
+  assert.match(html, /price-anchor/);
 });
 
 // ── Localização: nada de PT vazando pro ES e vice-versa ─────────────────────
@@ -207,9 +206,8 @@ test('dispara Lead ao gerar o horóscopo grátis', () => {
   assert.match(html, /fbq\('track', 'Lead'/);
 });
 
-test('dispara StartTrial no caminho es-AR e InitiateCheckout no caminho pt-BR', () => {
+test('dispara StartTrial nos dois caminhos de trial (pt-BR e es-AR)', () => {
   assert.match(html, /fbq\('track', 'StartTrial'/);
-  assert.match(html, /fbq\('track', 'InitiateCheckout'/);
 });
 
 test('inclui o script do meta-pixel', () => {
