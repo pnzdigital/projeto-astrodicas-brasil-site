@@ -151,7 +151,7 @@ def test_astrology_context_skips_geocoding_when_disabled(monkeypatch):
 def test_minimax_max_tokens_scales_with_content_length():
     """Content rules demand up to 14 paragraphs (~2000+ words). 2400 tokens
     can truncate mid-paragraph. The engine must request a larger ceiling for
-    long premium reading types and a smaller, sufficient one for short ones."""
+    long premium reading types and a sufficient one for short ones."""
     long_types = [
         "site:content:mapa_astral_completo",  # 10-14 paragraphs
         "site:content:mapa_do_amor_sinastria",  # 9-12
@@ -160,11 +160,16 @@ def test_minimax_max_tokens_scales_with_content_length():
     ]
     for cid in long_types:
         assert engine._max_tokens_for(cid) >= 3200, f"{cid} budget too small"
-    short_types = [
-        "site:content:horoscopo_diario",  # 3 paragraphs
-    ]
-    for cid in short_types:
-        assert engine._max_tokens_for(cid) <= 2200, f"{cid} budget too large"
+
+
+def test_horoscopo_diario_budget_acomoda_raciocinio_m2x():
+    """horoscopo_diario precisa de >= 2500 tokens porque M2.x é modelo de
+    raciocínio: <think>…</think> CONTA contra max_tokens e pode consumir o
+    budget inteiro antes de produzir saída. Com 1500, o modelo esgotava em
+    raciocínio e devolvia corpo vazio (finish_reason=length), caindo no
+    fallback editorial. Nunca reduzir abaixo de 2000 sem medir consumo real."""
+    budget = engine._max_tokens_for("site:content:horoscopo_diario")
+    assert budget >= 2000, f"budget {budget} pequeno demais — M2.x queima tokens em raciocínio"
 
 
 # ---------------------------------------------------------------------------

@@ -179,8 +179,18 @@ def _extract_content_id(prompt: str) -> str:
 # o valor herdado, mas mapa_da_prosperidade caiu em fallback por vazamento de
 # idioma (guard já existente), não por token, então não é resolvido só com
 # budget maior; ver relatório.
+#
+# horoscopo_diario: bumped 1500 → 2500 em 2026-08-12 após queda em fallback
+# editorial confirmada em produção. Causa: M2.x é modelo de raciocínio — o
+# bloco <think>…</think> CONTA contra max_tokens (doc MiniMax: "thinking
+# cannot be disabled for M2.x"). Com 1500 o modelo esgotava o budget em
+# raciocínio e devolvia corpo vazio (finish_reason=length nas duas tentativas),
+# acionando o fallback. Pior caso observado: 1500 tokens 100% consumidos em
+# thinking, zero tokens de saída. Budget de 2500 dá ~67% de headroom sobre o
+# volume de saída real pedido (~3 parágrafos x 100 palavras x 1.6 t/w ≈ 480
+# tokens de corpo), mantendo margem generosa para o bloco de raciocínio.
 TOKEN_BUDGETS = {
-    "site:content:horoscopo_diario": 1500,
+    "site:content:horoscopo_diario": 2500,
     "site:content:mapa_astral_completo": 7000,
     "site:content:mapa_do_amor_sinastria": 3600,
     "site:content:mapa_da_carreira": 6500,
