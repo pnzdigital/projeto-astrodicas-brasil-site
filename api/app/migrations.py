@@ -85,6 +85,7 @@ def ensure_schema() -> None:
     _relax_order_user_id(inspector, existing_tables)
     _rename_product_ids(existing_tables)
     _ensure_unique_indices(existing_tables)
+    _ensure_push_subscriptions(existing_tables)
 
 
 # Renomeação dos product_id internos: plano_lua → diario_astral e variantes.
@@ -135,6 +136,20 @@ def _ensure_unique_indices(existing_tables: set[str]) -> None:
             logger.info("Índice único %s criado em %s.", index_name, table)
         except Exception as exc:
             logger.warning("Não foi possível criar índice %s em %s: %s", index_name, table, exc)
+
+
+def _ensure_push_subscriptions(existing_tables: set[str]) -> None:
+    """Cria tabela site_push_subscriptions se não existir (via create_all é suficiente,
+    mas garantimos aqui para bancos que não passaram pelo create_all desta versão)."""
+    if "site_push_subscriptions" in existing_tables:
+        return
+    from .push_notifications import PushSubscription  # late import evita circular
+    from .db import Base
+    try:
+        PushSubscription.__table__.create(bind=engine, checkfirst=True)
+        logger.info("Tabela site_push_subscriptions criada.")
+    except Exception as exc:
+        logger.warning("Não foi possível criar site_push_subscriptions: %s", exc)
 
 
 def _relax_order_user_id(inspector, existing_tables: set[str]) -> None:

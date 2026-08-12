@@ -18,7 +18,7 @@ from sqlalchemy.orm import Session
 from .db import Base, SessionLocal, engine, get_db
 from .astrology import resolve_coordinates
 from .mailer import send_purchase_confirmation
-from . import admin, checkout, entitlements, ggcheckout, horoscope_free, migrations, preview, pricing, renewal, security, sessions, subscriptions, worker as _worker
+from . import admin, checkout, entitlements, ggcheckout, horoscope_free, migrations, preview, pricing, push_notifications, renewal, security, sessions, subscriptions, worker as _worker
 from .ratelimit import auth_rate_limit, password_reset_rate_limit, webhook_rate_limit
 from .engine import generate_reading, sections_for
 from .pdf_export import build_pdf
@@ -56,6 +56,7 @@ app.include_router(preview.router)
 app.include_router(horoscope_free.router)
 app.include_router(subscriptions.router)
 app.include_router(renewal.router)
+app.include_router(push_notifications.router)
 
 
 @app.middleware("http")

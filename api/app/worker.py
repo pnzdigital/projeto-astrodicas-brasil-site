@@ -226,6 +226,14 @@ def run_job(job_id: str) -> None:
         job.status = "done"
         db.commit()
 
+        # Notificação push: dispara fora da sessão do job para não travar o loop
+        try:
+            from .push_notifications import notify_reading_done  # late import
+            reading_title = reading.title if reading else ""
+            notify_reading_done(job.reading_id, job.user_id, job.locale, reading_title)
+        except Exception:
+            logger.exception("Falha ao enviar push para job %s (não bloqueia o worker)", job_id)
+
     except Exception:
         logger.exception("Erro inesperado no job %s", job_id)
     finally:

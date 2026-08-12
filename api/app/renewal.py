@@ -702,3 +702,51 @@ async def astro_alerts_task(request: Request, db: Session = Depends(get_db)) -> 
 
     stats = run_astro_alerts(db)
     return {"ok": True, **stats}
+
+
+@router.post("/api/tasks/push-daily-horoscope")
+async def push_daily_horoscope_task(request: Request, db: Session = Depends(get_db)) -> dict:
+    """Cron diário para notificar usuários com push que o horóscopo está pronto.
+
+    Enviar depois que o horóscopo do dia já estiver gerado (ex.: 07:30 UTC).
+    Autentica por x-task-secret, mesmo padrão dos outros tasks.
+    """
+    secret = os.getenv("TASK_SECRET", "").strip()
+    if not secret:
+        raise HTTPException(status_code=503, detail="TASK_SECRET não configurado.")
+    provided = request.headers.get("x-task-secret", "")
+    if not hmac.compare_digest(secret.encode(), provided.encode()):
+        raise HTTPException(status_code=401, detail="Segredo inválido.")
+
+    from .push_notifications import notify_daily_horoscope, PushSubscription  # late import
+    from .models import Entitlement
+    from sqlalchemy import or_
+
+    now = _now()
+    # Coleta todos os users com push subscriptions e entitlement ativo
+    subs = db.scalars(select(PushSubscription)).all()
+    seen_users: set[str] = set()
+    sent = 0
+    skipped = 0
+    for sub in subs:
+        if sub.user_id in seen_users:
+            continue
+        seen_users.add(sub.user_id)
+        ent = db.scalar(
+            select(Entitlement).where(
+                Entitlement.user_id == sub.user_id,
+                Entitlement.product_id == PRODUCT_ID,
+                Entitlement.status == "available",
+                or_(Entitlement.expires_at.is_(None), Entitlement.expires_at >= now),
+            )
+        )
+        if not ent:
+            skipped += 1
+            continue
+        try:
+            notify_daily_horoscope(db, sub.user_id, sub.locale)
+            sent += 1
+        except Exception:
+            logger.exception("Falha ao enviar push diário para user %s", sub.user_id[:8])
+
+    return {"ok": True, "sent": sent, "skipped": skipped}
