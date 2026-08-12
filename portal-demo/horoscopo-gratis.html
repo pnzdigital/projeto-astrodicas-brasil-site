@@ -66,6 +66,7 @@
     .offer .price{color:var(--gold-lit);font:600 26px/1 var(--display);margin-bottom:16px}
     .offer .price small{font:500 11px var(--body);color:var(--faint)}
     .honesty{margin:16px 0 0;padding:13px 15px;border:1px dashed rgba(217,172,92,.4);border-radius:5px;color:var(--muted);font-size:12px;line-height:1.55}
+    .birth-time-note{margin:16px 0 0;color:var(--faint);font-size:12px;line-height:1.5}
     .price-anchor{text-decoration:line-through;color:var(--faint);margin-right:6px;font-size:inherit}
     .price-free{color:var(--gold-lit);font-weight:700}
     .trial-reveal{margin-top:18px}
@@ -309,13 +310,12 @@
     function renderReading(data, name) {
       const title = data.title || copy.resultTitleFallback;
       const bodyHtml = data.body_html || '';
-      // data.birth_time_assumed/ascendant_warning vêm do backend quando a
-      // hora não foi informada: o Ascendente calculado é estimativa (00:00)
-      // e a pessoa precisa ver isso, não só descobrir sem querer.
+      // data.birth_time_assumed/ascendant_warning: aviso sutil ao final da leitura
+      // (não no topo, para não interromper a experiência).
       const ascendantWarning = (data.birth_time_assumed && data.ascendant_warning)
-        ? `<p class="notice" role="status">⚠️ ${escapeHtml(data.ascendant_warning)}</p>`
+        ? `<p class="birth-time-note">${escapeHtml(data.ascendant_warning)}</p>`
         : '';
-      const readingHtml = `<article class="reading"><h2>${escapeHtml(title)}</h2>${ascendantWarning}<div class="body">${bodyHtml}</div></article>`;
+      const readingHtml = `<article class="reading"><h2>${escapeHtml(title)}</h2><div class="body">${bodyHtml}</div>${ascendantWarning}</article>`;
       const offerHtml = es ? renderTrialOffer() : renderDiarioAstralOffer();
       result.innerHTML = readingHtml + offerHtml;
       result.scrollIntoView({ behavior: 'smooth', block: 'start' });
