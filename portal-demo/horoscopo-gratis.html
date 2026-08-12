@@ -66,6 +66,8 @@
     .offer .price{color:var(--gold-lit);font:600 26px/1 var(--display);margin-bottom:16px}
     .offer .price small{font:500 11px var(--body);color:var(--faint)}
     .honesty{margin:16px 0 0;padding:13px 15px;border:1px dashed rgba(217,172,92,.4);border-radius:5px;color:var(--muted);font-size:12px;line-height:1.55}
+    .price-anchor{text-decoration:line-through;color:var(--faint);margin-right:6px;font-size:inherit}
+    .price-free{color:var(--gold-lit);font-weight:700}
     .trial-reveal{margin-top:18px}
     .trial-reveal summary.button{list-style:none}
     .trial-reveal summary.button::-webkit-details-marker{display:none}
@@ -142,7 +144,6 @@
       honesty: 'Día 4: tu acceso gratis termina y listo — no se cobra nada, porque no hay tarjeta. Si querés seguir, comprás 30 días por {price} cuando vos quieras.',
       startTrialCta: 'Desbloquear 3 días gratis de horóscopo',
       mpCta: 'Activar mis 3 días gratis →',
-      buyerName: 'Nombre',
       buyerEmail: 'E-mail',
       trialFailed: 'No pudimos activar tu trial ahora. Probá de nuevo en unos instantes.',
       trialOpening: 'Activando tu acceso…',
@@ -178,6 +179,9 @@
       offerHonesty: 'Dia 4: seu acesso grátis termina e pronto — não cobramos nada, porque não há cartão. Se quiser continuar, você compra 30 dias por {price} quando quiser.',
       startTrialCta: 'Desbloquear 3 dias grátis de horóscopo',
       offerCta: 'Começar meus 3 dias grátis →',
+      buyerEmail: 'E-mail',
+      trialFailed: 'Não foi possível ativar seu trial agora. Tente de novo em instantes.',
+      trialOpening: 'Ativando seu acesso…',
       priceFallback: 'Consultar',
     };
 
@@ -247,6 +251,7 @@
     const formError = document.getElementById('form-error');
     const result = document.getElementById('result');
 
+    let horoscopeName = '';
     let priceLabel = copy.priceFallback;
     let checkoutUrl = es ? null : `${es ? '/es' : ''}/checkout?product=site:diario_astral`;
     fetch(`${API}/api/catalog?locale=${encodeURIComponent(locale)}`)
@@ -286,6 +291,7 @@
           formError.textContent = detail || copy.genericError;
           return;
         }
+        horoscopeName = name;
         if (window.fbq) fbq('track', 'Lead', { content_name: 'horoscopo-gratis', content_language: locale });
         renderReading(data, name);
       } catch {
@@ -313,26 +319,52 @@
       else wireDiarioAstralCta();
     }
 
-    // pt-BR: trial sem cartão — botão abre a oferta, formulário coleta só e-mail,
+    // pt-BR: trial sem cartão — botão expande a oferta, formulário coleta só e-mail,
     // backend cria acesso local e redireciona pro portal.
     function renderDiarioAstralOffer() {
       return `<section class="offer" id="offer">
         <details class="trial-reveal" id="trial-reveal">
-          <summary class="button">${escapeHtml(copy.startTrialCta)}</summary>
-          <p class="no-card-pitch">${escapeHtml(copy.noCardPitch)}</p>
-          <p class="cancel-promise">${escapeHtml(copy.cancelPromise)}</p>
+          <summary class="button secondary">${escapeHtml(copy.startTrialCta)}</summary>
           <h3>${escapeHtml(copy.offerTitle)}</h3>
+          <p class="lede">${escapeHtml(copy.offerLede)}</p>
           <ul>${copy.offerItems.map((item) => `<li>${escapeHtml(item)}</li>`).join('')}</ul>
-          <a class="button" id="offer-cta" href="${escapeHtml(checkoutUrl)}">${escapeHtml(copy.offerCta)}</a>
-          <div class="price"><span id="offer-price">${escapeHtml(priceLabel)}</span> <small>depois dos 3 dias grátis</small></div>
+          <div class="price"><span class="price-anchor" id="offer-price">${escapeHtml(priceLabel)}</span> <span class="price-free">R$ 0 hoje</span></div>
+          <form id="trial-form">
+            <div class="field"><label for="t-email">${escapeHtml(copy.buyerEmail)}</label><input id="t-email" name="trial_email" type="email" autocomplete="email" required></div>
+            <button class="button" type="submit" id="trial-submit">${escapeHtml(copy.offerCta)}</button>
+            <p class="error" role="alert" id="trial-error"></p>
+          </form>
           <p class="honesty">${escapeHtml(copy.offerHonesty.replace('{price}', priceLabel))}</p>
         </details>
       </section>`;
     }
 
     function wireDiarioAstralCta() {
-      document.getElementById('offer-cta')?.addEventListener('click', () => {
-        if (window.fbq) fbq('track', 'InitiateCheckout', { content_name: 'diario-astral', content_language: locale });
+      const trialForm = document.getElementById('trial-form');
+      const trialError = document.getElementById('trial-error');
+      const trialSubmit = document.getElementById('trial-submit');
+      if (!trialForm) return;
+      trialForm.addEventListener('submit', async (event) => {
+        event.preventDefault();
+        trialError.textContent = '';
+        const trialEmail = (trialForm.querySelector('[name="trial_email"]')?.value || '').trim();
+        if (!trialEmail) { trialError.textContent = copy.missing; return; }
+        trialSubmit.disabled = true;
+        trialError.textContent = copy.trialOpening;
+        try {
+          const response = await fetch(`${API}/api/trial/start`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ email: trialEmail, name: horoscopeName, locale }),
+          });
+          const data = await response.json().catch(() => ({}));
+          if (!response.ok || data.status !== 'trialing') { trialError.textContent = data.detail || copy.trialFailed; trialSubmit.disabled = false; return; }
+          if (window.fbq) fbq('track', 'StartTrial', { content_name: 'diario-astral-trial', content_language: locale, predicted_ltv: 0 });
+          window.location.href = PORTAL;
+        } catch {
+          trialError.textContent = copy.trialFailed;
+          trialSubmit.disabled = false;
+        }
       });
     }
 
