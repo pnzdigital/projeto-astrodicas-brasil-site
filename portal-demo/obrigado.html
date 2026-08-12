@@ -25,6 +25,7 @@
     .button{display:inline-flex;min-height:48px;align-items:center;justify-content:center;padding:0 24px;border:1px solid var(--gold);border-radius:5px;color:#181006;background:var(--gold);font-weight:700;text-decoration:none}
     .button:hover{background:var(--gold-lit)}
     .ref{margin-top:22px;color:rgba(244,239,228,.45);font-size:12px}
+    .spam-hint{margin:0 0 20px;color:rgba(244,239,228,.55);font-size:13px}
     a:focus-visible,.button:focus-visible{outline:2px solid var(--gold-lit);outline-offset:3px}
   </style>
   <script src="/meta-pixel.js"></script>
@@ -40,27 +41,53 @@
       <li id="step-2"><b>2.</b> Complete data, hora e cidade de nascimento no seu perfil.</li>
       <li id="step-3"><b>3.</b> Sua leitura é gerada na hora e fica guardada na sua área.</li>
     </ol>
+    <p class="spam-hint" id="spam-hint">Não encontrou o e-mail? Verifique a caixa de spam ou lixo eletrônico.</p>
     <a class="button" id="portal-link" href="https://dash.astrodicas.pnzdigital.com.br/">Entrar na minha área →</a>
     <p class="ref" id="reference"></p>
     <nav class="ref" aria-label="Links legais" id="legal-links" style="margin-top:10px"><a href="/termos" id="legal-termos">Termos</a> · <a href="/privacidade" id="legal-privacidade">Privacidade</a> · <a href="/suporte" id="legal-suporte">Suporte</a></nav>
   </main>
   <script>
     const isEs = location.pathname.startsWith('/es');
-    if (isEs) {
-      document.documentElement.lang = 'es-AR';
+    const params = new URLSearchParams(location.search);
+    const isTrial = params.get('trial') === '1';
+
+    if (isTrial) {
+      document.getElementById('title').textContent = isEs
+        ? 'Tus 3 días gratis están activos.'
+        : 'Seus 3 dias grátis estão ativos.';
+      document.getElementById('lede').textContent = isEs
+        ? 'Enviamos tu contraseña temporal por e-mail. Usá ese enlace para entrar.'
+        : 'Enviamos sua senha temporária por e-mail. Use esse link para entrar no portal.';
+      document.getElementById('step-1').innerHTML = isEs
+        ? '<b>1.</b> Abrí el e-mail que te mandamos y hacé clic en el enlace de acceso.'
+        : '<b>1.</b> Abra o e-mail que enviamos e clique no link de acesso.';
+      document.getElementById('step-2').innerHTML = isEs
+        ? '<b>2.</b> Completá fecha, hora y ciudad de nacimiento en tu perfil.'
+        : '<b>2.</b> Complete data, hora e cidade de nascimento no seu perfil.';
+      document.getElementById('step-3').innerHTML = isEs
+        ? '<b>3.</b> Tu horóscopo diario se calcula al instante y queda guardado en tu área.'
+        : '<b>3.</b> Seu horóscopo diário é calculado na hora e fica guardado na sua área.';
+      document.title = isEs ? 'AstroDicas · Tus 3 días gratis' : 'AstroDicas · Seus 3 dias grátis';
+    } else if (isEs) {
       document.title = 'AstroDicas · Tu compra está confirmada';
       document.getElementById('title').textContent = 'Tu compra está confirmada.';
       document.getElementById('lede').textContent = 'Tu acceso al portal AstroDicas quedó habilitado. Te enviamos los detalles por e-mail.';
       document.getElementById('step-1').innerHTML = '<b>1.</b> Abrí el e-mail de confirmación y usá el enlace de acceso.';
       document.getElementById('step-2').innerHTML = '<b>2.</b> Completá fecha, hora y ciudad de nacimiento en tu perfil.';
       document.getElementById('step-3').innerHTML = '<b>3.</b> Tu lectura se genera al instante y queda guardada en tu área.';
+    }
+
+    if (isEs) {
+      document.documentElement.lang = 'es-AR';
+      document.getElementById('spam-hint').textContent = '¿No encontrás el e-mail? Revisá la carpeta de spam o correo no deseado.';
       document.getElementById('portal-link').textContent = 'Entrar a mi área →';
       document.getElementById('legal-termos').textContent = 'Términos';
       document.getElementById('legal-privacidade').textContent = 'Privacidad';
       document.getElementById('legal-suporte').textContent = 'Soporte';
       document.querySelectorAll('#legal-links a').forEach((link) => { link.href = '/es' + link.getAttribute('href'); });
     }
-    const order = new URLSearchParams(location.search).get('order');
+
+    const order = params.get('order');
     if (order) {
       document.getElementById('reference').textContent = (isEs ? 'Referencia: ' : 'Referência: ') + order;
       trackPurchase(order);

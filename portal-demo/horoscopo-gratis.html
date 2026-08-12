@@ -377,7 +377,7 @@
           const data = await response.json().catch(() => ({}));
           if (!response.ok || data.status !== 'trialing') { trialError.textContent = data.detail || copy.trialFailed; trialSubmit.disabled = false; return; }
           if (window.fbq) fbq('track', 'StartTrial', { content_name: 'diario-astral-trial', content_language: locale, predicted_ltv: 0 });
-          window.location.href = PORTAL;
+          window.location.href = '/obrigado?trial=1';
         } catch {
           trialError.textContent = copy.trialFailed;
           trialSubmit.disabled = false;
@@ -431,7 +431,7 @@
           const data = await response.json().catch(() => ({}));
           if (!response.ok || data.status !== 'trialing') { trialError.textContent = data.detail || copy.trialFailed; trialSubmit.disabled = false; return; }
           if (window.fbq) fbq('track', 'StartTrial', { content_name: 'diario-astral-trial', content_language: locale, predicted_ltv: 0 });
-          window.location.href = PORTAL;
+          window.location.href = es ? '/es/obrigado?trial=1' : '/obrigado?trial=1';
         } catch {
           trialError.textContent = copy.trialFailed;
           trialSubmit.disabled = false;

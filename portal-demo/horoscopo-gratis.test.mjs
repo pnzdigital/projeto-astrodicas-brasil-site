@@ -84,7 +84,7 @@ test('fluxo de trial es-AR chama POST /api/trial/start sem cartão no front e re
   assert.ok(!/new window\.MercadoPago\(/.test(html), 'Brick do Mercado Pago não deve mais ser montado no front');
   assert.match(html, /\/api\/trial\/start/);
   assert.match(html, /data\.status\s*!==\s*['"]trialing['"]/, 'front precisa validar status:"trialing" da resposta antes de redirecionar');
-  assert.match(html, /window\.location\.href\s*=\s*PORTAL/, 'sucesso do trial deve redirecionar pro portal, não pra um checkout de cartão');
+  assert.match(html, /window\.location\.href\s*=\s*['"]\/(?:es\/)?obrigado\?trial=1['"]/, 'sucesso do trial deve redirecionar para /obrigado?trial=1, não pra um checkout de cartão');
 });
 
 test('oferta es-AR só revela o e-mail depois do clique num CTA — <details> nativo, sem reload', () => {
