@@ -378,10 +378,9 @@
     function renderTrialOffer() {
       return `<section class="offer" id="offer">
         <details class="trial-reveal" id="trial-reveal">
-          <summary class="button">${escapeHtml(copy.startTrialCta)}</summary>
-          <p class="no-card-pitch">${escapeHtml(copy.noCardPitch)}</p>
-          <p class="cancel-promise">${escapeHtml(copy.cancelPromise)}</p>
+          <summary class="button secondary">${escapeHtml(copy.startTrialCta)}</summary>
           <h3>${escapeHtml(copy.offerTitle)}</h3>
+          <p class="lede">${escapeHtml(copy.offerLede)}</p>
           <ul>${copy.offerItems.map((item) => `<li>${escapeHtml(item)}</li>`).join('')}</ul>
           <form id="trial-form">
             <div class="field"><label for="t-email">${escapeHtml(copy.buyerEmail)}</label><input id="t-email" name="trial_email" type="email" autocomplete="email" required></div>
