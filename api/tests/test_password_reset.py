@@ -380,3 +380,19 @@ def test_request_does_not_leak_email_validity_via_timing(monkeypatch):
         # explode. Os dois caminhos geram+descartam um token para equalizar.
         assert d_known < 2.0
         assert d_unknown < 2.0
+
+
+def test_token_curto_culpa_o_link_e_nao_a_senha(fresh_client):
+    """Link truncado no e-mail não pode mandar o cliente trocar a senha.
+
+    O token tem min_length=16; antes, qualquer campo curto demais caía na
+    mensagem de senha e o cliente corrigia o que já estava certo.
+    """
+    response = fresh_client.post(
+        "/api/auth/password-reset/confirm",
+        json={"token": "curto", "password": "SenhaForte123!", "locale": "pt-BR"},
+    )
+    assert response.status_code == 422
+    detail = response.json()["detail"]
+    assert "senha" not in detail.lower()
+    assert "link" in detail.lower()

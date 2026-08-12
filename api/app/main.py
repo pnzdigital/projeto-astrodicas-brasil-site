@@ -172,6 +172,11 @@ def _auth_validation_detail(errors, locale: str, accept_language: str | None) ->
             return _msg("validation_password", locale, accept_language)
         if field == "name":
             return _msg("validation_name", locale, accept_language)
+        # Token curto (link truncado no e-mail, colado pela metade) é problema do
+        # link, não da senha: sem este ramo caía no genérico abaixo e mandava o
+        # cliente corrigir a senha, que estava certa.
+        if field == "token":
+            return _msg("reset_token_invalid", locale, accept_language)
         if field == "password" or "string_too_short" in etype:
             return _msg("validation_password", locale, accept_language)
     return _msg("validation_required", locale, accept_language)
