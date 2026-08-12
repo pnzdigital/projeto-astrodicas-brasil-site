@@ -222,10 +222,12 @@ BIRTH_TIME_HONESTY: dict[str, str] = {
 }
 
 # Sem aspecto fechado o dia é de fundo, e dizer isso é mais honesto do que
-# inventar um evento astrológico que não está acontecendo.
+# inventar um evento astrológico que não está acontecendo. O texto precisa ser
+# substantivo mesmo sem aspecto: dias de fundo têm uso próprio, e nomear esse
+# uso é o que faz a leitura valer a leitura — não só o céu agitado.
 QUIET_DAY: dict[str, str] = {
-    "pt-BR": "Hoje nenhum trânsito rápido fecha aspecto exato com os pontos principais do seu mapa. Na prática é um dia de fundo: sem empurrão nem freio de fora, o que acontece é o que você puser em movimento.",
-    "es-AR": "Hoy ningún tránsito rápido cierra aspecto exacto con los puntos principales de tu carta. En la práctica es un día de fondo: sin empujón ni freno de afuera, lo que pasa es lo que vos pongas en movimiento.",
+    "pt-BR": "Hoje nenhum trânsito rápido fecha aspecto exato com os pontos principais do seu mapa. Na prática é um dia de fundo: sem empurrão nem freio de fora, o que acontece é o que você puser em movimento. Dias assim costumam passar sem marca, mas têm um uso próprio: são ótimos para avançar no que estava parado por falta de clareza, revisar o que foi decidido nos dias mais carregados e deixar assentar o que ainda está no ar. O ritmo é seu — use isso.",
+    "es-AR": "Hoy ningún tránsito rápido cierra aspecto exacto con los puntos principales de tu carta. En la práctica es un día de fondo: sin empujón ni freno de afuera, lo que pasa es lo que vos pongas en movimiento. Días así suelen pasar sin marca, pero tienen un uso propio: son buenos para avanzar en lo que estaba frenado por falta de claridad, revisar lo que se decidió en días más cargados y dejar reposar lo que todavía está en el aire. El ritmo es tuyo — usalo.",
 }
 
 # Fechamento prático, ancorado no Sol natal — o que a pessoa já reconhece como

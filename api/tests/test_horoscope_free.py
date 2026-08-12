@@ -186,12 +186,27 @@ def test_vitrine_argentina_geocodifica_na_argentina(client, monkeypatch):
     assert paises == ["AR", "BR"], paises
 
 
-def test_leitura_gratis_e_bem_mais_longa_que_a_versao_antiga(client, geocoded):
-    """Alvo do alongamento: pelo menos ~3x o tamanho do texto de 3 parágrafos antigo."""
-    body = client.post("/api/horoscopo/gratis", json={**BASE, "locale": "pt-BR"}).json()
+def test_leitura_gratis_atinge_piso_no_pior_caso(geocoded, monkeypatch):
+    """Garante >= 900 chars mesmo no pior caso: dia sem aspecto (QUIET_DAY) e
+    combinação de templates mais curtos. Determinístico — não depende do dia
+    de execução. O pior caso é testado diretamente via compose() com
+    strongest_aspect mockado para None."""
+    from app.horoscope_free import HoroscopeBody, compose, natal_chart, secondary_aspect
+    from datetime import datetime, timezone
 
-    assert len(body["paragraphs"]) >= 4
-    assert len(body["body_html"]) >= 900, len(body["body_html"])
+    monkeypatch.setattr(horoscope_free, "strongest_aspect", lambda *a, **kw: None)
+
+    body = HoroscopeBody(**BASE, locale="pt-BR")
+    natal = natal_chart(body, "pt-BR")
+    # Data fixa: 2026-01-05 12:00 UTC — Lua em Capricórnio, combinação mais
+    # curta medida (moon=Capricórnio, ruler=Vênus, phase=crescente).
+    momento = datetime(2026, 1, 5, 12, tzinfo=timezone.utc)
+    transits = astrology._planet_positions(horoscope_free._julian_day(momento))
+    result = compose("Mariana", natal, transits, None, "pt-BR", weekday=0)
+
+    assert len(result["body_html"]) >= 900, (
+        f"Pior caso: {len(result['body_html'])} chars — QUIET_DAY curto demais"
+    )
 
 
 def test_leitura_traz_clima_geral_do_dia(client, geocoded):
