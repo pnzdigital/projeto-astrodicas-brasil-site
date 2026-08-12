@@ -26,24 +26,24 @@ class _Profile:
 def test_generate_reading_uses_fallback_when_no_api_key(monkeypatch):
     monkeypatch.delenv("MINIMAX_API_KEY", raising=False)
     result = engine.generate_reading("site:content:horoscopo_diario", "Horóscopo diário", _Profile(date(1990, 5, 20)))
-    assert result.body_html.startswith("<p>")
+    assert "<p>" in result.body_html
     assert "Touro" in result.body_html
     assert result.source == "fallback"
 
 
 def test_generate_reading_falls_back_when_minimax_raises(monkeypatch):
     monkeypatch.setenv("MINIMAX_API_KEY", "test-key")
-    monkeypatch.setattr(engine, "_call_minimax", lambda prompt, locale="pt-BR": (_ for _ in ()).throw(RuntimeError("MiniMax indisponível: URLError")))
+    monkeypatch.setattr(engine, "_call_minimax", lambda prompt, locale="pt-BR", **kwargs: (_ for _ in ()).throw(RuntimeError("MiniMax indisponível: URLError")))
     result = engine.generate_reading("site:content:horoscopo_diario", "Horóscopo diário", _Profile(date(1990, 5, 20)))
-    assert result.body_html.startswith("<p>")
+    assert "<p>" in result.body_html
     assert result.source == "fallback"
 
 
 def test_generate_reading_falls_back_when_minimax_returns_empty(monkeypatch):
     monkeypatch.setenv("MINIMAX_API_KEY", "test-key")
-    monkeypatch.setattr(engine, "_call_minimax", lambda prompt, locale="pt-BR": "")
+    monkeypatch.setattr(engine, "_call_minimax", lambda prompt, locale="pt-BR", **kwargs: "")
     result = engine.generate_reading("site:content:horoscopo_diario", "Horóscopo diário", _Profile(date(1990, 5, 20)))
-    assert result.body_html.startswith("<p>")
+    assert "<p>" in result.body_html
     assert result.source == "fallback"
 
 

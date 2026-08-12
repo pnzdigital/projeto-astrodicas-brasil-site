@@ -164,8 +164,7 @@ def test_generate_202_response_includes_progress_fields(db_session, monkeypatch)
 
 
 def test_content_without_sections_keeps_counters_zero(db_session, monkeypatch):
-    """Content IDs sem seções definidas (ex: horoscopo_diario antes da engine
-    retornar) mantêm sections_done e sections_total em 0."""
+    """Content IDs sem seções definidas mantêm sections_done e sections_total em 0."""
     user_id = _setup_paid_user(db_session, "progress-nosec@example.com", product_id="site:diario_astral")
 
     monkeypatch.setattr(main, "generate_reading", lambda *a, **kw: ReadingResult(body_html="<p>OK</p>", source="minimax"))
@@ -174,7 +173,7 @@ def test_content_without_sections_keeps_counters_zero(db_session, monkeypatch):
     background_tasks = BackgroundTasks()
     response = Response()
     result = main.generate(
-        "site:content:horoscopo_diario",
+        "site:content:previsao_semanal",
         _fake_request(),
         response,
         background_tasks,
@@ -182,6 +181,6 @@ def test_content_without_sections_keeps_counters_zero(db_session, monkeypatch):
         db=db_session,
     )
     asyncio.run(background_tasks())
-    # horoscopo_diario não tem seções em SECTIONS_BY_CONTENT_ID
+    # previsao_semanal não tem seções em SECTIONS_BY_CONTENT_ID
     assert result["reading"]["sections_total"] == 0
     assert result["reading"]["sections_done"] == 0

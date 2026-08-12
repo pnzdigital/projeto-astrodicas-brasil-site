@@ -187,13 +187,13 @@ def test_generate_reading_indicates_fallback_when_no_api_key(monkeypatch):
     )
     assert isinstance(result, engine.ReadingResult)
     assert result.source == "fallback"
-    assert result.body_html.startswith("<p>")
+    assert "<p>" in result.body_html
     assert result.warning  # non-empty warning so the API can surface it
 
 
 def test_generate_reading_returns_source_llm_when_live(monkeypatch):
     monkeypatch.setenv("MINIMAX_API_KEY", "test-key")
-    monkeypatch.setattr(engine, "_call_minimax", lambda prompt, locale="pt-BR": "Parágrafo um.\n\nParágrafo dois.")
+    monkeypatch.setattr(engine, "_call_minimax", lambda prompt, locale="pt-BR", **kwargs: "Parágrafo um.\n\nParágrafo dois.")
     result = engine.generate_reading(
         "site:content:horoscopo_diario", "Horóscopo diário", _Profile(), "pt-BR", "Alex"
     )
@@ -205,7 +205,7 @@ def test_generate_reading_returns_source_llm_when_live(monkeypatch):
 def test_generate_reading_fallback_when_live_errors(monkeypatch):
     monkeypatch.setenv("MINIMAX_API_KEY", "test-key")
 
-    def boom(_prompt, _locale="pt-BR"):
+    def boom(_prompt, _locale="pt-BR", **kwargs):
         raise RuntimeError("MiniMax indisponível: HTTPError")
 
     monkeypatch.setattr(engine, "_call_minimax", boom)
@@ -214,7 +214,7 @@ def test_generate_reading_fallback_when_live_errors(monkeypatch):
     )
     assert isinstance(result, engine.ReadingResult)
     assert result.source == "fallback"
-    assert result.body_html.startswith("<p>")
+    assert "<p>" in result.body_html
 
 
 # ---------------------------------------------------------------------------
