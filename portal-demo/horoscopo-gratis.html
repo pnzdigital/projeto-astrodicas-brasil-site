@@ -66,6 +66,8 @@
     .offer .price{color:var(--gold-lit);font:600 26px/1 var(--display);margin-bottom:16px}
     .offer .price small{font:500 11px var(--body);color:var(--faint)}
     .honesty{margin:16px 0 0;padding:13px 15px;border:1px dashed rgba(217,172,92,.4);border-radius:5px;color:var(--muted);font-size:12px;line-height:1.55}
+    .offer-section-label{margin:18px 0 6px;font-size:11px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);opacity:.7}
+    .offer-paid-label{margin-top:22px;padding-top:16px;border-top:1px solid rgba(255,255,255,.08)}
     .birth-time-note{margin:16px 0 0;color:var(--faint);font-size:12px;line-height:1.5}
     .price-anchor{text-decoration:line-through;color:var(--faint);margin-right:6px;font-size:inherit}
     .price-free{color:var(--gold-lit);font-weight:700}
@@ -134,10 +136,14 @@
       resultTitleFallback: 'Tu horóscopo de hoy',
       offerTitle: 'Lo que acabás de leer es apenas hoy',
       offerLede: 'El Diario Astral calcula tu cielo personal todos los días — no una lectura genérica de revista, sino tu mapa real. Probalo 3 días gratis.',
-      offerItems: [
-        '3 días de horóscopo diario personalizado, calculado sobre tu carta — no una lectura genérica de revista',
-        'Con tu primer mes: Mapa Astral Completo en PDF — tuyo para siempre',
-        'Guía del mes y previsión de la semana durante tus 30 días',
+      offerTrialTitle: 'En los 3 días gratis',
+      offerTrialItems: [
+        'Horóscopo diario personalizado, calculado sobre tu carta real — no una lectura genérica de revista',
+      ],
+      offerPaidTitle: 'Si decidís continuar (30 días, pago único)',
+      offerPaidItems: [
+        'Mapa Astral Completo en PDF — generado al confirmar el pago, tuyo para siempre',
+        'Guía del mes y previsión de la semana durante los 30 días',
         'Acceso a tu área en el sitio con todo guardado',
       ],
       noCardPitch: 'Solo tu e-mail — sin tarjeta.',
@@ -171,11 +177,15 @@
       resultTitleFallback: 'Seu horóscopo de hoje',
       offerTitle: 'O que você leu foi só o de hoje',
       offerLede: 'O Diário Astral calcula o seu céu pessoal todo dia — não uma leitura genérica de revista, mas o seu mapa real. Experimente 3 dias grátis.',
-      offerItems: [
-        '3 dias de horóscopo personalizado, calculado no seu mapa — não uma leitura genérica de revista',
-        'Com o 1º mês: Mapa Astral Completo em PDF — seu para sempre',
-        'Guia do Mês e previsão da semana durante os seus 30 dias',
-        'Acesso direto na sua área do site, sem precisar pedir de novo',
+      offerTrialTitle: 'Nos 3 dias grátis',
+      offerTrialItems: [
+        'Horóscopo diário personalizado, calculado no seu mapa real — não uma leitura genérica de revista',
+      ],
+      offerPaidTitle: 'Se decidir continuar (30 dias, pagamento único)',
+      offerPaidItems: [
+        'Mapa Astral Completo em PDF — gerado após o pagamento confirmado, seu para sempre',
+        'Guia do Mês e previsão da semana durante os 30 dias',
+        'Acesso direto na sua área do site',
       ],
       noCardPitch: 'Só o seu e-mail — sem cartão.',
       cancelPromise: 'Não pedimos cartão, então não fica nada salvo nem cobra sozinho.',
@@ -331,7 +341,10 @@
           <summary class="button secondary">${escapeHtml(copy.startTrialCta)}</summary>
           <h3>${escapeHtml(copy.offerTitle)}</h3>
           <p class="lede">${escapeHtml(copy.offerLede)}</p>
-          <ul>${copy.offerItems.map((item) => `<li>${escapeHtml(item)}</li>`).join('')}</ul>
+          <p class="offer-section-label">${escapeHtml(copy.offerTrialTitle)}</p>
+          <ul>${copy.offerTrialItems.map((item) => `<li>${escapeHtml(item)}</li>`).join('')}</ul>
+          <p class="offer-section-label offer-paid-label">${escapeHtml(copy.offerPaidTitle)}</p>
+          <ul>${copy.offerPaidItems.map((item) => `<li>${escapeHtml(item)}</li>`).join('')}</ul>
           <div class="price"><span class="price-anchor" id="offer-price">${escapeHtml(priceLabel)}</span> <span class="price-free">${escapeHtml(copy.trialFreeLabel)}</span></div>
           <form id="trial-form">
             <div class="field"><label for="t-email">${escapeHtml(copy.buyerEmail)}</label><input id="t-email" name="trial_email" type="email" autocomplete="email" required></div>
@@ -381,7 +394,10 @@
           <summary class="button secondary">${escapeHtml(copy.startTrialCta)}</summary>
           <h3>${escapeHtml(copy.offerTitle)}</h3>
           <p class="lede">${escapeHtml(copy.offerLede)}</p>
-          <ul>${copy.offerItems.map((item) => `<li>${escapeHtml(item)}</li>`).join('')}</ul>
+          <p class="offer-section-label">${escapeHtml(copy.offerTrialTitle)}</p>
+          <ul>${copy.offerTrialItems.map((item) => `<li>${escapeHtml(item)}</li>`).join('')}</ul>
+          <p class="offer-section-label offer-paid-label">${escapeHtml(copy.offerPaidTitle)}</p>
+          <ul>${copy.offerPaidItems.map((item) => `<li>${escapeHtml(item)}</li>`).join('')}</ul>
           <form id="trial-form">
             <div class="field"><label for="t-email">${escapeHtml(copy.buyerEmail)}</label><input id="t-email" name="trial_email" type="email" autocomplete="email" required></div>
             <button class="button" type="submit" id="trial-submit">${escapeHtml(copy.mpCta)}</button>
