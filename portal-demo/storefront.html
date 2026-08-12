@@ -49,13 +49,34 @@
     @media(max-width:920px){.nav{display:none}.hero-grid{grid-template-columns:1fr}.cosmos{min-height:280px;order:-1}.featured{grid-template-columns:1fr}.catalog{grid-template-columns:repeat(2,1fr)}.journal{grid-template-columns:1fr}.section-head{align-items:start;flex-direction:column}.final{grid-template-columns:1fr}.steps{grid-template-columns:1fr}.step+.step{border-left:0;border-top:1px solid var(--line)}.assurance{grid-template-columns:1fr}.assure+.assure{border-left:0;border-top:1px solid var(--line)}}
     @media(max-width:620px){.wrap{width:min(100% - 28px,1160px)}.site-head .wrap{min-height:65px}.head-actions>.button{display:none}.brand{font-size:25px}.hero{padding:48px 0 62px}.hero h1{font-size:48px}.lede{font-size:16px}.cosmos{min-height:230px}.orbit{width:270px;height:175px}.planet{width:120px;height:120px}.section{padding:64px 0}.catalog{grid-template-columns:1fr}.feature{min-height:330px;padding:27px}.feature h3{font-size:37px}.final{padding:28px}.footer-row{flex-direction:column}.hero-actions{display:grid}.hero-actions .button{width:100%}}
     @media(prefers-reduced-motion:reduce){html{scroll-behavior:auto}.button,.toast{transition:none}}
+    .ham-btn{display:none;flex-direction:column;justify-content:center;align-items:center;gap:5px;width:40px;height:40px;padding:0;border:0;background:transparent;cursor:pointer;border-radius:4px;flex-shrink:0}
+    .ham-btn:focus-visible{outline:2px solid var(--gold-lit);outline-offset:4px}
+    .ham-btn span{display:block;width:22px;height:2px;background:var(--cream);border-radius:2px;transition:transform .2s,opacity .2s}
+    .ham-btn[aria-expanded="true"] span:nth-child(1){transform:translateY(7px) rotate(45deg)}
+    .ham-btn[aria-expanded="true"] span:nth-child(2){opacity:0;transform:scaleX(0)}
+    .ham-btn[aria-expanded="true"] span:nth-child(3){transform:translateY(-7px) rotate(-45deg)}
+    .mob-menu{display:none;position:fixed;inset:0;top:74px;z-index:19;padding:28px 20px;background:rgba(8,7,25,.97);border-top:1px solid var(--line);overflow-y:auto;flex-direction:column;gap:0}
+    .mob-menu.open{display:flex}
+    .mob-menu-link{display:flex;align-items:center;min-height:56px;padding:0 4px;border-bottom:1px solid var(--line);color:var(--muted);font-size:18px;font-weight:500;letter-spacing:-.01em}
+    .mob-menu-link:hover{color:var(--cream)}
+    .mob-menu-link:focus-visible{outline:2px solid var(--gold-lit);outline-offset:2px;border-radius:2px}
+    .mob-menu>.button{margin-top:24px}
+    @media(max-width:920px){.ham-btn{display:flex}}
+    @media(max-width:620px){.mob-menu{top:65px}}
     .catalog-group{margin-top:44px}.catalog-group:first-child{margin-top:0}.catalog-group-label{display:flex;align-items:center;gap:10px;margin:0 0 16px;color:var(--gold);font-size:10px;font-weight:700;letter-spacing:.16em;text-transform:uppercase}.catalog-group-label:after{content:"";flex:1;height:1px;background:var(--line)}.catalog-maps{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}.catalog-combos{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}.combo-card{display:flex;flex-direction:column;padding:20px;border:1px solid rgba(244,239,228,.1);background:rgba(14,11,46,.55)}.combo-card:hover{border-color:var(--line)}.combo-card .product-kind{color:var(--gold);font-size:9px;font-weight:700;letter-spacing:.15em;text-transform:uppercase}.combo-card h3{margin:12px 0 auto;font:500 22px/1.1 var(--display)}.combo-foot{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-top:16px;padding-top:14px;border-top:1px solid rgba(244,239,228,.1)}.combo-extra{margin-top:10px}.combo-expand-btn{display:inline-flex;align-items:center;gap:7px;margin-top:14px;padding:0;border:0;background:transparent;color:var(--gold-lit);cursor:pointer;font-size:11px;font-weight:700;letter-spacing:.04em}.combo-expand-btn:hover{text-decoration:underline;text-underline-offset:4px}.combo-expand-btn:focus-visible{outline:2px solid var(--gold-lit);outline-offset:4px}.combo-expand-btn[aria-expanded="false"] .combo-expand-hide,.combo-expand-btn[aria-expanded="true"] .combo-expand-show{display:none}@media(max-width:920px){.catalog-maps{grid-template-columns:1fr}.catalog-combos{grid-template-columns:repeat(2,minmax(0,1fr))}}@media(max-width:620px){.catalog-combos{grid-template-columns:1fr}}
   </style>
   <script src="/meta-pixel.js"></script>
 </head>
 <body>
   <noscript><img height="1" width="1" style="display:none" alt="" src="https://www.facebook.com/tr?id=2812114902493745&amp;ev=PageView&amp;noscript=1"></noscript>
-  <header class="site-head"><div class="wrap"><a class="brand" href="/"><span class="brand-mark">✦</span>AstroDicas</a><nav class="nav" aria-label="Navegação principal"><a href="#leituras" data-copy="navProducts">Leituras</a><a href="#como" data-copy="navHow">Como funciona</a><a href="#garantias" data-copy="navAssurance">Garantias</a><a href="#caderno" data-copy="navJournal">Caderno do céu</a></nav><div class="head-actions"><div class="lang" aria-label="Idioma"><a href="/" data-lang="pt">BR</a><a href="/es" data-lang="es">ES</a></div><a class="button secondary small" href="https://dash.astrodicas.pnzdigital.com.br/" data-copy="login">Entrar</a></div></div></header>
+  <header class="site-head"><div class="wrap"><a class="brand" href="/"><span class="brand-mark">✦</span>AstroDicas</a><nav class="nav" aria-label="Navegação principal"><a href="#leituras" data-copy="navProducts">Leituras</a><a href="#como" data-copy="navHow">Como funciona</a><a href="#garantias" data-copy="navAssurance">Garantias</a><a href="#caderno" data-copy="navJournal">Caderno do céu</a></nav><div class="head-actions"><button class="ham-btn" id="ham-btn" aria-expanded="false" aria-controls="mob-menu" aria-label="Abrir menu"><span></span><span></span><span></span></button><div class="lang" aria-label="Idioma"><a href="/" data-lang="pt">BR</a><a href="/es" data-lang="es">ES</a></div><a class="button secondary small" href="https://dash.astrodicas.pnzdigital.com.br/" data-copy="login">Entrar</a></div></div></header>
+  <nav class="mob-menu" id="mob-menu" aria-label="Menu de navegação">
+    <a class="mob-menu-link" href="#leituras" data-copy="navProducts">Leituras</a>
+    <a class="mob-menu-link" href="#como" data-copy="navHow">Como funciona</a>
+    <a class="mob-menu-link" href="#garantias" data-copy="navAssurance">Garantias</a>
+    <a class="mob-menu-link" href="#caderno" data-copy="navJournal">Caderno do céu</a>
+    <a class="button secondary small" href="https://dash.astrodicas.pnzdigital.com.br/" data-copy="login">Entrar</a>
+  </nav>
   <main>
     <section class="hero"><div class="wrap hero-grid"><div><p class="eyebrow" data-copy="heroTag">Astrologia pessoal · área web premium</p><h1 data-copy-html="heroTitle">Seu céu não cabe em uma <em>frase pronta.</em></h1><p class="lede" data-copy="heroText">Mapas, leituras e previsões feitos a partir do seu nome, data, hora e cidade de nascimento — guardados em um portal para você voltar quando quiser.</p><div class="hero-actions"><a class="button" href="#previa" data-copy="heroCta">Ver minha prévia grátis →</a><a class="button secondary" href="https://dash.astrodicas.pnzdigital.com.br/" data-copy="clientCta">Já sou cliente</a></div><div class="proof-line"><span>✦ <b data-copy="proof1">Prévia grátis, sem cadastro</b></span><span>✦ <b data-copy="proof2">Leitura web e PDF opcional</b></span><span>✦ <b data-copy="proof3">Acesso pessoal e seguro</b></span></div></div><div class="cosmos" aria-hidden="true"><div class="orbit"></div><i class="star-dot one"></i><i class="star-dot two"></i><div class="planet"><div><strong data-copy="planet">SEU CÉU</strong><span data-copy="planetSmall">uma leitura de cada vez</span></div></div></div></div></section>
 
@@ -317,6 +338,17 @@
       }
     });
     document.getElementById('year').textContent=new Date().getFullYear();
+    (function(){
+      const btn=document.getElementById('ham-btn');
+      const menu=document.getElementById('mob-menu');
+      if(!btn||!menu)return;
+      function openMenu(){btn.setAttribute('aria-expanded','true');menu.classList.add('open');document.body.style.overflow='hidden';}
+      function closeMenu(){btn.setAttribute('aria-expanded','false');menu.classList.remove('open');document.body.style.overflow='';}
+      btn.addEventListener('click',()=>{btn.getAttribute('aria-expanded')==='true'?closeMenu():openMenu();});
+      document.addEventListener('keydown',e=>{if(e.key==='Escape'&&menu.classList.contains('open')){closeMenu();btn.focus();}});
+      document.addEventListener('click',e=>{if(menu.classList.contains('open')&&!menu.contains(e.target)&&!btn.contains(e.target))closeMenu();});
+      menu.querySelectorAll('a').forEach(a=>a.addEventListener('click',closeMenu));
+    })();
   </script>
 </body>
 </html>
