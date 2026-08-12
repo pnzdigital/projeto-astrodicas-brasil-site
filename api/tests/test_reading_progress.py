@@ -163,8 +163,10 @@ def test_generate_202_response_includes_progress_fields(db_session, monkeypatch)
     assert result["reading"]["sections_total"] == 15  # mapa_astral_completo tem 15
 
 
-def test_content_without_sections_keeps_counters_zero(db_session, monkeypatch):
-    """Content IDs sem seções definidas mantêm sections_done e sections_total em 0."""
+def test_sections_total_exposed_in_202_before_background_runs(db_session, monkeypatch):
+    """O 202 inicial já carrega o sections_total correto e sections_done=0 para
+    todos os content_ids — o front exibe a barra de progresso desde o primeiro
+    poll, antes de qualquer seção ser gerada."""
     user_id = _setup_paid_user(db_session, "progress-nosec@example.com", product_id="site:diario_astral")
 
     monkeypatch.setattr(main, "generate_reading", lambda *a, **kw: ReadingResult(body_html="<p>OK</p>", source="minimax"))
@@ -180,7 +182,7 @@ def test_content_without_sections_keeps_counters_zero(db_session, monkeypatch):
         site_session=site_session,
         db=db_session,
     )
-    asyncio.run(background_tasks())
-    # previsao_semanal não tem seções em SECTIONS_BY_CONTENT_ID
-    assert result["reading"]["sections_total"] == 0
+    # Antes do background rodar: sections_done ainda é 0
     assert result["reading"]["sections_done"] == 0
+    # previsao_semanal tem 7 seções definidas em SECTIONS_BY_CONTENT_ID
+    assert result["reading"]["sections_total"] == 7

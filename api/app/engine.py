@@ -180,26 +180,48 @@ def _extract_content_id(prompt: str) -> str:
 # idioma (guard já existente), não por token, então não é resolvido só com
 # budget maior; ver relatório.
 #
-# horoscopo_diario: bumped 1500 → 2500 em 2026-08-12 após queda em fallback
-# editorial confirmada em produção. Causa: M2.x é modelo de raciocínio — o
-# bloco <think>…</think> CONTA contra max_tokens (doc MiniMax: "thinking
-# cannot be disabled for M2.x"). Com 1500 o modelo esgotava o budget em
-# raciocínio e devolvia corpo vazio (finish_reason=length nas duas tentativas),
-# acionando o fallback. Pior caso observado: 1500 tokens 100% consumidos em
-# thinking, zero tokens de saída. Budget de 2500 dá ~67% de headroom sobre o
-# volume de saída real pedido (~3 parágrafos x 100 palavras x 1.6 t/w ≈ 480
-# tokens de corpo), mantendo margem generosa para o bloco de raciocínio.
+# horoscopo_diario: 1500 → 2500 em 2026-08-12 (commit bb4c964). Mesmo assim
+# continuou falhando em produção: log 20:02 e 20:19 mostram completion=2500,
+# finish_reason=length, body vazio. O M2.7 expande thinking para preencher o
+# budget — 2500 apenas deslocou o limite, não resolveu. Em 2026-08-12 o
+# content_id foi migrado para o formato seção-a-seção (SECTIONS_BY_CONTENT_ID);
+# o valor abaixo é mantido por histórico mas NUNCA é alcançado na geração
+# (caminho de seção usa _SECTION_TOKEN_BUDGET=2500, não TOKEN_BUDGETS).
+#
+# previsao_semanal: 2400 → 6000. Prompt pede 7 parágrafos (vs. 3 do
+# horoscopo_diario); thinking para prompt mais longo é proporcional ou maior.
+# Cálculo: 7 × 100 × 1.6 = 1120 tokens de corpo × 1.2 margem = 1344.
+# Thinking observado em prompts de similar complexidade: até 2500 tokens.
+# Budget seguro: 1344 + 2500 thinking + 20% = ~4600 → arredondado 6000 para
+# folga generosa. A cota do M2.7 é por REQUISIÇÃO/semana, não por token —
+# aumentar max_tokens custa zero cota. Se 6000 ainda falhar, migrar para
+# seção-a-seção (7 seções × 2500 = comprovadamente confiável).
+#
+# calendario_lunar: 2400 → 6000. Prompt pede 7-9 parágrafos — mesmo cálculo
+# e mesma justificativa do previsao_semanal.
+#
+# guia_dos_retrogrados: 2600 → 6000. Prompt pede 7-9 parágrafos explicando
+# planetas retrógrados presentes — conteúdo variável (depende de quais
+# planetas estão retrógrados), impossível predefinir seções fixas. Budget 6000
+# cobre o pior caso estimado. Se falhar em produção, seção dinâmica com
+# Panorama + 1 seção por planeta retrógrado + Conclusão.
+#
+# Os demais (mapa_*: 7000, 3600, 6500, 3200; guia_do_mes: 2800;
+# manual_do_ascendente: 2800) são DEAD CODE: esses content_ids estão em
+# SECTIONS_BY_CONTENT_ID e passam pelo caminho seção-a-seção que usa
+# _SECTION_TOKEN_BUDGET=2500 por seção. Mantidos aqui para rastreabilidade
+# histórica e para o guard de teste (_max_tokens_for ainda é chamado em testes).
 TOKEN_BUDGETS = {
-    "site:content:horoscopo_diario": 2500,
-    "site:content:mapa_astral_completo": 7000,
-    "site:content:mapa_do_amor_sinastria": 3600,
-    "site:content:mapa_da_carreira": 6500,
-    "site:content:mapa_da_prosperidade": 3200,
-    "site:content:previsao_semanal": 2400,
-    "site:content:guia_do_mes": 2800,
-    "site:content:calendario_lunar": 2400,
-    "site:content:guia_dos_retrogrados": 2600,
-    "site:content:manual_do_ascendente": 2800,
+    "site:content:horoscopo_diario": 2500,   # dead code — migrado para seção-a-seção
+    "site:content:mapa_astral_completo": 7000,  # dead code — seção-a-seção
+    "site:content:mapa_do_amor_sinastria": 3600,  # dead code — seção-a-seção
+    "site:content:mapa_da_carreira": 6500,   # dead code — seção-a-seção
+    "site:content:mapa_da_prosperidade": 3200,  # dead code — seção-a-seção
+    "site:content:previsao_semanal": 6000,   # dead code — migrado para seção-a-seção (2026-08-12)
+    "site:content:guia_do_mes": 2800,        # dead code — seção-a-seção
+    "site:content:calendario_lunar": 6000,   # dead code — migrado para seção-a-seção (2026-08-12)
+    "site:content:guia_dos_retrogrados": 6000,  # dead code — migrado para seção-a-seção (2026-08-12)
+    "site:content:manual_do_ascendente": 2800,  # dead code — seção-a-seção
 }
 DEFAULT_TOKEN_BUDGET = 3000
 
@@ -299,11 +321,23 @@ _SECTION_POOL_SIZE_DEFAULT = "4"
 
 # Seções exatas por content_id, portadas de astrodicas-telegram/src/vendas_bot/
 # mapa_premium.py (`_SECOES_POR_TIPO["astral"]`) para manter o MESMO produto
-# nos dois canais (bot e site). Cada tupla é (título canônico, subtítulo). O
-# site hoje só vende mapa_astral_completo em formato seccionado; os demais
-# content_ids seguem no formato de parágrafo corrido antigo até serem
-# migrados (lista fica vazia para eles = sem seccionamento).
+# nos dois canais (bot e site). Cada tupla é (título canônico, subtítulo).
+#
+# horoscopo_diario foi migrado para o formato seccionado em 2026-08-12.
+# Motivação: o formato de chamada única esgotava o budget em thinking mesmo a
+# 2500 tokens (confirmado em produção: finish_reason=length em 2/3 tentativas,
+# body vazio, fallback editorial entregue a cliente pagante). O formato
+# seção-a-seção resolve: cada seção é uma tarefa simples (1 parágrafo), o
+# bloco <think>…</think> do M2.7 é proporcionalmente menor e o budget de 2500
+# por seção passa confortavelmente (mesmo padrão observado nos mapas premium).
+# As 3 seções espelham a estrutura já documentada no legacy_rules do prompt:
+# identificação emocional → relações/trabalho → direção prática.
 SECTIONS_BY_CONTENT_ID: dict[str, list[tuple[str, str]]] = {
+    "site:content:horoscopo_diario": [
+        ("Identificação", "O dia reflete você"),
+        ("Relações e Trabalho", "O que cobra atenção"),
+        ("Direção Prática", "Como agir hoje"),
+    ],
     "site:content:mapa_astral_completo": [
         ("Introdução", "Seu mapa de alma"),
         ("Sol", "Identidade e propósito"),
@@ -403,6 +437,48 @@ SECTIONS_BY_CONTENT_ID: dict[str, list[tuple[str, str]]] = {
         ("Ascendente na Carreira", "Imagem profissional"),
         ("Desafios do Ascendente", "Pontos de tensão a observar"),
         ("Mensagem Final", "Integrando persona e essência"),
+    ],
+    # previsao_semanal: 7 parágrafos no prompt original (1 panorama + 6 temas/
+    # decisões da semana). Migrado de chamada única com TOKEN_BUDGET=6000 para
+    # seção-a-seção em 2026-08-12 porque M2.7 expande thinking para preencher o
+    # budget disponível — 6000 teria o mesmo destino de horoscopo_diario@2500:
+    # thinking ocupa tudo, corpo vazio, finish_reason=length. 7 seções × 2500
+    # = comprovadamente confiável (mesmo mecanismo dos mapas).
+    "site:content:previsao_semanal": [
+        ("Panorama da Semana", "O clima geral dos 7 dias"),
+        ("Segunda e Terça", "Início de semana"),
+        ("Quarta e Quinta", "Virada da semana"),
+        ("Sexta a Domingo", "Encerramento e recarga"),
+        ("Área de Atenção", "O que cobra ajuste"),
+        ("Oportunidade da Semana", "Onde agir com convicção"),
+        ("Mensagem Final", "Como atravessar esta semana"),
+    ],
+    # calendario_lunar: 7-9 parágrafos no prompt original. Mesmo argumento do
+    # previsao_semanal — chamada única com budget grande é não-confiável com M2.7.
+    # Seções modelam as quatro fases + trânsito lunar + prática concreta.
+    "site:content:calendario_lunar": [
+        ("Panorama do Ciclo", "O ritmo lunar do mês"),
+        ("Lua Nova", "Semear intenções"),
+        ("Lua Crescente", "Construir e expandir"),
+        ("Lua Cheia", "Iluminar e colher"),
+        ("Lua Minguante", "Liberar e revisar"),
+        ("Lua em Trânsito", "Quando o ritmo toca seu mapa"),
+        ("Como Usar o Calendário", "Prática mensal concreta"),
+    ],
+    # guia_dos_retrogrados: 7-9 parágrafos no prompt original. Mesma migração.
+    # "Conteúdo variável (depende de quais planetas estão retrógrados)" não é
+    # obstáculo — o modelo já lida com isso em todas as seções de mapa natal
+    # (ex.: casas sem planetas). A seção "Retrógrados no Céu Atual" recebe o
+    # calculated_chart completo e usa só o que está retrógrado; se nada está
+    # retrógrado, declara isso com linguagem acolhedora.
+    "site:content:guia_dos_retrogrados": [
+        ("O que é Retrógrado", "Movimento e significado"),
+        ("Retrógrados no Céu Atual", "O que está em revisão agora"),
+        ("Impacto no Seu Mapa", "Como esses movimentos tocam seus pontos"),
+        ("Área de Vida em Revisão", "O que está sendo reexaminado"),
+        ("Como Navegar os Retrógrados", "Prática sem fatalismo"),
+        ("Timing de Retomada", "Quando os planetas ficam diretos"),
+        ("Mensagem Final", "Revisão como evolução"),
     ],
     # Portado de _SECOES_POR_TIPO["sinastria"] no bot (variante COM dados do
     # parceiro completos). Ver SINASTRIA_SEM_PARCEIRO_SECTIONS para a variante
@@ -642,17 +718,11 @@ def _prompt(content_id: str, title: str, profile, locale: str, customer_name: st
     else:
         # Regras de parágrafo corrido — só para content_ids QUE NÃO ESTÃO em
         # SECTIONS_BY_CONTENT_ID (nem na variante sem-parceiro da sinastria).
-        # mapa_do_amor_sinastria e mapa_da_prosperidade saíram daqui quando
-        # entraram seccionados; NÃO reintroduzir suas chaves nesta tabela —
-        # um dict.update por cima do content_rule seccionado reativa a
+        # horoscopo_diario, mapa_do_amor_sinastria e mapa_da_prosperidade saíram
+        # daqui quando entraram seccionados; NÃO reintroduzir suas chaves nesta
+        # tabela — um dict.update por cima do content_rule seccionado reativa a
         # contradição de duas instruções de formato no mesmo prompt.
-        legacy_rules = {
-            "site:content:horoscopo_diario": "Escreva exatamente 3 parágrafos substanciais, com 90 a 130 palavras cada. Use prioritariamente os trânsitos atuais para o mapa natal. O primeiro cria identificação emocional, o segundo aborda relações e trabalho e o terceiro traz direção prática.",
-            "site:content:previsao_semanal": "Escreva 7 parágrafos, um para o panorama e seis para temas e decisões da semana, usando os trânsitos atuais calculados.",
-            "site:content:calendario_lunar": "Escreva um guia editorial do ciclo lunar atual em 7 a 9 parágrafos. Não invente datas que não estejam nos dados; quando faltarem, trate como guia de uso das fases.",
-            "site:content:guia_dos_retrogrados": "Escreva 7 a 9 parágrafos explicando os planetas retrógrados presentes no céu calculado e como atravessar revisões sem fatalismo.",
-        }
-        content_rule = legacy_rules.get(content_id, "Escreva uma leitura premium profunda, com 7 a 10 parágrafos.")
+        content_rule = "Escreva uma leitura premium profunda, com 7 a 10 parágrafos."
     language_lock = _language_lock_text(locale)
     markdown_rule = (
         "Responda no formato markdown seccionado pedido acima (## título / ### subtítulo / parágrafos)."
@@ -1074,8 +1144,18 @@ def _section_prompt(
     assumed_warning = _assumed_warning_text(locale, bool(context.get("birth_time_assumed")))
     language_lock = _language_lock_text(locale)
     outras = ", ".join(t for t in sibling_titles if t != section_title)
+    # O label "natal premium" confunde o modelo para leituras de trânsito.
+    # Cada tipo recebe o label correto; o default cobre os mapas natais.
+    _TRANSIT_LABELS: dict[str, str] = {
+        "site:content:horoscopo_diario": "do horóscopo diário",
+        "site:content:previsao_semanal": "da previsão semanal",
+        "site:content:calendario_lunar": "do calendário lunar",
+        "site:content:guia_dos_retrogrados": "do guia de retrógrados",
+    }
+    _label = _TRANSIT_LABELS.get(content_id, "da leitura natal premium")
+    reading_type = f"{_label} \"{general_title}\""
     return f"""Você é a astróloga editorial da AstroDicas. Está escrevendo APENAS UMA seção (a seção {order} de {total}) \
-da leitura natal premium \"{general_title}\" em {language}.
+{reading_type} em {language}.
 Data de referência: {today}. Identificador: {content_id}.
 Dados autorizados do cliente: {json.dumps(context, ensure_ascii=False)}.
 
