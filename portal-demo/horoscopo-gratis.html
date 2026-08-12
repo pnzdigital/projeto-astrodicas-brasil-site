@@ -380,7 +380,6 @@
           <h3>${escapeHtml(copy.offerTitle)}</h3>
           <ul>${copy.offerItems.map((item) => `<li>${escapeHtml(item)}</li>`).join('')}</ul>
           <form id="trial-form">
-            <div class="field"><label for="t-name">${escapeHtml(copy.buyerName)}</label><input id="t-name" name="trial_name" type="text" autocomplete="name" required></div>
             <div class="field"><label for="t-email">${escapeHtml(copy.buyerEmail)}</label><input id="t-email" name="trial_email" type="email" autocomplete="email" required></div>
             <button class="button" type="submit" id="trial-submit">${escapeHtml(copy.mpCta)}</button>
             <p class="error" role="alert" id="trial-error"></p>
@@ -400,16 +399,15 @@
       trialForm.addEventListener('submit', async (event) => {
         event.preventDefault();
         trialError.textContent = '';
-        const trialName = (trialForm.querySelector('[name="trial_name"]')?.value || '').trim();
         const trialEmail = (trialForm.querySelector('[name="trial_email"]')?.value || '').trim();
-        if (!trialName || !trialEmail) { trialError.textContent = copy.missing; return; }
+        if (!trialEmail) { trialError.textContent = copy.missing; return; }
         trialSubmit.disabled = true;
         trialError.textContent = copy.trialOpening;
         try {
           const response = await fetch(`${API}/api/trial/start`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ email: trialEmail, name: trialName, locale }),
+            body: JSON.stringify({ email: trialEmail, name: horoscopeName, locale }),
           });
           const data = await response.json().catch(() => ({}));
           if (!response.ok || data.status !== 'trialing') { trialError.textContent = data.detail || copy.trialFailed; trialSubmit.disabled = false; return; }
