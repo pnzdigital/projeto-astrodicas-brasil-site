@@ -1,17 +1,21 @@
 import hmac
+import logging
 import os
 from datetime import datetime, timedelta, timezone
 
 from fastapi import APIRouter, Cookie, Depends, HTTPException, Response, status
-from sqlalchemy import func
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from . import engine as engine_module
 from .db import get_db
-from .models import Entitlement, Order, Subscription, User
+from .models import Entitlement, GenerationJob, Order, Reading, Subscription, User
 from .pricing import format_amount, title_for
 from .ratelimit import auth_rate_limit
 from .security import create_token, decode_token
+from .worker import enqueue_generation_job
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/admin", tags=["admin"])
 
@@ -206,6 +210,153 @@ def trials(
         })
 
     return {"total": total, "limit": limit, "offset": offset, "trials": rows}
+
+
+@router.get("/users/search")
+def users_search(
+    email: str,
+    _admin: str = Depends(require_admin),
+    db: Session = Depends(get_db),
+) -> dict:
+    """Localiza usuário por e-mail (busca exata, case-insensitive)."""
+    user = db.scalars(select(User).where(func.lower(User.email) == email.strip().lower())).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="Usuário não encontrado.")
+    return {
+        "id": user.id,
+        "email": user.email,
+        "name": user.name,
+        "locale": user.locale,
+        "created_at": user.created_at.isoformat(),
+    }
+
+
+@router.get("/users/{user_id}/readings")
+def user_readings(
+    user_id: str,
+    _admin: str = Depends(require_admin),
+    db: Session = Depends(get_db),
+) -> dict:
+    """Lista leituras de um usuário com status, fonte e custo estimado de regeração."""
+    user = db.get(User, user_id)
+    if not user:
+        raise HTTPException(status_code=404, detail="Usuário não encontrado.")
+    readings = (
+        db.scalars(
+            select(Reading)
+            .where(Reading.user_id == user_id)
+            .order_by(Reading.created_at.desc())
+        )
+        .all()
+    )
+    rows = []
+    for r in readings:
+        sections = engine_module.sections_for(r.content_id)
+        estimated_requests = len(sections) if sections else 1
+        rows.append({
+            "id": r.id,
+            "content_id": r.content_id,
+            "title": r.title,
+            "status": r.status,
+            "source": r.source,
+            "is_fallback": r.status == "fallback" or r.source == "fallback",
+            "error_message": r.error_message,
+            "sections_done": r.sections_done,
+            "sections_total": r.sections_total,
+            "created_at": r.created_at.isoformat(),
+            "updated_at": r.updated_at.isoformat(),
+            "estimated_requests": estimated_requests,
+        })
+    return {"user_id": user_id, "readings": rows}
+
+
+@router.post("/readings/{reading_id}/regenerate")
+def regenerate_reading(
+    reading_id: str,
+    _admin: str = Depends(require_admin),
+    db: Session = Depends(get_db),
+) -> dict:
+    """Invalida leitura existente e dispara nova geração.
+
+    Segurança:
+    - Sessão admin obrigatória (require_admin).
+    - Idempotente por job ativo: se já houver job queued/running para
+      (user_id, content_id), retorna 409 em vez de enfileirar duplicata.
+    - Leitura anterior marcada como 'superseded' (não destruída) para auditoria.
+    - Cada ação é registrada em log com admin_id, reading_id e user_id.
+    """
+    reading = db.get(Reading, reading_id)
+    if not reading:
+        raise HTTPException(status_code=404, detail="Leitura não encontrada.")
+
+    # Bloqueia duplo clique / reenfileiramento enquanto job ativo existe.
+    active_job = db.scalars(
+        select(GenerationJob).where(
+            GenerationJob.user_id == reading.user_id,
+            GenerationJob.content_id == reading.content_id,
+            GenerationJob.status.in_(["queued", "running"]),
+        )
+    ).first()
+    if active_job:
+        raise HTTPException(
+            status_code=409,
+            detail=f"Já existe um job ativo ({active_job.status}) para esta leitura. Aguarde terminar antes de regerar.",
+        )
+
+    user = db.get(User, reading.user_id)
+    if not user:
+        raise HTTPException(status_code=404, detail="Usuário da leitura não encontrado.")
+
+    # Preserva leitura anterior como 'superseded' (mantém body_html, source, etc.).
+    reading.status = "superseded"
+    db.flush()
+
+    # Cria nova leitura em branco para receber o resultado da geração.
+    sections = engine_module.sections_for(reading.content_id)
+    new_reading = Reading(
+        user_id=reading.user_id,
+        content_id=reading.content_id,
+        product_id=reading.product_id,
+        status="pending",
+        title=reading.title,
+        source="llm",
+        reading_kind=reading.reading_kind,
+        input_snapshot=reading.input_snapshot,
+        sections_total=len(sections),
+        sections_done=0,
+    )
+    db.add(new_reading)
+    db.commit()
+    db.refresh(new_reading)
+
+    # enqueue_generation_job abre sessão própria; chamamos só após commit
+    # para evitar lock no SQLite (dev) e deadlock no Postgres (prod).
+    job = enqueue_generation_job(
+        reading_id=new_reading.id,
+        content_id=reading.content_id,
+        user_id=reading.user_id,
+        locale=user.locale,
+        customer_name=user.name,
+    )
+
+    estimated_requests = len(sections) if sections else 1
+    logger.info(
+        "admin_regenerate admin=%s reading_id=%s new_reading_id=%s user_id=%s content_id=%s estimated_requests=%d",
+        _admin,
+        reading_id,
+        new_reading.id,
+        reading.user_id,
+        reading.content_id,
+        estimated_requests,
+    )
+
+    return {
+        "ok": True,
+        "superseded_reading_id": reading_id,
+        "new_reading_id": new_reading.id,
+        "job_id": job.id if job else None,
+        "estimated_requests": estimated_requests,
+    }
 
 
 @router.get("/quota")

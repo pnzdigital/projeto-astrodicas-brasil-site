@@ -90,6 +90,26 @@
     .quota-by-model{margin-top:18px}
     #status-msg{color:var(--muted);font-size:13px;padding:40px 0;text-align:center}
     @media(max-width:640px){.cards{grid-template-columns:1fr 1fr}.card .value{font-size:24px}}
+
+    /* suporte de leituras */
+    .search-row{display:flex;gap:10px;margin-bottom:18px}
+    .search-row input[type=email]{flex:1;min-height:40px;padding:0 12px;border:1px solid var(--line);border-radius:5px;background:rgba(8,7,25,.6);color:var(--cream)}
+    .pill.fallback{color:#4a0f18;background:var(--bad)}
+    .pill.superseded{color:rgba(244,239,228,.5);background:rgba(244,239,228,.1)}
+    .pill.minimax{color:#0d3a20;background:var(--good)}
+    .pill.pending,.pill.queued,.pill.running{color:#4a3300;background:#f0c96a}
+    .pill.ready{color:#0d3a20;background:var(--good)}
+    .regen-btn{padding:4px 12px;min-height:30px;font-size:11px;font-weight:700;border:1px solid var(--gold);border-radius:4px;background:transparent;color:var(--gold-lit);cursor:pointer;white-space:nowrap}
+    .regen-btn:disabled{opacity:.4;cursor:default}
+    .support-info{margin-bottom:14px;padding:10px 14px;border-radius:6px;background:rgba(217,172,92,.08);color:var(--muted);font-size:13px}
+    #regen-modal-overlay{display:none;position:fixed;inset:0;background:rgba(8,7,25,.82);z-index:100;place-items:center}
+    #regen-modal-overlay.open{display:grid}
+    .regen-modal{width:min(420px,calc(100% - 32px));padding:28px 24px;border:1px solid var(--line);border-radius:10px;background:#120e36}
+    .regen-modal h3{font-size:19px;margin-bottom:12px}
+    .regen-modal p{font-size:13px;color:var(--muted);margin:0 0 8px}
+    .regen-modal .cost-badge{display:inline-block;margin-top:4px;padding:5px 12px;border-radius:6px;background:rgba(229,120,138,.12);color:var(--bad);font-weight:700;font-size:13px}
+    .regen-modal-actions{display:flex;gap:10px;margin-top:20px}
+    .regen-modal-actions .button{flex:1}
   </style>
 </head>
 <body>
@@ -204,8 +224,48 @@
             <button class="button secondary small" id="next-page" type="button">Próximas →</button>
           </div>
         </section>
+
+        <section class="panel" aria-labelledby="support-title">
+          <h2 id="support-title">Suporte de Leituras / Soporte de Lecturas</h2>
+          <p class="support-info">Busque um cliente pelo e-mail para ver suas leituras e regerar qualquer uma delas. Regeração marca a leitura atual como substituída e cria uma nova geração. Cada requisição ao MiniMax consome cota semanal.</p>
+          <form class="search-row" id="support-search-form">
+            <input type="email" id="support-email" placeholder="cliente@example.com" required autocomplete="off">
+            <button class="button small" type="submit">Buscar</button>
+          </form>
+          <p id="support-error" style="color:var(--bad);font-size:12px;min-height:16px"></p>
+          <div id="support-user-info" hidden></div>
+          <div class="table-scroll" id="support-readings-wrap" hidden>
+            <table>
+              <caption class="visually-hidden">Leituras do cliente selecionado</caption>
+              <thead>
+                <tr>
+                  <th scope="col">Leitura</th>
+                  <th scope="col">Status</th>
+                  <th scope="col">Fonte</th>
+                  <th scope="col">Data</th>
+                  <th scope="col">Custo (req)</th>
+                  <th scope="col">Ação</th>
+                </tr>
+              </thead>
+              <tbody id="support-readings-rows"></tbody>
+            </table>
+          </div>
+        </section>
       </div>
     </main>
+  </div>
+
+  <!-- Modal de confirmação de regeração -->
+  <div id="regen-modal-overlay" role="dialog" aria-modal="true" aria-labelledby="regen-modal-title">
+    <div class="regen-modal">
+      <h3 id="regen-modal-title">Regerar leitura</h3>
+      <p id="regen-modal-desc"></p>
+      <p class="cost-badge" id="regen-modal-cost"></p>
+      <div class="regen-modal-actions">
+        <button class="button secondary" id="regen-cancel-btn" type="button">Cancelar</button>
+        <button class="button" id="regen-confirm-btn" type="button">Confirmar regeração</button>
+      </div>
+    </div>
   </div>
 
   <script type="module">
@@ -454,6 +514,132 @@
         }
       }
     }
+
+    // ---------------------------------------------------------------------------
+    // Suporte de leituras
+    // ---------------------------------------------------------------------------
+
+    const supportEmail = document.getElementById('support-email');
+    const supportError = document.getElementById('support-error');
+    const supportUserInfo = document.getElementById('support-user-info');
+    const supportReadingsWrap = document.getElementById('support-readings-wrap');
+    const supportReadingsRows = document.getElementById('support-readings-rows');
+    const regenModalOverlay = document.getElementById('regen-modal-overlay');
+    const regenModalDesc = document.getElementById('regen-modal-desc');
+    const regenModalCost = document.getElementById('regen-modal-cost');
+    const regenCancelBtn = document.getElementById('regen-cancel-btn');
+    const regenConfirmBtn = document.getElementById('regen-confirm-btn');
+
+    let _currentUserId = null;
+    let _pendingRegenReadingId = null;
+    let _pendingRegenEstimatedReqs = 0;
+
+    const SOURCE_LABEL = { fallback: 'FALLBACK', minimax: 'MiniMax', llm: 'LLM' };
+    const STATUS_LABEL = {
+      fallback: 'Fallback', ready: 'Pronta', pending: 'Aguardando',
+      in_progress: 'Gerando', superseded: 'Substituída', failed: 'Falhou',
+      queued: 'Na fila', running: 'Gerando',
+    };
+
+    function pillClass(status, source) {
+      if (status === 'fallback' || source === 'fallback') return 'fallback';
+      if (status === 'ready') return 'ready';
+      if (status === 'superseded') return 'superseded';
+      if (['pending', 'in_progress', 'queued', 'running'].includes(status)) return 'pending';
+      return '';
+    }
+
+    function renderReadings(readings) {
+      supportReadingsRows.innerHTML = '';
+      if (!readings.length) {
+        supportReadingsRows.innerHTML = '<tr><td colspan="6" style="color:var(--muted);text-align:center">Nenhuma leitura encontrada.</td></tr>';
+        return;
+      }
+      for (const r of readings) {
+        const isFallback = r.is_fallback;
+        const statusLabel = STATUS_LABEL[r.status] || r.status;
+        const sourceLabel = SOURCE_LABEL[r.source] || r.source;
+        const pc = pillClass(r.status, r.source);
+        const fallbackBadge = isFallback ? '<span class="pill fallback" title="Texto genérico entregue ao cliente">⚠ FALLBACK</span>' : '';
+        const date = new Date(r.created_at).toLocaleString('pt-BR');
+        const canRegen = r.status !== 'superseded';
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+          <td><span style="font-size:11px;color:var(--muted)">${r.content_id}</span><br><span style="font-size:13px">${r.title || '—'}</span></td>
+          <td><span class="pill ${pc}">${statusLabel}</span> ${fallbackBadge}</td>
+          <td><span class="pill ${r.source === 'fallback' ? 'fallback' : 'minimax'}">${sourceLabel}</span></td>
+          <td style="font-size:12px;white-space:nowrap">${date}</td>
+          <td style="text-align:center">${r.estimated_requests}</td>
+          <td><button class="regen-btn" data-rid="${r.id}" data-title="${encodeURIComponent(r.title || r.content_id)}" data-cost="${r.estimated_requests}" ${canRegen ? '' : 'disabled'}>Regerar</button></td>`;
+        supportReadingsRows.appendChild(tr);
+      }
+    }
+
+    async function loadUserReadings(userId) {
+      const data = await api(`/users/${userId}/readings`);
+      renderReadings(data.readings);
+      supportReadingsWrap.hidden = false;
+    }
+
+    document.getElementById('support-search-form').addEventListener('submit', async (ev) => {
+      ev.preventDefault();
+      supportError.textContent = '';
+      supportUserInfo.hidden = true;
+      supportReadingsWrap.hidden = true;
+      const email = supportEmail.value.trim();
+      try {
+        const user = await api(`/users/search?email=${encodeURIComponent(email)}`);
+        _currentUserId = user.id;
+        supportUserInfo.hidden = false;
+        supportUserInfo.innerHTML = `<p style="font-size:13px;margin:0 0 12px;color:var(--muted)">Cliente: <strong style="color:var(--cream)">${user.name || '—'}</strong> · ${user.email} · ${user.locale}</p>`;
+        await loadUserReadings(user.id);
+      } catch (err) {
+        if (err.message === 'request-failed') {
+          supportError.textContent = 'Usuário não encontrado.';
+        } else {
+          supportError.textContent = 'Erro ao buscar. Tente novamente.';
+        }
+      }
+    });
+
+    supportReadingsRows.addEventListener('click', (ev) => {
+      const btn = ev.target.closest('.regen-btn');
+      if (!btn || btn.disabled) return;
+      _pendingRegenReadingId = btn.dataset.rid;
+      _pendingRegenEstimatedReqs = parseInt(btn.dataset.cost, 10);
+      const title = decodeURIComponent(btn.dataset.title);
+      regenModalDesc.textContent = `Leitura: ${title}`;
+      regenModalCost.textContent = `⚠ Isso vai consumir ~${_pendingRegenEstimatedReqs} requisição(ões) no MiniMax (cota semanal).`;
+      regenModalOverlay.classList.add('open');
+      regenCancelBtn.focus();
+    });
+
+    regenCancelBtn.addEventListener('click', () => {
+      regenModalOverlay.classList.remove('open');
+      _pendingRegenReadingId = null;
+    });
+
+    regenConfirmBtn.addEventListener('click', async () => {
+      if (!_pendingRegenReadingId) return;
+      regenConfirmBtn.disabled = true;
+      regenConfirmBtn.textContent = 'Enviando…';
+      try {
+        const result = await api(`/readings/${_pendingRegenReadingId}/regenerate`, { method: 'POST' });
+        regenModalOverlay.classList.remove('open');
+        // Recarrega leituras para mostrar estado atualizado
+        if (_currentUserId) await loadUserReadings(_currentUserId);
+      } catch (err) {
+        if (err.message === 'request-failed') {
+          regenModalDesc.textContent += '\n⚠ Já existe um job ativo para esta leitura. Aguarde terminar.';
+        } else {
+          regenModalDesc.textContent += '\n⚠ Erro ao regerar. Tente novamente.';
+        }
+      } finally {
+        regenConfirmBtn.disabled = false;
+        regenConfirmBtn.textContent = 'Confirmar regeração';
+        _pendingRegenReadingId = null;
+      }
+    });
 
     checkSession();
   </script>
