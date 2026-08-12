@@ -8,3 +8,4 @@ python-multipart==0.0.20
 email-validator==2.2.0
 pyswisseph==2.10.3.2
 fpdf2==2.8.7
+pywebpush==2.0.0
