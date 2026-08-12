@@ -141,6 +141,8 @@
       ],
       noCardPitch: 'Solo tu e-mail — sin tarjeta.',
       cancelPromise: 'No pedimos tarjeta, así que no queda nada guardado ni se cobra solo.',
+      noRenewal: 'Sin tarjeta. Sin renovación automática. El día 4 el acceso cierra — no se cobra nada.',
+      trialFreeLabel: 'Gratis hoy',
       honesty: 'Día 4: tu acceso gratis termina y listo — no se cobra nada, porque no hay tarjeta. Si querés seguir, comprás 30 días por {price} cuando vos quieras.',
       startTrialCta: 'Desbloquear 3 días gratis de horóscopo',
       mpCta: 'Activar mis 3 días gratis →',
@@ -176,6 +178,8 @@
       ],
       noCardPitch: 'Só o seu e-mail — sem cartão.',
       cancelPromise: 'Não pedimos cartão, então não fica nada salvo nem cobra sozinho.',
+      noRenewal: 'Sem cartão. Sem renovação automática. No dia 4 o acesso encerra — não cobramos nada.',
+      trialFreeLabel: 'Grátis hoje',
       offerHonesty: 'Dia 4: seu acesso grátis termina e pronto — não cobramos nada, porque não há cartão. Se quiser continuar, você compra 30 dias por {price} quando quiser.',
       startTrialCta: 'Desbloquear 3 dias grátis de horóscopo',
       offerCta: 'Começar meus 3 dias grátis →',
@@ -328,13 +332,13 @@
           <h3>${escapeHtml(copy.offerTitle)}</h3>
           <p class="lede">${escapeHtml(copy.offerLede)}</p>
           <ul>${copy.offerItems.map((item) => `<li>${escapeHtml(item)}</li>`).join('')}</ul>
-          <div class="price"><span class="price-anchor" id="offer-price">${escapeHtml(priceLabel)}</span> <span class="price-free">R$ 0 hoje</span></div>
+          <div class="price"><span class="price-anchor" id="offer-price">${escapeHtml(priceLabel)}</span> <span class="price-free">${escapeHtml(copy.trialFreeLabel)}</span></div>
           <form id="trial-form">
             <div class="field"><label for="t-email">${escapeHtml(copy.buyerEmail)}</label><input id="t-email" name="trial_email" type="email" autocomplete="email" required></div>
             <button class="button" type="submit" id="trial-submit">${escapeHtml(copy.offerCta)}</button>
             <p class="error" role="alert" id="trial-error"></p>
           </form>
-          <p class="honesty">${escapeHtml(copy.offerHonesty.replace('{price}', priceLabel))}</p>
+          <p class="honesty">${escapeHtml(copy.noRenewal)}</p>
         </details>
       </section>`;
     }
@@ -384,8 +388,8 @@
             <button class="button" type="submit" id="trial-submit">${escapeHtml(copy.mpCta)}</button>
             <p class="error" role="alert" id="trial-error"></p>
           </form>
-          <div class="price"><span id="offer-price">${escapeHtml(priceLabel)}</span> <small>después de los 3 días gratis</small></div>
-          <p class="honesty">${escapeHtml(copy.honesty.replace('{price}', priceLabel))}</p>
+          <div class="price"><span class="price-anchor" id="offer-price">${escapeHtml(priceLabel)}</span> <span class="price-free">${escapeHtml(copy.trialFreeLabel)}</span></div>
+          <p class="honesty">${escapeHtml(copy.noRenewal)}</p>
         </details>
       </section>`;
     }
