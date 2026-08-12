@@ -267,6 +267,7 @@
     const result = document.getElementById('result');
 
     let horoscopeName = '';
+    let horoscopeBirth = {};  // { birth_date, birth_time, birth_city, birth_state }
     let priceLabel = copy.priceFallback;
     let checkoutUrl = es ? null : `${es ? '/es' : ''}/checkout?product=site:diario_astral`;
     fetch(`${API}/api/catalog?locale=${encodeURIComponent(locale)}`)
@@ -307,6 +308,8 @@
           return;
         }
         horoscopeName = name;
+        horoscopeBirth = { birth_date: birthDate, birth_city: birthCity, birth_state: birthState };
+        if (birthTime) horoscopeBirth.birth_time = birthTime;
         if (window.fbq) fbq('track', 'Lead', { content_name: 'horoscopo-gratis', content_language: locale });
         renderReading(data, name);
       } catch {
@@ -372,7 +375,7 @@
           const response = await fetch(`${API}/api/trial/start`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ email: trialEmail, name: horoscopeName, locale }),
+            body: JSON.stringify({ email: trialEmail, name: horoscopeName, locale, ...horoscopeBirth }),
           });
           const data = await response.json().catch(() => ({}));
           if (!response.ok || data.status !== 'trialing') { trialError.textContent = data.detail || copy.trialFailed; trialSubmit.disabled = false; return; }
@@ -426,7 +429,7 @@
           const response = await fetch(`${API}/api/trial/start`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ email: trialEmail, name: horoscopeName, locale }),
+            body: JSON.stringify({ email: trialEmail, name: horoscopeName, locale, ...horoscopeBirth }),
           });
           const data = await response.json().catch(() => ({}));
           if (!response.ok || data.status !== 'trialing') { trialError.textContent = data.detail || copy.trialFailed; trialSubmit.disabled = false; return; }
