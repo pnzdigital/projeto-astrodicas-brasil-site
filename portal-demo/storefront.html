@@ -155,7 +155,7 @@
     if(window.fbq) fbq('track','ViewContent',{content_name:'storefront',content_language:locale});
     if(es){ document.getElementById('mp-badge')?.style.removeProperty('display'); }
 
-    if(es)document.querySelectorAll('#legal-links a').forEach(link=>{link.href='/es'+link.getAttribute('href')});
+    if(es){const slugEs={'/termos':'/terminos','/privacidade':'/privacidad'};document.querySelectorAll('#legal-links a').forEach(link=>{const pt=link.getAttribute('href');link.href='/es'+(slugEs[pt]||pt);});}
     const pricesBR={'site:diario_astral':'R$ 27,90','site:mapa_astral':'R$ 34,90','site:mapa_amor_sinastria':'R$ 34,90','site:mapa_carreira':'R$ 34,90','site:mapa_prosperidade':'R$ 34,90','site:diario_astral_completo':'R$ 97,00','site:combo_mapa_astral_amor':'R$ 58,90','site:combo_mapa_astral_carreira':'R$ 58,90','site:combo_mapa_astral_prosperidade':'R$ 58,90','site:combo_amor_carreira':'R$ 58,90','site:combo_amor_prosperidade':'R$ 58,90','site:combo_carreira_prosperidade':'R$ 58,90','site:combo_diario_astral_mapa_astral':'R$ 49,90','site:combo_diario_astral_mapa_amor':'R$ 49,90','site:combo_diario_astral_mapa_prosperidade':'R$ 49,90'};
     // Preço ancorado (riscado): só exibição, espelha pricing.ANCHOR_BRL_MINOR.
     // O guard de preço (api/tests/test_vitrine_checkout_price_guard.py) trava
