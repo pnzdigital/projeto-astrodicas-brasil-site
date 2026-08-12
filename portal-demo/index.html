@@ -470,10 +470,12 @@
     .auth-form[hidden], .account-user[hidden], .profile-form[hidden] { display: none; }
     .field { display: grid; gap: 5px; }
     .field label { color: var(--cream-dim); font-size: 11px; }
-    .field input { width: 100%; min-height: 40px; padding: 0 11px; border: 1px solid rgba(244,239,228,.18); border-radius: 5px; color: var(--cream); background: rgba(7,6,26,.45); font: inherit; }
-    .field input:focus { border-color: var(--gold); outline: 2px solid rgba(244,215,154,.22); outline-offset: 1px; }
-    .form-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+    .field input, .field select { width: 100%; min-height: 40px; padding: 0 11px; border: 1px solid rgba(244,239,228,.18); border-radius: 5px; color: var(--cream); background: rgba(7,6,26,.45); font: inherit; }
+    .field select option { background: #13102a; }
+    .field input:focus, .field select:focus { border-color: var(--gold); outline: 2px solid rgba(244,215,154,.22); outline-offset: 1px; }
+    .form-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; align-items: start; }
     .form-grid .field:first-child { grid-column: 1 / -1; }
+    .field .hint { grid-column: 1 / -1; }
     .form-help, .form-error { margin: 0; font-size: 11px; }
     .form-help { color: var(--cream-faint); }
     .form-error { min-height: 16px; color: var(--rose); }
@@ -821,10 +823,15 @@
       <h2 id="profile-title">Conte ao céu de onde você parte.</h2>
       <p>Esses dados ficam associados à sua conta web e são usados para gerar suas leituras. Os campos do parceiro são opcionais.</p>
       <form class="profile-form" id="profile-form">
-        <h3>Você</h3>
+        <h3 id="profile-you-heading">Você</h3>
         <div class="form-grid">
+          <div class="field"><label for="profile-name">Seu nome</label><input id="profile-name" name="name" type="text" autocomplete="name" maxlength="160"></div>
           <div class="field"><label for="birth-date">Data de nascimento</label><input id="birth-date" name="birth_date" type="date" required></div>
-          <div class="field"><label for="birth-time">Hora de nascimento (opcional)</label><input id="birth-time" name="birth_time" type="time"><small class="hint">Sem a hora, calculamos com 00:00 e a leitura continua válida — só o Ascendente e as casas ficam menos precisos.</small></div>
+          <div class="field">
+            <label for="birth-time">Hora de nascimento (opcional)</label>
+            <input id="birth-time" name="birth_time" type="time">
+          </div>
+          <p class="hint form-help" style="grid-column:1/-1;margin-top:-4px">Sem a hora, calculamos com 00:00 e a leitura continua válida — só o Ascendente e as casas ficam menos precisos.</p>
           <div class="field"><label for="birth-city">Cidade de nascimento</label><input id="birth-city" name="birth_city" type="text" autocomplete="address-level2" required></div>
           <div class="field"><label for="birth-state" id="birth-state-label">Estado de nascimento</label><select id="birth-state" name="birth_state"></select></div>
           <div class="field"><label for="birth-country">País</label><input id="birth-country" name="birth_country" type="text" value="BR" maxlength="2" required></div>
@@ -1042,7 +1049,12 @@
       window.location.href = checkoutUrl(key);
     }
     function profileComplete() { return Boolean(appState.profile?.birth_date && appState.profile?.birth_city); }
-    function fallbackState(item) { return DEMO_PAID && item.productId ? ACCESS_STATES.available : (USER_ACCESS[item.id] || ACCESS_STATES.locked); }
+    function fallbackState(item) {
+      if (DEMO_PAID && item.productId) return ACCESS_STATES.available;
+      // Usuário autenticado sem entitlement → bloqueado; USER_ACCESS é só para demo/deslogado.
+      if (appState.authenticated) return ACCESS_STATES.locked;
+      return USER_ACCESS[item.id] || ACCESS_STATES.locked;
+    }
     function stateLabel(value) { return ({ [ACCESS_STATES.available]: 'disponível', [ACCESS_STATES.locked]: 'bloqueado', [ACCESS_STATES.new]: 'novo', [ACCESS_STATES.pending]: 'aguardando acesso', [ACCESS_STATES.inProgress]: 'gerando leitura…' })[value] || value; }
     function monthLabelFor(dateLike) {
       const locale = IS_ARGENTINA ? 'es-AR' : 'pt-BR';
@@ -1050,7 +1062,11 @@
       const label = new Intl.DateTimeFormat(locale, { month: 'long', year: 'numeric' }).format(date);
       return label.charAt(0).toUpperCase() + label.slice(1);
     }
+    // Conteúdo que exige Diário Astral PAGO — trial não abre.
+    const TRIAL_LOCKED_CONTENT = new Set(['site:content:guia_do_mes', 'site:content:previsao_semanal']);
+
     function applyRemoteState() {
+      const inTrial = Boolean(appState.subscription?.in_trial);
       LIBRARY_ITEMS.forEach((item) => {
         const reading = appState.readings.get(item.id);
         const entitlement = item.productId && appState.entitlements.get(item.productId);
@@ -1059,6 +1075,8 @@
         else if (reading?.status === 'ready' || !item.productId || entitlement?.status === 'available') item.state = reading?.status === 'ready' ? ACCESS_STATES.available : (item.productId ? ACCESS_STATES.available : ACCESS_STATES.new);
         else if (entitlement && entitlement.status !== 'available') item.state = ACCESS_STATES.pending;
         else item.state = fallbackState(item);
+        // Conteúdo pago é bloqueado durante trial mesmo que o entitlement base exista.
+        if (inTrial && TRIAL_LOCKED_CONTENT.has(item.id)) item.state = ACCESS_STATES.locked;
         if (item.id === 'site:content:guia_do_mes') {
           // Meta fixo ("Julho · 12 min") mentia sobre o mês pra quem abrisse o
           // portal em qualquer outro mês — usa a data da leitura já gerada, ou
@@ -1407,6 +1425,7 @@
         document.querySelector('[data-account-email]').textContent = appState.user?.email || '—';
         document.querySelector('[data-account-profile]').textContent = profileComplete() ? `${appState.profile.birth_date} · ${appState.profile.birth_city}` : (IS_ARGENTINA ? 'Todavía no completados' : 'Ainda não preenchidos');
         renderSubscriptionBlock();
+        renderAccountMetrics();
       }
       enforceDashboardGate();
     }
@@ -1459,33 +1478,63 @@
 
       if (planValueEl && planStatusEl && planNoteEl) {
         if (!appState.authenticated) {
-          planValueEl.firstChild.nodeValue = '— ';
+          planValueEl.firstChild.nodeValue = IS_ARGENTINA ? 'Diario Astral ' : 'Diário Astral ';
           planStatusEl.textContent = '';
-          planNoteEl.textContent = IS_ARGENTINA ? 'Iniciá sesión para ver' : 'Faça login para ver';
+          planNoteEl.textContent = IS_ARGENTINA ? 'Iniciá sesión para ver tu plan' : 'Faça login para ver seu plano';
         } else {
+          const sub = appState.subscription;
           const allEnts = [...appState.entitlements.values()];
-          const primary = allEnts.find((e) => e.active && e.product_id === 'site:diario_astral')
-            || allEnts.find((e) => e.active)
-            || allEnts[0]
-            || null;
-          if (!primary) {
-            planValueEl.firstChild.nodeValue = '— ';
-            planStatusEl.textContent = IS_ARGENTINA ? 'inactivo' : 'inativo';
-            planNoteEl.textContent = IS_ARGENTINA ? 'Ningún plan activo' : 'Nenhum plano ativo';
+          const df = new Intl.DateTimeFormat(IS_ARGENTINA ? 'es-AR' : 'pt-BR', { day: '2-digit', month: 'long', year: 'numeric' });
+          const fmt = (iso) => iso ? df.format(new Date(iso)) : null;
+
+          if (sub?.in_trial) {
+            // Trial ativo
+            const until = fmt(sub.trial_ends_at);
+            planValueEl.firstChild.nodeValue = (IS_ARGENTINA ? 'Diario Astral ' : 'Diário Astral ');
+            planStatusEl.textContent = IS_ARGENTINA ? 'trial' : 'trial';
+            planNoteEl.textContent = until
+              ? (IS_ARGENTINA ? `Acceso gratuito hasta ${until}` : `Acesso gratuito até ${until}`)
+              : (IS_ARGENTINA ? 'Acesso gratuito por 3 dias' : 'Acesso gratuito por 3 dias');
+          } else if (sub && sub.status === 'cancelled') {
+            // Cancelado mas pode ainda ter acesso
+            const until = fmt(sub.current_period_end || sub.trial_ends_at);
+            planValueEl.firstChild.nodeValue = (IS_ARGENTINA ? 'Diario Astral ' : 'Diário Astral ');
+            planStatusEl.textContent = IS_ARGENTINA ? 'cancelado' : 'cancelado';
+            planNoteEl.textContent = until
+              ? (IS_ARGENTINA ? `Acceso hasta ${until}` : `Acesso até ${until}`)
+              : (IS_ARGENTINA ? 'Acceso encerrado' : 'Acesso encerrado');
+          } else if (sub && sub.status === 'pending') {
+            planValueEl.firstChild.nodeValue = (IS_ARGENTINA ? 'Diario Astral ' : 'Diário Astral ');
+            planStatusEl.textContent = IS_ARGENTINA ? 'pendiente' : 'pendente';
+            planNoteEl.textContent = IS_ARGENTINA ? 'Esperando confirmación de pago' : 'Aguardando confirmação do pagamento';
           } else {
-            const name = PRODUCT_LABELS[primary.product_id] || primary.product_id;
-            planValueEl.firstChild.nodeValue = name + ' ';
-            planStatusEl.textContent = primary.active
-              ? (IS_ARGENTINA ? 'activo' : 'ativo')
-              : (IS_ARGENTINA ? 'encerrado' : 'encerrado');
-            if (!primary.expires_at) {
-              planNoteEl.textContent = IS_ARGENTINA ? 'Acceso vitalicio' : 'Acesso vitalício';
+            // Sem assinatura — verifica entitlements ativos
+            const primary = allEnts.find((e) => e.active && e.product_id === 'site:diario_astral')
+              || allEnts.find((e) => e.active && e.product_id === 'site:diario_astral_completo')
+              || allEnts.find((e) => e.active)
+              || allEnts.find((e) => e.product_id === 'site:diario_astral')
+              || allEnts[0]
+              || null;
+            if (!primary) {
+              planValueEl.firstChild.nodeValue = IS_ARGENTINA ? 'Diario Astral ' : 'Diário Astral ';
+              planStatusEl.textContent = IS_ARGENTINA ? 'sin plan' : 'sem plano';
+              planNoteEl.innerHTML = IS_ARGENTINA
+                ? `Ningún plan activo · <a href="${IS_ARGENTINA ? '/es/checkout' : '/checkout'}?product=site:diario_astral">Activar →</a>`
+                : `Nenhum plano ativo · <a href="/checkout?product=site:diario_astral">Ativar →</a>`;
             } else {
-              const df = new Intl.DateTimeFormat(IS_ARGENTINA ? 'es-AR' : 'pt-BR', { day: '2-digit', month: 'short', year: 'numeric' });
-              const expiryStr = df.format(new Date(primary.expires_at)).replace('.', '');
-              planNoteEl.textContent = primary.active
-                ? (IS_ARGENTINA ? `Acceso al portal hasta ${expiryStr}` : `Acesso ao portal até ${expiryStr}`)
-                : (IS_ARGENTINA ? `Acceso encerrado el ${expiryStr}` : `Acesso encerrado em ${expiryStr}`);
+              const label = PRODUCT_LABELS[primary.product_id] || primary.product_id;
+              planValueEl.firstChild.nodeValue = label + ' ';
+              planStatusEl.textContent = primary.active
+                ? (IS_ARGENTINA ? 'activo' : 'ativo')
+                : (IS_ARGENTINA ? 'encerrado' : 'encerrado');
+              if (!primary.expires_at) {
+                planNoteEl.textContent = IS_ARGENTINA ? 'Acceso vitalicio' : 'Acesso vitalício';
+              } else {
+                const expiryStr = fmt(primary.expires_at);
+                planNoteEl.textContent = primary.active
+                  ? (IS_ARGENTINA ? `Acceso al portal hasta ${expiryStr}` : `Acesso ao portal até ${expiryStr}`)
+                  : (IS_ARGENTINA ? `Acceso encerrado el ${expiryStr}` : `Acesso encerrado em ${expiryStr}`);
+              }
             }
           }
         }
@@ -1588,12 +1637,17 @@
     function fillProfileForm() {
       const form = document.getElementById('profile-form');
       const profile = appState.profile || {};
+      // Nome vem do usuário, não do perfil
+      if (form.elements['name']) form.elements['name'].value = appState.user?.name || '';
       ['birth_date', 'birth_time', 'birth_city', 'birth_state', 'birth_country', 'birth_timezone', 'partner_name', 'partner_birth_date', 'partner_birth_time', 'partner_birth_city', 'partner_birth_state', 'partner_country'].forEach((key) => { if (form.elements[key]) form.elements[key].value = profile[key] || (key.endsWith('_country') ? (IS_ARGENTINA ? 'AR' : 'BR') : key === 'birth_timezone' ? (IS_ARGENTINA ? 'America/Argentina/Buenos_Aires' : 'America/Sao_Paulo') : ''); });
+      // Atualiza heading com primeiro nome quando disponível
+      const heading = document.getElementById('profile-you-heading');
+      if (heading) heading.textContent = (appState.user?.name?.trim().split(/\s+/)[0]) || (IS_ARGENTINA ? 'Vos' : 'Você');
       setFormError('profile');
     }
     function payloadFromForm(form) {
       const value = (name) => form.elements[name]?.value?.trim() || null;
-      return { birth_date: value('birth_date'), birth_time: value('birth_time'), birth_city: value('birth_city') || '', birth_state: value('birth_state'), birth_country: (value('birth_country') || (IS_ARGENTINA ? 'AR' : 'BR')).toUpperCase(), birth_timezone: value('birth_timezone') || (IS_ARGENTINA ? 'America/Argentina/Buenos_Aires' : 'America/Sao_Paulo'), birth_latitude: null, birth_longitude: null, partner_name: value('partner_name') || '', partner_birth_date: value('partner_birth_date'), partner_birth_time: value('partner_birth_time'), partner_birth_city: value('partner_birth_city') || '', partner_birth_state: value('partner_birth_state'), partner_country: (value('partner_country') || (IS_ARGENTINA ? 'AR' : 'BR')).toUpperCase() };
+      return { name: value('name') || '', birth_date: value('birth_date'), birth_time: value('birth_time'), birth_city: value('birth_city') || '', birth_state: value('birth_state'), birth_country: (value('birth_country') || (IS_ARGENTINA ? 'AR' : 'BR')).toUpperCase(), birth_timezone: value('birth_timezone') || (IS_ARGENTINA ? 'America/Argentina/Buenos_Aires' : 'America/Sao_Paulo'), birth_latitude: null, birth_longitude: null, partner_name: value('partner_name') || '', partner_birth_date: value('partner_birth_date'), partner_birth_time: value('partner_birth_time'), partner_birth_city: value('partner_birth_city') || '', partner_birth_state: value('partner_birth_state'), partner_country: (value('partner_country') || (IS_ARGENTINA ? 'AR' : 'BR')).toUpperCase() };
     }
     function showStaticReading(item) {
       showReading(item, { title: item.title, body_html: item.reading, sections: [], content_id: item.id });
@@ -1946,7 +2000,17 @@
     document.addEventListener('submit', (event) => { if (event.target.matches('[data-auth-form]')) { event.preventDefault(); submitAuth(event.target, event.target.dataset.authForm); } if (event.target.matches('#profile-form')) { event.preventDefault(); saveProfile(event.target); } });
     async function saveProfile(form) {
       const button = form.querySelector('button[type="submit"]'); button.disabled = true; setFormError('profile');
-      try { const data = await apiRequest('/api/me/profile', { method: 'PUT', body: JSON.stringify(payloadFromForm(form)) }); appState.profile = data.profile; renderUser(); syncAccountDialog(); renderDailyHoroscope(); document.getElementById('profile-dialog').close(); showToast(IS_ARGENTINA ? 'Datos guardados. Tu cielo está listo para la próxima lectura.' : 'Dados salvos. Seu céu está pronto para a próxima leitura.'); const pending = appState.pendingContentId; appState.pendingContentId = null; if (pending && pending !== 'site:content:horoscopo_diario') generateReading(LIBRARY_ITEMS.find((item) => item.id === pending)); else void ensureDailyHoroscope(); }
+      try {
+        const data = await apiRequest('/api/me/profile', { method: 'PUT', body: JSON.stringify(payloadFromForm(form)) });
+        appState.profile = data.profile;
+        // Backend retorna user.name atualizado quando era vazio
+        if (data.user?.name && appState.user && !appState.user.name) appState.user.name = data.user.name;
+        renderUser(); syncAccountDialog(); renderDailyHoroscope();
+        document.getElementById('profile-dialog').close();
+        showToast(IS_ARGENTINA ? 'Datos guardados. Tu cielo está listo para la próxima lectura.' : 'Dados salvos. Seu céu está pronto para a próxima leitura.');
+        const pending = appState.pendingContentId; appState.pendingContentId = null;
+        if (pending && pending !== 'site:content:horoscopo_diario') generateReading(LIBRARY_ITEMS.find((item) => item.id === pending)); else void ensureDailyHoroscope();
+      }
       catch (error) { setFormError('profile', error.message); }
       finally { button.disabled = false; }
     }
