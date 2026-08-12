@@ -199,7 +199,10 @@ def send_password_reset(
     """Envia o link de redefinição de senha. Nunca levanta exceção."""
     config = _get_config()
     portal = (portal_url or config["portal_url"]).rstrip("/")
-    link = f"{portal}?reset={reset_token}"
+    # O token é lido por reset.html (PARAMS.get('reset')), não pela raiz do portal:
+    # apontar para `{portal}?reset=` entregava o link na index, que ignora o
+    # parâmetro e mostra o login — o cliente nunca chegava a trocar a senha.
+    link = f"{portal}/reset?reset={reset_token}"
     expires_label = expires_at.strftime("%d/%m/%Y %H:%M UTC")
 
     if locale == "es-AR":
