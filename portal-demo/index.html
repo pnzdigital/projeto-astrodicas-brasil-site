@@ -1043,7 +1043,7 @@
     async function confirmCancelSubscription() {
       const confirmButton = document.getElementById('cancel-confirm');
       confirmButton.disabled = true;
-      confirmButton.textContent = IS_ARGENTINA ? 'Cancelando…' : 'Cancelando…';
+      confirmButton.textContent = IS_ARGENTINA ? 'Cancelando…' : 'Cancelando…';  // mesmo em ambos — ok
       setCancelError('');
       try {
         const data = await apiRequest('/api/me/subscription/cancel', { method: 'POST', body: '{}' });
@@ -1198,7 +1198,7 @@
         headline.textContent = IS_ARGENTINA ? 'Generando tu lectura de hoy…' : 'Gerando sua leitura de hoje…';
         body.textContent = IS_ARGENTINA ? 'No hace falta recargar la página — avisamos apenas esté lista.' : 'Não precisa recarregar a página — avisamos assim que estiver pronta.';
         tags.innerHTML = '';
-        setCta(IS_ARGENTINA ? 'Gerando…' : 'Gerando…', true);
+        setCta(IS_ARGENTINA ? 'Generando…' : 'Gerando…', true);
         heroCta.dataset.dailyAction = 'open'; cta.dataset.dailyAction = 'open';
         return;
       }
@@ -1211,7 +1211,7 @@
         headline.textContent = IS_ARGENTINA ? 'Tu lectura de hoy no se generó.' : 'Sua leitura de hoje não foi gerada.';
         body.textContent = IS_ARGENTINA ? 'Esto no consume um novo dia de acesso — toque para intentar de nuevo.' : 'Isso não consome um novo dia de acesso — toque para tentar de novo.';
         tags.innerHTML = '';
-        setCta(IS_ARGENTINA ? 'Tentar de novo →' : 'Tentar de novo →', false);
+        setCta(IS_ARGENTINA ? 'Intentar de nuevo →' : 'Tentar de novo →', false);
         heroCta.dataset.dailyAction = 'retry'; cta.dataset.dailyAction = 'retry';
         return;
       }
@@ -1240,7 +1240,7 @@
       const fmtDate = (iso) => { if (!iso) return ''; const d = new Date(iso); return `${String(d.getDate()).padStart(2, '0')}<br>${d.toLocaleDateString(IS_ARGENTINA ? 'es-AR' : 'pt-BR', { month: 'short' }).toUpperCase().replace('.', '').slice(0, 3)}`; };
       container.innerHTML = `
         <div class="section-head"><h2>${IS_ARGENTINA ? 'Lecturas anteriores' : 'Horóscopos anteriores'}</h2></div>
-        <div class="delivery-list">${past.map((r) => `<div class="delivery" style="align-items:center"><time class="delivery-date" datetime="${r.created_at}">${fmtDate(r.created_at)}</time><div><strong>${r.title || (IS_ARGENTINA ? 'Horóscopo del día' : 'Horóscopo do dia')}</strong><span>${excerptFromHtml(r.body_html, 60) || (IS_ARGENTINA ? 'Lectura personalizada' : 'Leitura personalizada')}</span></div><button class="button ghost small" type="button" data-historical-reading="${r.id}" style="margin-left:auto;flex-shrink:0">${IS_ARGENTINA ? 'Abrir →' : 'Abrir →'}</button></div>`).join('')}</div>`;
+        <div class="delivery-list">${past.map((r) => `<div class="delivery" style="align-items:center"><time class="delivery-date" datetime="${r.created_at}">${fmtDate(r.created_at)}</time><div><strong>${r.title || (IS_ARGENTINA ? 'Horóscopo del día' : 'Horóscopo do dia')}</strong><span>${excerptFromHtml(r.body_html, 60) || (IS_ARGENTINA ? 'Lectura personalizada' : 'Leitura personalizada')}</span></div><button class="button ghost small" type="button" data-historical-reading="${r.id}" style="margin-left:auto;flex-shrink:0">${IS_ARGENTINA ? 'Ver →' : 'Abrir →'}</button></div>`).join('')}</div>`;
     }
     async function handleDailyAction(action) {
       const item = LIBRARY_ITEMS.find((entry) => entry.id === 'site:content:horoscopo_diario');
@@ -1729,7 +1729,7 @@
       notifs.querySelector(`[data-ready-for="${CSS.escape(item.id)}"]`)?.remove();
       const msg = IS_ARGENTINA ? `Tu ${escapeHtml(item.title)} está lista.` : `Seu ${escapeHtml(item.title)} está pronto!`;
       const cta = IS_ARGENTINA ? 'Ver ahora →' : 'Abrir agora →';
-      const dismiss = IS_ARGENTINA ? 'Dispensar' : 'Dispensar';
+      const dismiss = IS_ARGENTINA ? 'Descartar' : 'Dispensar';
       const div = document.createElement('div');
       div.className = 'ready-notification';
       div.dataset.readyFor = item.id;
@@ -1823,7 +1823,7 @@
       // informada, o Ascendente calculado é estimativa e o cliente pagante
       // precisa ver isso destacado, não escondido em rodapé cinza.
       if (!reading.birth_time_assumed || !reading.ascendant_warning) return '';
-      return `<div class="reading-ascendant-warning" role="status">⚠️ ${escapeHtml(reading.ascendant_warning)}</div>`;
+      return `<p class="reading-ascendant-warning">${escapeHtml(reading.ascendant_warning)}</p>`;
     }
     function escapeHtml(text) {
       const div = document.createElement('div');
@@ -2127,7 +2127,7 @@
         const msg = IS_ARGENTINA
           ? '¿Querés recibir notificaciones cuando tu lectura esté lista?'
           : 'Quer receber notificações quando sua leitura ficar pronta?';
-        const cta = IS_ARGENTINA ? 'Ativar' : 'Ativar';
+        const cta = IS_ARGENTINA ? 'Activar' : 'Ativar';
         const banner = document.getElementById('push-permission-banner');
         if (banner) {
           document.getElementById('push-permission-msg').textContent = msg;
