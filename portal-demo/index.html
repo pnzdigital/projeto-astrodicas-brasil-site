@@ -514,6 +514,19 @@
       .hero, .panel, .asset { color: #111; border: 1px solid #ccc; background: #fff; box-shadow: none; }
       .hero h2, .daily-card h3, .section-head h2, .asset h3 { color: #111; }
       .hero p, .daily-card p, .asset p, .metric-note { color: #444; }
+      /* leitura: oculta elementos de navegação/ação e melhora formatação */
+      .reading-header-actions, .reading-toc, .back-link { display: none !important; }
+      .reading-header { border-bottom: 2px solid #111; padding-bottom: 14px; margin-bottom: 20px; }
+      .reading-header h1 { font-size: 26px; color: #111; margin: 4px 0 8px; }
+      .reading-header .eyebrow { color: #555; font-size: 11px; text-transform: uppercase; letter-spacing: .1em; margin: 0; }
+      .reading-birth { color: #555; font-size: 11px; margin: 0 0 4px; }
+      .reading-body { max-width: 100%; margin-top: 0; }
+      .reading-body h2 { font-size: 17px; color: #111; font-weight: 600; margin: 0 0 4px; page-break-after: avoid; }
+      .reading-body .reading-subtitle { color: #555; font-size: 12px; font-style: italic; margin: 0 0 8px; }
+      .reading-body p { color: #222; font-size: 12px; line-height: 1.6; margin: 0 0 8px; orphans: 3; widows: 3; }
+      .reading-body .reading-section { border-top: 1px solid #ccc; padding-top: 16px; margin-bottom: 20px; page-break-inside: avoid; }
+      .reading-body .reading-section:first-child { border-top: none; padding-top: 0; }
+      .reading-ascendant-warning, .reading-fallback-notice { border: 1px solid #888; background: #f8f8f8; color: #333; padding: 10px 12px; margin-bottom: 16px; font-size: 12px; page-break-inside: avoid; }
     }
 
     @media (max-width: 1060px) {
@@ -1840,8 +1853,9 @@
       if (printBtn) printBtn.dataset.printTitle = reading.title || item.title;
       const pdfLink = document.getElementById('reading-page-pdf');
       const hasSections = Array.isArray(reading.sections) && reading.sections.length > 0;
+      const hasContent = hasSections || (typeof reading.body_html === 'string' && reading.body_html.length > 0);
       if (pdfLink) {
-        if (hasSections && appState.authenticated) {
+        if (hasContent && appState.authenticated) {
           pdfLink.href = `${API_BASE}/api/me/readings/${encodeURIComponent(reading.content_id)}/pdf`;
           pdfLink.hidden = false;
         } else {
