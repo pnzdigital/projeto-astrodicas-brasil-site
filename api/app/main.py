@@ -224,6 +224,8 @@ class LoginBody(BaseModel):
 
 
 class ProfileBody(BaseModel):
+    # Nome do usuário — preenchido só se estiver vazio (nunca sobrescreve).
+    name: str = Field(default="", max_length=160)
     birth_date: date | None = None
     birth_time: time | None = None
     birth_city: str = Field(default="", max_length=160)
@@ -517,8 +519,12 @@ def get_profile(request: Request, site_session: str | None = Cookie(default=None
 @app.put("/api/me/profile")
 def save_profile(body: ProfileBody, request: Request, site_session: str | None = Cookie(default=None), db: Session = Depends(get_db)) -> dict:
     user = current_user(site_session, db, accept_language=request.headers.get("accept-language"))
+    # Atualiza nome do usuário se ele ainda está vazio — nunca sobrescreve.
+    if body.name and not user.name:
+        user.name = body.name
     profile = db.get(Profile, user.id) or Profile(user_id=user.id)
-    for key, value in body.model_dump().items():
+    profile_fields = {k: v for k, v in body.model_dump().items() if k != "name"}
+    for key, value in profile_fields.items():
         setattr(profile, key, value)
     if profile.birth_city and (not profile.birth_latitude or not profile.birth_longitude):
         coordinates = resolve_coordinates(profile.birth_city, profile.birth_country, profile.birth_state)
@@ -526,7 +532,7 @@ def save_profile(body: ProfileBody, request: Request, site_session: str | None =
             profile.birth_latitude, profile.birth_longitude = map(str, coordinates)
     db.add(profile)
     db.commit()
-    return {"profile": profile_to_dict(profile)}
+    return {"profile": profile_to_dict(profile), "user": {"name": user.name}}
 
 
 @app.get("/api/me/access")

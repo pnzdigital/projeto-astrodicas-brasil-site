@@ -39,7 +39,7 @@ from . import pricing
 from .checkout import portal_url, site_url
 from .db import get_db
 from .mailer import send_purchase_confirmation, send_trial_started
-from .models import Entitlement, Subscription, User, WebhookEvent
+from .models import Entitlement, Profile, Subscription, User, WebhookEvent
 from .ratelimit import checkout_rate_limit, webhook_rate_limit
 from .security import decode_token, hash_password
 
@@ -88,13 +88,20 @@ def message(key: str, locale: str) -> str:
 
 
 class TrialBody(BaseModel):
-    """Corpo do trial sem cartão: só nome, e-mail e locale."""
+    """Corpo do trial sem cartão: nome, e-mail, locale e dados de nascimento opcionais."""
 
     model_config = {"extra": "ignore"}
 
     email: EmailStr
     name: str = Field(default="", max_length=160)
     locale: str = Field(default="pt-BR", max_length=10)
+    # Dados de nascimento coletados no horóscopo grátis — opcionais e tolerantes:
+    # valores inválidos são ignorados silenciosamente para não travar o trial.
+    birth_date: str = Field(default="", max_length=10)
+    birth_time: str = Field(default="", max_length=8)
+    birth_city: str = Field(default="", max_length=160)
+    birth_state: str = Field(default="", max_length=64)
+    birth_country: str = Field(default="BR", max_length=2)
     # Campos legados do Payment Brick — ignorados, mantidos para não quebrar
     # clientes antigos que ainda os enviem.
     card_token_id: str = Field(default="", max_length=120)
@@ -207,6 +214,51 @@ def subscription_to_dict(subscription: Subscription | None) -> dict | None:
     }
 
 
+def _try_save_profile_from_trial(db: Session, user_id: str, body: "TrialBody") -> None:
+    """Cria o Profile a partir dos dados do horóscopo grátis, se ainda não existe.
+
+    Tolerante: dados inválidos ou incompletos são descartados silenciosamente.
+    Nunca sobrescreve um perfil já existente — idempotente.
+    """
+    from datetime import date, time as time_type
+
+    # Perfil existente → não toca.
+    if db.get(Profile, user_id) is not None:
+        return
+
+    # Tenta parsear data de nascimento; inválida → não cria Profile.
+    birth_date = None
+    if body.birth_date:
+        try:
+            birth_date = date.fromisoformat(body.birth_date)
+        except (ValueError, AttributeError):
+            pass
+
+    # Cidade é o campo mais simples de validar.
+    birth_city = (body.birth_city or "").strip()
+
+    # Sem data e sem cidade não há sentido em criar o perfil.
+    if not birth_date and not birth_city:
+        return
+
+    birth_time = None
+    if body.birth_time:
+        try:
+            birth_time = time_type.fromisoformat(body.birth_time)
+        except (ValueError, AttributeError):
+            pass
+
+    profile = Profile(
+        user_id=user_id,
+        birth_date=birth_date,
+        birth_time=birth_time,
+        birth_city=birth_city,
+        birth_state=body.birth_state or None,
+        birth_country=(body.birth_country or "BR")[:2].upper(),
+    )
+    db.add(profile)
+
+
 @router.post("/api/trial/start", dependencies=[Depends(checkout_rate_limit)])
 def start_trial(body: TrialBody, db: Session = Depends(get_db)) -> dict:
     """Abre 3 dias grátis sem cartão. Cria conta, concede acesso ao horóscopo
@@ -239,6 +291,14 @@ def start_trial(body: TrialBody, db: Session = Depends(get_db)) -> dict:
             user = User(email=email, password_hash=hash_password(placeholder_password), name=body.name, locale=locale)
             db.add(user)
             db.flush()
+        else:
+            # Preenche nome só se estiver vazio — nunca sobrescreve dado existente.
+            if not user.name and body.name:
+                user.name = body.name
+
+        # Propaga dados de nascimento do horóscopo para o perfil, se ainda não existe.
+        # Dados inválidos são ignorados silenciosamente para não derrubar o trial.
+        _try_save_profile_from_trial(db, user.id, body)
 
         trial_ends_at = _now() + timedelta(days=TRIAL_DAYS)
         subscription = Subscription(

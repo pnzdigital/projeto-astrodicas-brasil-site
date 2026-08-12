@@ -374,16 +374,20 @@ def fulfill_order(db: Session, order: Order) -> User:
     email = (order.customer_email or "").lower()
     user = db.scalar(select(User).where(User.email == email)) if email else None
     temp_password = ""
+    order_name = ((order.raw_payload or {}).get("name") or "").strip()
     if not user:
         temp_password = secrets.token_urlsafe(9)
         user = User(
             email=email,
             password_hash=hash_password(temp_password),
-            name=(order.raw_payload or {}).get("name") or "",
+            name=order_name,
             locale=order.locale,
         )
         db.add(user)
         db.flush()
+    elif order_name and not user.name:
+        # Preenche nome só se estiver vazio — nunca sobrescreve dado existente.
+        user.name = order_name
 
     granted_now = []
     timed = order.product_id in TIMED_ACCESS_PRODUCTS
