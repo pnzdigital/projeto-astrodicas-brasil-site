@@ -1154,6 +1154,22 @@ def _section_prompt(
     }
     _label = _TRANSIT_LABELS.get(content_id, "da leitura natal premium")
     reading_type = f"{_label} \"{general_title}\""
+    # Seções de ação prática ("Como agir", "Direção Prática") disparam thinking
+    # mais longo no M2.7 porque exigem síntese de todo o mapa em orientação
+    # concreta — medido: seção 3 do horóscopo falha 2/3 vs 0/3 seção 1 com mesmo
+    # budget. Solução: restringir o ESCOPO do que a seção pede, não o raciocínio
+    # (instrução anti-think não funciona: modelo ignora). Ao limitar a 1-2
+    # aspectos do chart, reduz-se a carga de síntese sem cortar a qualidade.
+    _PRACTICAL_SUBTITLES = {"como agir hoje", "how to act today"}
+    is_practical = subtitle.lower() in _PRACTICAL_SUBTITLES
+    scope_instruction = (
+        "<escolha 1 a 2 aspectos ou trânsitos do calculated_chart e derive deles orientações concretas para o dia — "
+        "não percorra o mapa inteiro; vá direto ao conselho prático em 2 parágrafos de 70 a 110 palavras cada>"
+        if is_practical
+        else
+        "<2 a 3 parágrafos de 70 a 110 palavras cada, separados por linha em branco, cobrindo apenas o tema desta seção "
+        "com base unicamente no calculated_chart>"
+    )
     return f"""Você é a astróloga editorial da AstroDicas. Está escrevendo APENAS UMA seção (a seção {order} de {total}) \
 {reading_type} em {language}.
 Data de referência: {today}. Identificador: {content_id}.
@@ -1167,8 +1183,7 @@ delas, escreva só o que pertence à sua seção): {outras}.
 Formato obrigatório da resposta — markdown, só esta seção, nada além dela:
 ## {section_title}
 ### {subtitle}
-<2 a 3 parágrafos de 70 a 110 palavras cada, separados por linha em branco, cobrindo apenas o tema desta seção \
-com base unicamente no calculated_chart>
+{scope_instruction}
 
 Use o nome do cliente com naturalidade no máximo uma vez nesta seção. Use somente os dados fornecidos. Não invente
 Ascendente, Lua, casas, aspectos, trânsitos ou posições planetárias que não tenham sido calculados. Quando faltar
