@@ -10,7 +10,7 @@ from sqlalchemy.orm import Session
 from . import engine as engine_module
 from .db import get_db
 from .models import Entitlement, GenerationJob, Order, Reading, Subscription, User
-from .pricing import format_amount, title_for
+from .pricing import PRICES_BRL_MINOR, format_amount, title_for
 from .ratelimit import auth_rate_limit
 from .security import create_token, decode_token
 from .worker import enqueue_generation_job
@@ -364,3 +364,348 @@ def quota(_admin: str = Depends(require_admin), db: Session = Depends(get_db)) -
     """Consumo de requisições/tokens MiniMax da semana ISO corrente, por
     modelo, contra o teto configurável (MINIMAX_WEEKLY_REQUEST_LIMIT)."""
     return engine_module.get_weekly_quota_snapshot(db)
+
+
+# ---------------------------------------------------------------------------
+# Painel de custo — análise de margem por produto
+# ---------------------------------------------------------------------------
+#
+# Preços padrão MiniMax-M2.7 (pay-as-you-go, tabela pública):
+#   entrada: US$ 0,30/M tokens · saída: US$ 1,20/M tokens
+#   (o bloco <think> do M2.7 é cobrado como saída — invisível p/ cliente, pago)
+# Fonte: openrouter.ai/minimax/minimax-m2.7, pricepertoken.com, nerova.ai
+# Verificado em 2026-08-13 — preços de tabela envelhecem; confira antes de decidir.
+#
+# Estimativa por seção: ~1.500 tokens input + ~2.000 output ≈ US$ 0,00285/seção
+#
+# Envs configuráveis (todas opcionais — defaults abaixo se ausentes):
+#   MINIMAX_USD_PER_1M_INPUT_TOKENS   (default 0.30)
+#   MINIMAX_USD_PER_1M_OUTPUT_TOKENS  (default 1.20)
+#   MINIMAX_EST_INPUT_TOKENS_PER_SECTION  (default 1500)
+#   MINIMAX_EST_OUTPUT_TOKENS_PER_SECTION (default 2000)
+#   MINIMAX_PLAN_USD_PER_MONTH  — mensalidade do plano (sem default; modo b)
+#   COST_USD_BRL_RATE           — câmbio USD→BRL (sem default; mostrado na tela)
+
+_DEFAULT_USD_PER_1M_IN: float = 0.30
+_DEFAULT_USD_PER_1M_OUT: float = 1.20
+_DEFAULT_EST_IN_PER_SECTION: float = 1500
+_DEFAULT_EST_OUT_PER_SECTION: float = 2000
+
+# Mapeamento produto → conteúdo gerado × frequência em 30 dias.
+# Tupla: (content_id, vezes_por_30_dias, recorrente)
+# recorrente=True: gerado todo mês; False: geração única (bundle, one-time).
+_PRODUCT_CYCLE_PLAN: dict[str, list[tuple[str, int, bool]]] = {
+    "site:diario_astral": [
+        ("site:content:horoscopo_diario", 30, True),
+        ("site:content:guia_do_mes", 1, True),
+        ("site:content:previsao_semanal", 4, True),
+        ("site:content:mapa_astral_completo", 1, False),  # brinde do 1º mês
+    ],
+    "site:mapa_astral": [
+        ("site:content:mapa_astral_completo", 1, False),
+    ],
+    "site:mapa_amor_sinastria": [
+        ("site:content:mapa_do_amor_sinastria", 1, False),
+    ],
+    "site:mapa_carreira": [
+        ("site:content:mapa_da_carreira", 1, False),
+    ],
+    "site:mapa_prosperidade": [
+        ("site:content:mapa_da_prosperidade", 1, False),
+    ],
+    "site:diario_astral_completo": [
+        ("site:content:horoscopo_diario", 30, True),
+        ("site:content:guia_do_mes", 1, True),
+        ("site:content:previsao_semanal", 4, True),
+        ("site:content:calendario_lunar", 1, True),
+        ("site:content:guia_dos_retrogrados", 1, True),
+        ("site:content:mapa_astral_completo", 1, False),
+        ("site:content:mapa_do_amor_sinastria", 1, False),
+        ("site:content:mapa_da_prosperidade", 1, False),
+        ("site:content:manual_do_ascendente", 1, False),
+    ],
+    "site:combo_mapa_astral_amor": [
+        ("site:content:mapa_astral_completo", 1, False),
+        ("site:content:mapa_do_amor_sinastria", 1, False),
+    ],
+    "site:combo_mapa_astral_carreira": [
+        ("site:content:mapa_astral_completo", 1, False),
+        ("site:content:mapa_da_carreira", 1, False),
+    ],
+    "site:combo_mapa_astral_prosperidade": [
+        ("site:content:mapa_astral_completo", 1, False),
+        ("site:content:mapa_da_prosperidade", 1, False),
+    ],
+    "site:combo_amor_carreira": [
+        ("site:content:mapa_do_amor_sinastria", 1, False),
+        ("site:content:mapa_da_carreira", 1, False),
+    ],
+    "site:combo_amor_prosperidade": [
+        ("site:content:mapa_do_amor_sinastria", 1, False),
+        ("site:content:mapa_da_prosperidade", 1, False),
+    ],
+    "site:combo_carreira_prosperidade": [
+        ("site:content:mapa_da_carreira", 1, False),
+        ("site:content:mapa_da_prosperidade", 1, False),
+    ],
+    "site:combo_diario_astral_mapa_astral": [
+        ("site:content:horoscopo_diario", 30, True),
+        ("site:content:guia_do_mes", 1, True),
+        ("site:content:previsao_semanal", 4, True),
+        ("site:content:mapa_astral_completo", 1, False),
+    ],
+    "site:combo_diario_astral_mapa_amor": [
+        ("site:content:horoscopo_diario", 30, True),
+        ("site:content:guia_do_mes", 1, True),
+        ("site:content:previsao_semanal", 4, True),
+        ("site:content:mapa_do_amor_sinastria", 1, False),
+    ],
+    "site:combo_diario_astral_mapa_prosperidade": [
+        ("site:content:horoscopo_diario", 30, True),
+        ("site:content:guia_do_mes", 1, True),
+        ("site:content:previsao_semanal", 4, True),
+        ("site:content:mapa_da_prosperidade", 1, False),
+    ],
+    "site:diario_astral_completo_bump": [
+        ("site:content:horoscopo_diario", 30, True),
+        ("site:content:guia_do_mes", 1, True),
+        ("site:content:previsao_semanal", 4, True),
+        ("site:content:calendario_lunar", 1, True),
+        ("site:content:guia_dos_retrogrados", 1, True),
+        ("site:content:mapa_astral_completo", 1, False),
+        ("site:content:mapa_do_amor_sinastria", 1, False),
+        ("site:content:mapa_da_prosperidade", 1, False),
+        ("site:content:manual_do_ascendente", 1, False),
+    ],
+    "site:diario_astral_oferta_saida": [
+        ("site:content:horoscopo_diario", 30, True),
+        ("site:content:guia_do_mes", 1, True),
+        ("site:content:previsao_semanal", 4, True),
+        ("site:content:mapa_astral_completo", 1, False),
+    ],
+}
+
+
+def _parse_float_env(name: str, default: float | None = None) -> float | None:
+    raw = os.getenv(name, "").strip()
+    if not raw:
+        return default
+    try:
+        return float(raw)
+    except ValueError:
+        return default
+
+
+def _cost_per_section_usd() -> float:
+    price_in = _parse_float_env("MINIMAX_USD_PER_1M_INPUT_TOKENS", _DEFAULT_USD_PER_1M_IN)
+    price_out = _parse_float_env("MINIMAX_USD_PER_1M_OUTPUT_TOKENS", _DEFAULT_USD_PER_1M_OUT)
+    est_in = _parse_float_env("MINIMAX_EST_INPUT_TOKENS_PER_SECTION", _DEFAULT_EST_IN_PER_SECTION)
+    est_out = _parse_float_env("MINIMAX_EST_OUTPUT_TOKENS_PER_SECTION", _DEFAULT_EST_OUT_PER_SECTION)
+    return (est_in * price_in + est_out * price_out) / 1_000_000  # type: ignore[operator]
+
+
+def _content_title(content_id: str) -> str:
+    return {
+        "site:content:horoscopo_diario": "Horóscopo Diário",
+        "site:content:guia_do_mes": "Guia do Mês",
+        "site:content:mapa_astral_completo": "Mapa Astral Completo",
+        "site:content:mapa_do_amor_sinastria": "Mapa do Amor / Sinastria",
+        "site:content:mapa_da_carreira": "Mapa da Carreira",
+        "site:content:mapa_da_prosperidade": "Mapa da Prosperidade",
+        "site:content:previsao_semanal": "Previsão Semanal",
+        "site:content:calendario_lunar": "Calendário Lunar",
+        "site:content:guia_dos_retrogrados": "Guia dos Retrógrados",
+        "site:content:manual_do_ascendente": "Manual do Ascendente",
+    }.get(content_id, content_id)
+
+
+def _content_cost_table() -> dict[str, dict]:
+    cost_per_sec = _cost_per_section_usd()
+    usd_brl = _parse_float_env("COST_USD_BRL_RATE")
+    table: dict[str, dict] = {}
+    for content_id, sections in engine_module.SECTIONS_BY_CONTENT_ID.items():
+        n = len(sections)
+        is_long = content_id in engine_module._LONG_CONTENT_IDS
+        budget_per_section = (
+            engine_module._SECTION_TOKEN_BUDGET_M3 if is_long
+            else engine_module._SECTION_TOKEN_BUDGET
+        )
+        cost_usd = n * cost_per_sec
+        cost_brl = round(cost_usd * usd_brl, 4) if usd_brl is not None else None
+        table[content_id] = {
+            "sections": n,
+            "req_per_generation": n,
+            "max_tokens_budget_per_generation": n * budget_per_section,
+            "model": "MiniMax-M3" if is_long else "MiniMax-M2.7",
+            "est_cost_usd_per_generation": round(cost_usd, 6),
+            "est_cost_brl_per_generation": cost_brl,
+        }
+    return table
+
+
+def _plan_cost_per_req(weekly_quota: dict) -> float | None:
+    plan_usd = _parse_float_env("MINIMAX_PLAN_USD_PER_MONTH")
+    if plan_usd is None:
+        return None
+    weekly_limit = weekly_quota.get("limit", 0)
+    if weekly_limit <= 0:
+        return None
+    monthly_capacity = weekly_limit * (365 / 12 / 7)  # ≈ 4,333 semanas/mês
+    return plan_usd / monthly_capacity
+
+
+def cost_catalog(db=None) -> dict:
+    """Custo estimado por conteúdo e produto, com margem.
+
+    Distingue ESTIMADO (modo token, a partir de budget) de MEDIDO (weekly_quota).
+    Dois modos de custo:
+      (a) token — preços de tabela MiniMax pay-as-you-go (defaults embutidos)
+      (b) plano — mensalidade ÷ capacidade mensal (requer MINIMAX_PLAN_USD_PER_MONTH)
+    """
+    usd_brl = _parse_float_env("COST_USD_BRL_RATE")
+    weekly_quota = engine_module.get_weekly_quota_snapshot(db)
+    plan_per_req = _plan_cost_per_req(weekly_quota)
+    content_table = _content_cost_table()
+
+    price_in = _parse_float_env("MINIMAX_USD_PER_1M_INPUT_TOKENS", _DEFAULT_USD_PER_1M_IN)
+    price_out = _parse_float_env("MINIMAX_USD_PER_1M_OUTPUT_TOKENS", _DEFAULT_USD_PER_1M_OUT)
+    est_in = _parse_float_env("MINIMAX_EST_INPUT_TOKENS_PER_SECTION", _DEFAULT_EST_IN_PER_SECTION)
+    est_out = _parse_float_env("MINIMAX_EST_OUTPUT_TOKENS_PER_SECTION", _DEFAULT_EST_OUT_PER_SECTION)
+    plan_usd = _parse_float_env("MINIMAX_PLAN_USD_PER_MONTH")
+
+    contents = []
+    for content_id, data in content_table.items():
+        n = data["req_per_generation"]
+        plan_cost = round(n * plan_per_req, 6) if plan_per_req is not None else None
+        contents.append({
+            "content_id": content_id,
+            "title": _content_title(content_id),
+            **data,
+            "plan_cost_usd_per_generation": plan_cost,
+        })
+
+    products = []
+    for product_id in PRICES_BRL_MINOR:
+        price_brl_minor = PRICES_BRL_MINOR[product_id]
+        cycle_plan = _PRODUCT_CYCLE_PLAN.get(product_id, [])
+
+        cycle_req_recurring = 0
+        cycle_req_onetime = 0
+        tok_recurring = 0.0
+        tok_onetime = 0.0
+        plan_recurring: float | None = 0.0 if plan_per_req is not None else None
+        plan_onetime: float | None = 0.0 if plan_per_req is not None else None
+        breakdown = []
+
+        for cid, times, recurring in cycle_plan:
+            ct = content_table.get(cid)
+            if ct is None:
+                continue
+            n = ct["req_per_generation"]
+            req = n * times
+            tok = ct["est_cost_usd_per_generation"] * times
+            p = (n * plan_per_req * times) if plan_per_req is not None else None
+            breakdown.append({
+                "content_id": cid,
+                "title": _content_title(cid),
+                "times_per_30d": times,
+                "recurring": recurring,
+                "req": req,
+                "est_cost_token_usd": round(tok, 6),
+                "est_cost_plan_usd": round(p, 6) if p is not None else None,
+            })
+            if recurring:
+                cycle_req_recurring += req
+                tok_recurring += tok
+                if plan_recurring is not None and p is not None:
+                    plan_recurring += p
+            else:
+                cycle_req_onetime += req
+                tok_onetime += tok
+                if plan_onetime is not None and p is not None:
+                    plan_onetime += p
+
+        tok_total = tok_recurring + tok_onetime
+        plan_total = (plan_recurring + plan_onetime) if (plan_recurring is not None and plan_onetime is not None) else None
+
+        def _brl(usd: float | None) -> float | None:
+            return round(usd * usd_brl, 4) if (usd is not None and usd_brl is not None) else None  # noqa: B023
+
+        price_brl = price_brl_minor / 100
+
+        def _margin(cost_brl: float | None) -> tuple[float | None, float | None]:
+            if cost_brl is None:
+                return None, None
+            m = round(price_brl - cost_brl, 2)  # noqa: B023
+            p = round((m / price_brl) * 100, 1) if price_brl > 0 else None  # noqa: B023
+            return m, p
+
+        tok_brl = _brl(tok_total)
+        plan_brl = _brl(plan_total)
+        margin_tok_brl, margin_tok_pct = _margin(tok_brl)
+        margin_plan_brl, margin_plan_pct = _margin(plan_brl)
+
+        products.append({
+            "product_id": product_id,
+            "title": title_for(product_id, "pt-BR"),
+            "price_brl_minor": price_brl_minor,
+            "price_label": format_amount(price_brl_minor, "BRL"),
+            "cycle_req_recurring": cycle_req_recurring,
+            "cycle_req_onetime": cycle_req_onetime,
+            "cycle_req_total": cycle_req_recurring + cycle_req_onetime,
+            "token_cost_usd_recurring": round(tok_recurring, 6),
+            "token_cost_usd_onetime": round(tok_onetime, 6),
+            "token_cost_usd_total": round(tok_total, 6),
+            "token_cost_brl_total": tok_brl,
+            "margin_token_brl": margin_tok_brl,
+            "margin_token_pct": margin_tok_pct,
+            "plan_cost_usd_recurring": round(plan_recurring, 6) if plan_recurring is not None else None,
+            "plan_cost_usd_onetime": round(plan_onetime, 6) if plan_onetime is not None else None,
+            "plan_cost_usd_total": round(plan_total, 6) if plan_total is not None else None,
+            "plan_cost_brl_total": plan_brl,
+            "margin_plan_brl": margin_plan_brl,
+            "margin_plan_pct": margin_plan_pct,
+            "breakdown": breakdown,
+        })
+
+    env_status = {
+        "MINIMAX_USD_PER_1M_INPUT_TOKENS": _parse_float_env("MINIMAX_USD_PER_1M_INPUT_TOKENS") is not None,
+        "MINIMAX_USD_PER_1M_OUTPUT_TOKENS": _parse_float_env("MINIMAX_USD_PER_1M_OUTPUT_TOKENS") is not None,
+        "MINIMAX_EST_INPUT_TOKENS_PER_SECTION": _parse_float_env("MINIMAX_EST_INPUT_TOKENS_PER_SECTION") is not None,
+        "MINIMAX_EST_OUTPUT_TOKENS_PER_SECTION": _parse_float_env("MINIMAX_EST_OUTPUT_TOKENS_PER_SECTION") is not None,
+        "MINIMAX_PLAN_USD_PER_MONTH": plan_usd is not None,
+        "COST_USD_BRL_RATE": usd_brl is not None,
+    }
+
+    return {
+        "env_configured": env_status,
+        "effective_params": {
+            "usd_per_1m_input": price_in,
+            "usd_per_1m_output": price_out,
+            "est_input_tokens_per_section": est_in,
+            "est_output_tokens_per_section": est_out,
+            "usd_per_section": round(_cost_per_section_usd(), 8),
+            "plan_usd_per_month": plan_usd,
+            "usd_brl_rate": usd_brl,
+        },
+        "pricing_note": (
+            "Modo (a) usa preços de tabela MiniMax pay-as-you-go (openrouter.ai, 2026-08-13). "
+            "O bloco <think> do M2.7 é cobrado como saída — custo real pode ser maior que o texto entregue. "
+            "Modo (b) requer MINIMAX_PLAN_USD_PER_MONTH. "
+            "Câmbio USD→BRL configurável via COST_USD_BRL_RATE — valor chumbado envelhece sem avisar."
+        ),
+        "contents": contents,
+        "products": products,
+        "weekly_quota": weekly_quota,
+    }
+
+
+@router.get("/cost")
+def cost(_admin: str = Depends(require_admin), db: Session = Depends(get_db)) -> dict:
+    """Análise de custo por conteúdo e produto (ESTIMADO) + consumo real (MEDIDO).
+
+    ESTIMADO = cálculo a partir de budget de tokens e preços de tabela MiniMax.
+    MEDIDO = weekly_quota snapshot (persistido em site_quota_usage).
+    Não misture os dois numa decisão de preço — são fontes distintas.
+    """
+    return cost_catalog(db)
