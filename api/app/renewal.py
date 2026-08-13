@@ -37,7 +37,7 @@ from sqlalchemy.orm import Mapped, Session, mapped_column
 from .checkout import gg_checkout_url, portal_url
 from .db import Base, get_db
 from .mailer import send_astro_alert_email, send_coupon_winback_email, send_renewal_reminder_email, send_trial_ending_email, send_weekly_forecast_email, send_winback_email
-from .models import Entitlement, Profile, User
+from .models import Entitlement, GenerationJob, Profile, Reading, User
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -750,3 +750,262 @@ async def push_daily_horoscope_task(request: Request, db: Session = Depends(get_
             logger.exception("Falha ao enviar push diário para user %s", sub.user_id[:8])
 
     return {"ok": True, "sent": sent, "skipped": skipped}
+
+
+# ---------------------------------------------------------------------------
+# Pré-geração diária de conteúdo para todas as clientes ativas
+# ---------------------------------------------------------------------------
+
+_PREGEN_PROFILE_KEYS = (
+    "user_id", "birth_date", "birth_time", "birth_city", "birth_state",
+    "birth_country", "birth_timezone", "birth_latitude", "birth_longitude",
+    "partner_name", "partner_birth_date", "partner_birth_time",
+    "partner_birth_city", "partner_birth_state", "partner_country",
+)
+
+
+def _profile_to_snapshot(profile: Profile | None) -> dict | None:
+    """Réplica local de main.profile_to_dict — evita import circular."""
+    from datetime import date, time
+    if not profile:
+        return None
+    return {
+        key: getattr(profile, key).isoformat()
+        if isinstance(getattr(profile, key), (date, time))
+        else getattr(profile, key)
+        for key in _PREGEN_PROFILE_KEYS
+    }
+
+
+def _pregen_target_iso_week(locale: str) -> str:
+    """Réplica local de main._target_iso_week — evita import circular."""
+    from . import horoscope_free
+    today = horoscope_free.local_today(locale if locale in horoscope_free.LOCALE_DEFAULTS else "pt-BR")
+    if today.weekday() >= 5:
+        next_monday = today + timedelta(days=7 - today.weekday())
+        year, week, _ = next_monday.isocalendar()
+    else:
+        year, week, _ = today.isocalendar()
+    return f"{year}-W{week:02d}"
+
+
+def _pregen_snapshot_for(content_id: str, profile: Profile, locale: str) -> dict | None:
+    base = _profile_to_snapshot(profile)
+    if content_id == "site:content:previsao_semanal" and base is not None:
+        base = {**base, "target_iso_week": _pregen_target_iso_week(locale)}
+    return base
+
+# Conteúdos do plano de 30 dias com sua cadência de pré-geração.
+# "daily"   → gera toda vez que o job rodar (idempotência: ready hoje)
+# "weekly"  → gera na semana ISO corrente (idempotência: ready na semana)
+# "monthly" → gera no mês corrente (idempotência: ready no mês)
+_PREGEN_SCHEDULE: dict[str, str] = {
+    "site:content:horoscopo_diario": "daily",
+    "site:content:previsao_semanal": "weekly",
+    "site:content:guia_do_mes": "monthly",
+}
+
+# Título exibido na leitura — espelha content_title() em main.py para não
+# importar main aqui (importação circular). Mantido em sync manual.
+_PREGEN_TITLES: dict[str, str] = {
+    "site:content:horoscopo_diario": "Horóscopo do Dia",
+    "site:content:previsao_semanal": "Previsão da Semana",
+    "site:content:guia_do_mes": "Guia do Mês",
+}
+
+
+def _pregen_period_key(content_id: str, now: datetime) -> str:
+    """Chave de idempotência por período: YYYY-MM-DD, YYYY-Www ou YYYY-MM."""
+    cadence = _PREGEN_SCHEDULE.get(content_id, "daily")
+    if cadence == "monthly":
+        return now.strftime("%Y-%m")
+    if cadence == "weekly":
+        iso = now.isocalendar()
+        return f"{iso.year}-W{iso.week:02d}"
+    return now.strftime("%Y-%m-%d")
+
+
+def _reading_fresh_for_period(db: Session, user_id: str, content_id: str, period_key: str) -> bool:
+    """True quando já existe leitura pronta OU em andamento para o período.
+
+    'em andamento' (in_progress) basta para não duplicar: o worker vai concluir.
+    """
+    cadence = _PREGEN_SCHEDULE.get(content_id, "daily")
+    now = _now()
+
+    if cadence == "daily":
+        # Pronto hoje UTC
+        day_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
+        return bool(db.scalar(
+            select(Reading).where(
+                Reading.user_id == user_id,
+                Reading.content_id == content_id,
+                Reading.status.in_(["ready", "in_progress"]),
+                Reading.created_at >= day_start,
+            )
+        ))
+
+    if cadence == "weekly":
+        # Pronto na mesma semana ISO
+        iso_year, iso_week, _ = now.isocalendar()
+        week_start = now - timedelta(days=now.weekday())
+        week_start = week_start.replace(hour=0, minute=0, second=0, microsecond=0)
+        week_end = week_start + timedelta(days=7)
+        return bool(db.scalar(
+            select(Reading).where(
+                Reading.user_id == user_id,
+                Reading.content_id == content_id,
+                Reading.status.in_(["ready", "in_progress"]),
+                Reading.created_at >= week_start,
+                Reading.created_at < week_end,
+            )
+        ))
+
+    # monthly
+    month_start = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+    if now.month == 12:
+        month_end = now.replace(year=now.year + 1, month=1, day=1, hour=0, minute=0, second=0, microsecond=0)
+    else:
+        month_end = now.replace(month=now.month + 1, day=1, hour=0, minute=0, second=0, microsecond=0)
+    return bool(db.scalar(
+        select(Reading).where(
+            Reading.user_id == user_id,
+            Reading.content_id == content_id,
+            Reading.status.in_(["ready", "in_progress"]),
+            Reading.created_at >= month_start,
+            Reading.created_at < month_end,
+        )
+    ))
+
+
+def _job_active(db: Session, user_id: str, content_id: str) -> bool:
+    return bool(db.scalar(
+        select(GenerationJob).where(
+            GenerationJob.user_id == user_id,
+            GenerationJob.content_id == content_id,
+            GenerationJob.status.in_(["queued", "running"]),
+        )
+    ))
+
+
+def run_daily_pregen(db: Session) -> dict:
+    """Enfileira geração de conteúdo do plano de 30 dias para todas as clientes ativas.
+
+    Chamado diariamente via POST /api/tasks/daily-pregen. Idempotente: não
+    duplica job nem leitura já pronta para o período corrente. Distribui a
+    carga no tempo via not_before escalonado (PREGEN_STAGGER_SECONDS, padrão 3s
+    entre enfileiramentos) para não inundar o pool de workers nem a API do MiniMax.
+
+    Gera para trial E pagante — a dona decidiu: a leitura do dia pertence à
+    cliente independente de ela abrir o app (e sem conteúdo não há push/email).
+    """
+    from .worker import enqueue_generation_job
+    from .engine import sections_for
+
+    now = _now()
+    stagger = int(os.getenv("PREGEN_STAGGER_SECONDS", "3"))
+    stats: dict[str, int] = {"enqueued": 0, "skipped_ready": 0, "skipped_job": 0, "skipped_no_profile": 0, "errors": 0}
+    order = 0  # contador para escalonamento
+
+    # Todos os entitlements ativos do produto base (trial + pago)
+    candidates = db.scalars(
+        select(Entitlement).where(
+            Entitlement.product_id == PRODUCT_ID,
+            Entitlement.status == "available",
+        )
+    ).all()
+
+    for ent in candidates:
+        # Entitlement expirado → pula
+        if ent.expires_at is not None and _aware(ent.expires_at) < now:
+            stats["skipped_ready"] += 1
+            continue
+
+        user = db.get(User, ent.user_id)
+        if not user:
+            continue
+
+        profile = db.get(Profile, user.id)
+        if not profile or not profile.birth_date or not profile.birth_city:
+            stats["skipped_no_profile"] += 1
+            continue
+
+        locale = getattr(user, "locale", "pt-BR") or "pt-BR"
+
+        for content_id, cadence in _PREGEN_SCHEDULE.items():
+            period_key = _pregen_period_key(content_id, now)
+
+            if _reading_fresh_for_period(db, user.id, content_id, period_key):
+                stats["skipped_ready"] += 1
+                continue
+
+            if _job_active(db, user.id, content_id):
+                stats["skipped_job"] += 1
+                continue
+
+            try:
+                title = _PREGEN_TITLES.get(content_id, content_id)
+                expected_sections = sections_for(content_id)
+                snapshot = _pregen_snapshot_for(content_id, profile, locale)
+                reading = Reading(
+                    user_id=user.id,
+                    content_id=content_id,
+                    product_id=ent.product_id,
+                    status="in_progress",
+                    title=title,
+                    source="llm",
+                    input_snapshot=snapshot,
+                    sections_total=len(expected_sections),
+                    sections_done=0,
+                )
+                db.add(reading)
+                db.commit()
+                db.refresh(reading)
+
+                not_before = now + timedelta(seconds=order * stagger)
+                job = enqueue_generation_job(
+                    reading_id=reading.id,
+                    content_id=content_id,
+                    user_id=user.id,
+                    locale=locale,
+                    customer_name=user.name or "",
+                )
+                if job and not_before > now:
+                    # Sobrescreve not_before para escalonamento
+                    from .db import SessionLocal as _SL
+                    with _SL() as _db:
+                        _job = _db.get(GenerationJob, job.id)
+                        if _job and _job.status == "queued":
+                            _job.not_before = not_before
+                            _db.commit()
+
+                order += 1
+                stats["enqueued"] += 1
+                logger.info(
+                    "pregen_enqueued user=%s content_id=%s not_before=%s",
+                    user.id[:8], content_id, not_before.isoformat(),
+                )
+            except Exception:
+                logger.exception("Falha ao enfileirar pregen para user=%s content_id=%s", user.id[:8], content_id)
+                stats["errors"] += 1
+
+    return stats
+
+
+@router.post("/api/tasks/daily-pregen")
+async def daily_pregen_task(request: Request, db: Session = Depends(get_db)) -> dict:
+    """Cron diário para pré-gerar conteúdo do plano de 30 dias para todas as clientes ativas.
+
+    Configurar no Coolify: cron diário às 05:00 UTC (antes do push-daily-horoscope)
+    com header x-task-secret. Gera horóscopo diário + previsão semanal (se semana nova)
+    + guia do mês (se mês novo). Idempotente por período — seguro rodar N vezes.
+    """
+    secret = os.getenv("TASK_SECRET", "").strip()
+    if not secret:
+        raise HTTPException(status_code=503, detail="TASK_SECRET não configurado.")
+    provided = request.headers.get("x-task-secret", "")
+    if not hmac.compare_digest(secret.encode(), provided.encode()):
+        raise HTTPException(status_code=401, detail="Segredo inválido.")
+
+    stats = run_daily_pregen(db)
+    return {"ok": True, **stats}

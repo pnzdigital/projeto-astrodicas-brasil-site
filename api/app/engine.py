@@ -304,7 +304,7 @@ _LONG_CONTENT_IDS = frozenset({
 # esgotarem (uma má sorte seguida da outra); 3 tentativas reduz essa
 # probabilidade sem custo relevante (cada tentativa extra é ~1800 tokens,
 # não 7000).
-_SECTION_MAX_ATTEMPTS_DEFAULT = "3"
+_SECTION_MAX_ATTEMPTS_DEFAULT = "5"
 
 # Per-section timeout: a resposta ainda é bem menor que os 7000 tokens do
 # documento inteiro, mas o budget subiu para 1800 (ver _SECTION_TOKEN_BUDGET)
@@ -1154,21 +1154,43 @@ def _section_prompt(
     }
     _label = _TRANSIT_LABELS.get(content_id, "da leitura natal premium")
     reading_type = f"{_label} \"{general_title}\""
-    # Seções de ação prática ("Como agir", "Direção Prática") disparam thinking
-    # mais longo no M2.7 porque exigem síntese de todo o mapa em orientação
-    # concreta — medido: seção 3 do horóscopo falha 2/3 vs 0/3 seção 1 com mesmo
-    # budget. Solução: restringir o ESCOPO do que a seção pede, não o raciocínio
-    # (instrução anti-think não funciona: modelo ignora). Ao limitar a 1-2
-    # aspectos do chart, reduz-se a carga de síntese sem cortar a qualidade.
-    _PRACTICAL_SUBTITLES = {"como agir hoje", "how to act today"}
-    is_practical = subtitle.lower() in _PRACTICAL_SUBTITLES
-    scope_instruction = (
-        "<escolha 1 a 2 aspectos ou trânsitos do calculated_chart e derive deles orientações concretas para o dia — "
-        "não percorra o mapa inteiro; vá direto ao conselho prático em 2 parágrafos de 70 a 110 palavras cada>"
-        if is_practical
-        else
+    # Seções que disparam thinking largo quando o escopo é amplo demais:
+    # - "Direção Prática" / "Como agir hoje": exige síntese de todo o mapa →
+    #   medido em produção: falha 2/3 com budget 2500 inteiro consumido em thinking.
+    # - "Identificação" / "O dia reflete você": convida varredura do mapa inteiro
+    #   para "o que no chart ressoa com hoje" → mesmo padrão, observado em
+    #   02:38-02:39 UTC 2026-08-13: 2/3 tentativas burn 2500 tokens em thinking.
+    # Solução: restringir o ESCOPO do que a seção pede, não o raciocínio
+    # (instrução anti-think não funciona: modelo ignora). Instrução diferente por
+    # tipo: prática pede conselho concreto, identificação pede ressonância emocional.
+    # Mapeamos por subtitle (não por título), que é o que efetivamente guia a tarefa.
+    _sub = subtitle.lower()
+    _SCOPE_NARROWING: dict[str, str] = {
+        # Prática: 1-2 aspectos → conselho direto
+        "como agir hoje": (
+            "<escolha 1 a 2 aspectos ou trânsitos do calculated_chart e derive deles orientações concretas para o dia — "
+            "não percorra o mapa inteiro; vá direto ao conselho prático em 2 parágrafos de 70 a 110 palavras cada>"
+        ),
+        "how to act today": (
+            "<escolha 1 a 2 aspectos ou trânsitos do calculated_chart e derive deles orientações concretas para o dia — "
+            "não percorra o mapa inteiro; vá direto ao conselho prático em 2 parágrafos de 70 a 110 palavras cada>"
+        ),
+        # Identificação: 1 trânsito do dia OU 1 aspecto natal dominante → ressonância emocional
+        "o dia reflete você": (
+            "<escolha 1 trânsito do dia ou 1 aspecto natal dominante do calculated_chart e mostre como ele ressoa "
+            "com o momento emocional da cliente — não percorra o mapa inteiro; "
+            "2 parágrafos de 70 a 110 palavras cada>"
+        ),
+        "el día te refleja": (
+            "<elegí 1 tránsito del día o 1 aspecto natal dominante del calculated_chart y mostrá cómo resuena "
+            "con el momento emocional de la cliente — no recorras la carta entera; "
+            "2 párrafos de 70 a 110 palabras cada uno>"
+        ),
+    }
+    scope_instruction = _SCOPE_NARROWING.get(
+        _sub,
         "<2 a 3 parágrafos de 70 a 110 palavras cada, separados por linha em branco, cobrindo apenas o tema desta seção "
-        "com base unicamente no calculated_chart>"
+        "com base unicamente no calculated_chart>",
     )
     return f"""Você é a astróloga editorial da AstroDicas. Está escrevendo APENAS UMA seção (a seção {order} de {total}) \
 {reading_type} em {language}.
@@ -1245,15 +1267,25 @@ def _generate_section(
     fallback_model = (os.getenv("MINIMAX_MODEL_FALLBACK", "").strip() or default_model)
 
     def _attempt_with_model(model_name: str, budget: int) -> dict | None:
+        # Escalonamento de budget: tentativa 1 usa o budget base; cada falha
+        # seguinte adiciona 750 tokens (até _SECTION_TOKEN_BUDGET * 2 = 5000).
+        # O thinking do M2.7 é estocástico — às vezes consome 2500 inteiros, às
+        # vezes 400. Dar mais espaço nas tentativas seguintes quebra o ciclo de
+        # falha sem custar cota extra quando a 1ª tentativa passa limpo.
+        _BUDGET_ESCALATION = [0, 750, 1500, 2000, 2500]
         for attempt in range(1, attempts + 1):
+            escalated_budget = min(
+                budget + _BUDGET_ESCALATION[min(attempt - 1, len(_BUDGET_ESCALATION) - 1)],
+                budget * 2,
+            )
             try:
                 raw = _call_minimax(
-                    prompt, locale, max_tokens=budget, timeout=timeout, model=model_name, section_label=section_title,
+                    prompt, locale, max_tokens=escalated_budget, timeout=timeout, model=model_name, section_label=section_title,
                 )
             except RuntimeError as exc:
                 logger.warning(
-                    "MiniMax (%s) falhou na seção '%s' (tentativa %d/%d): %s",
-                    model_name, section_title, attempt, attempts, exc,
+                    "MiniMax (%s) falhou na seção '%s' (tentativa %d/%d, budget=%d): %s",
+                    model_name, section_title, attempt, attempts, escalated_budget, exc,
                 )
                 continue
 
@@ -1262,20 +1294,20 @@ def _generate_section(
 
             if _has_foreign_script(body_text):
                 logger.warning(
-                    "MiniMax (%s) devolveu caractere fora do alfabeto latino (%s) na seção '%s', tentativa %d/%d; refazendo só esta seção.",
-                    model_name, _foreign_sample(body_text), section_title, attempt, attempts,
+                    "MiniMax (%s) devolveu caractere fora do alfabeto latino (%s) na seção '%s', tentativa %d/%d budget=%d; refazendo só esta seção.",
+                    model_name, _foreign_sample(body_text), section_title, attempt, attempts, escalated_budget,
                 )
                 continue
             if _has_foreign_words(body_text, locale):
                 logger.warning(
-                    "MiniMax (%s) vazou palavra de outro idioma (%s) na seção '%s', tentativa %d/%d; refazendo só esta seção.",
-                    model_name, _foreign_word_sample(body_text, locale), section_title, attempt, attempts,
+                    "MiniMax (%s) vazou palavra de outro idioma (%s) na seção '%s', tentativa %d/%d budget=%d; refazendo só esta seção.",
+                    model_name, _foreign_word_sample(body_text, locale), section_title, attempt, attempts, escalated_budget,
                 )
                 continue
             if _looks_truncated(body_text):
                 logger.warning(
-                    "MiniMax (%s) truncou a seção '%s' (tentativa %d/%d); refazendo só esta seção. Final observado: %r",
-                    model_name, section_title, attempt, attempts, body_text[-40:],
+                    "MiniMax (%s) truncou a seção '%s' (tentativa %d/%d budget=%d); refazendo só esta seção. Final observado: %r",
+                    model_name, section_title, attempt, attempts, escalated_budget, body_text[-40:],
                 )
                 continue
             if not body_text:

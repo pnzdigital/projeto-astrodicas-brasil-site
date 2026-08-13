@@ -247,8 +247,19 @@ def _fail_or_retry(db: Session, job: GenerationJob, error: str) -> None:
         job.status = "failed"
         reading = db.get(Reading, job.reading_id)
         if reading and reading.status not in ("ready",):
-            reading.status = "fallback"
-            reading.error_message = "Leitura temporariamente indisponível. Tente novamente mais tarde."
+            # FAIL-CLOSED: quando ativo, não marca 'fallback' — mantém
+            # 'in_progress' para que a UI mostre "sua leitura está sendo preparada"
+            # em vez de entregar o editorial genérico como se fosse personalizado.
+            # Um admin pode forçar nova geração via POST /api/admin/readings/{id}/regenerate.
+            if os.getenv("HOROSCOPE_FAIL_CLOSED", "1") == "1" and "fail_closed" in (error or ""):
+                reading.status = "in_progress"
+                logger.error(
+                    "fail_closed: reading=%s esgotou %d tentativas de job — status in_progress para não entregar fallback.",
+                    job.reading_id, job.attempts,
+                )
+            else:
+                reading.status = "fallback"
+                reading.error_message = "Leitura temporariamente indisponível. Tente novamente mais tarde."
     else:
         job.status = "queued"
         idx = min(job.attempts - 1, len(BACKOFF_MINUTES) - 1)

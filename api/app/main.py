@@ -705,15 +705,32 @@ def _run_generation_job(reading_id: str, content_id: str, title: str, user_id: s
             reading.error_message = "Leitura gerada por modelo editorial padrão. A leitura personalizada está temporariamente indisponível."
             db.commit()
             return
-        reading.body_html = generated.body_html
-        reading.source = generated.source
-        reading.content_sections = generated.sections or []
         reading.birth_time_assumed = generated.birth_time_assumed
         reading.ascendant_warning = generated.ascendant_warning or {}
         if generated.source == "fallback":
+            # FAIL-CLOSED (HOROSCOPE_FAIL_CLOSED=1, padrão): não persiste o
+            # fallback editorial — a cliente pagou por leitura personalizada e
+            # não pode receber texto genérico. Levanta RuntimeError para que o
+            # worker recoloque o job na fila (backoff já existente em worker.py).
+            # Para reverter à entrega de fallback: HOROSCOPE_FAIL_CLOSED=0.
+            # Só ativo quando MINIMAX_API_KEY está configurada: sem chave não há
+            # nada para retryar (dev/test sem LLM) e o retry seria loop infinito.
+            has_api_key = bool(os.getenv("MINIMAX_API_KEY", "").strip())
+            if has_api_key and os.getenv("HOROSCOPE_FAIL_CLOSED", "1") == "1":
+                logger.warning(
+                    "fail_closed: reading=%s source=fallback; recusando persistir editorial — job será re-enfileirado.",
+                    reading_id,
+                )
+                raise RuntimeError("fail_closed: geração retornou fallback editorial")
+            reading.body_html = generated.body_html
+            reading.source = generated.source
+            reading.content_sections = generated.sections or []
             reading.error_message = generated.warning
             reading.status = "fallback"
         else:
+            reading.body_html = generated.body_html
+            reading.source = generated.source
+            reading.content_sections = generated.sections or []
             reading.status = "ready"
         db.commit()
     finally:
