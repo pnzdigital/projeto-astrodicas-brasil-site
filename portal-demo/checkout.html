@@ -13,6 +13,8 @@
   <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@500;600&family=Jost:wght@400;500;600;700&display=swap" rel="stylesheet">
   <style>
     :root{--ink:#080719;--gold:#d9ac5c;--gold-lit:#f4d79a;--cream:#f4efe4;--muted:rgba(244,239,228,.7);--faint:rgba(244,239,228,.45);--line:rgba(217,172,92,.24);--display:"Cormorant Garamond",Georgia,serif;--body:"Jost",system-ui,sans-serif}
+    /* evita que classes com display explícito (ex: display:grid) anulem o atributo hidden */
+    [hidden]{display:none!important}
     *{box-sizing:border-box}body{margin:0;min-width:320px;background:radial-gradient(circle at 78% -12%,rgba(87,63,180,.3),transparent 32rem),var(--ink);color:var(--cream);font:400 16px/1.6 var(--body);-webkit-font-smoothing:antialiased}
     a{color:var(--gold-lit)}button:focus-visible,a:focus-visible,input:focus-visible{outline:2px solid var(--gold-lit);outline-offset:3px}
     .wrap{width:min(960px,calc(100% - 32px));margin:auto;padding:28px 0 64px}
