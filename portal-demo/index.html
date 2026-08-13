@@ -1950,16 +1950,14 @@
       appState.allReadings = readings.readings || [];
       appState.readings = new Map();
       for (const entry of appState.allReadings) { if (!appState.readings.has(entry.content_id)) appState.readings.set(entry.content_id, entry); }
-      // Só existe assinatura pra quem entrou pelo trial argentino (Checkout
-      // Pro). Falha aqui não pode travar o resto do painel: quem comprou
-      // pelo Cakto simplesmente não tem GET /api/me/subscription pra achar.
-      // subscriptionResolved começa false → inTrial=true → TRIAL_LOCKED_CONTENT
-      // bloqueado por padrão. Só libera depois que .then() confirmar in_trial=false.
-      // Em caso de falha, subscriptionResolved vira true com subscription=null →
-      // inTrial=true → conteúdo segue bloqueado (default seguro).
+      // Backend sempre devolve 200 com subscription:null para quem não tem
+      // assinatura (ex.: comprou pelo Cakto). Esse caso chega no .then() com
+      // data.subscription===null — informação conclusiva, subscriptionResolved=true.
+      // .catch() só dispara em erro de rede ou 5xx — inconclusivo: mantemos
+      // subscriptionResolved=false → inTrial=true → TRIAL_LOCKED_CONTENT bloqueado.
       apiRequest('/api/me/subscription')
         .then((data) => { appState.subscription = data.subscription; appState.subscriptionResolved = true; syncAccountDialog(); renderExpiryBanner(); applyRemoteState(); })
-        .catch(() => { appState.subscriptionResolved = true; applyRemoteState(); });  // subscription=null → inTrial=true → bloqueado
+        .catch(() => { applyRemoteState(); });  // inconclusivo: subscriptionResolved permanece false → inTrial=true → bloqueado
       applyRemoteState(); syncAccountDialog();
       void ensureDailyHoroscope();
     }

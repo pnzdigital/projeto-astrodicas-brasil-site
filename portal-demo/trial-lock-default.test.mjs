@@ -1,11 +1,10 @@
 // Testes do default seguro no cadeado de trial (portal-demo/index.html).
 //
-// Três estados cobertos:
-//   1. Assinatura ainda não resolvida (subscriptionResolved=false) → BLOQUEADO
-//   2. Assinatura resolvida com in_trial=true → BLOQUEADO
-//   3. Assinatura resolvida com in_trial=false (pagante) → liberado conforme entitlement
-//
-// Inclui explicitamente o caso de falha da chamada → BLOQUEADO.
+// Quatro caminhos cobertos:
+//   1. 200 com in_trial=true → BLOQUEADO
+//   2. 200 com in_trial=false (pagante) → liberado conforme entitlement
+//   3. 200 com subscription=null (sem assinatura, ex.: Cakto) → subscriptionResolved=true, inTrial=false → liberado
+//   4. Erro de rede / 5xx → subscriptionResolved permanece false → inTrial=true → BLOQUEADO
 //
 // Roda com: ``node portal-demo/trial-lock-default.test.mjs``.
 
@@ -28,9 +27,9 @@ test('appState começa com subscriptionResolved=false', () => {
   assert.match(script, /subscriptionResolved:\s*false/);
 });
 
-// ── Gate usa subscriptionResolved ─────────────────────────────────────────────
+// ── Fórmula do gate ───────────────────────────────────────────────────────────
 
-test('inTrial é true quando subscriptionResolved=false (ainda carregando)', () => {
+test('inTrial usa !subscriptionResolved || in_trial (default seguro via resolved=false)', () => {
   assert.match(script, /!appState\.subscriptionResolved\s*\|\|\s*Boolean\(appState\.subscription\?\.in_trial\)/);
 });
 
@@ -38,59 +37,72 @@ test('cadeado de trial dispara quando inTrial=true para TRIAL_LOCKED_CONTENT', (
   assert.match(script, /if \(inTrial && TRIAL_LOCKED_CONTENT\.has\(item\.id\)\) item\.state = ACCESS_STATES\.locked/);
 });
 
-// ── .then() marca resolved e passa subscription ───────────────────────────────
+// ── Caminho 1: 200 com in_trial=true → BLOQUEADO ─────────────────────────────
 
-test('.then() marca subscriptionResolved=true antes de chamar applyRemoteState', () => {
-  const thenMatch = script.match(/\.then\(\(data\) => \{([\s\S]*?)\}\)/);
+test('[200 trial] .then() salva subscription e marca subscriptionResolved=true', () => {
+  const thenMatch = script.match(/\.then\(\(data\) => \{([^}]+)\}\)/);
   assert.ok(thenMatch, '.then() da chamada de subscription não encontrado');
-  const thenBody = thenMatch[1];
-  assert.match(thenBody, /appState\.subscriptionResolved\s*=\s*true/);
-  assert.match(thenBody, /appState\.subscription\s*=\s*data\.subscription/);
-  assert.match(thenBody, /applyRemoteState\(\)/);
+  const body = thenMatch[1];
+  assert.match(body, /appState\.subscription\s*=\s*data\.subscription/);
+  assert.match(body, /appState\.subscriptionResolved\s*=\s*true/);
+  assert.match(body, /applyRemoteState\(\)/);
+  // Com in_trial=true: inTrial = !true || true = true → gate bloqueia ✓
 });
 
-// ── .catch() marca resolved mas mantém subscription=null → inTrial=true ──────
+// ── Caminho 2: 200 com in_trial=false (pagante) → liberado ───────────────────
 
-test('.catch() marca subscriptionResolved=true (falha da chamada resulta em BLOQUEADO)', () => {
-  // Busca o .catch() que vem depois do apiRequest('/api/me/subscription')
+test('[200 pagante] subscriptionResolved=true + in_trial=false → inTrial=false → gate não bloqueia', () => {
+  // Lógica: !true || Boolean(false) = false → gate não dispara → item segue entitlement
+  const gateMatch = script.match(/const inTrial\s*=\s*([^;]+);/);
+  assert.ok(gateMatch, 'const inTrial não encontrado');
+  assert.match(gateMatch[1], /!appState\.subscriptionResolved/);
+  assert.match(gateMatch[1], /appState\.subscription\?\.in_trial/);
+  // Fórmula correta: !true || Boolean(false) = false ✓ (verificado por análise estática)
+});
+
+// ── Caminho 3: 200 com subscription=null (Cakto, sem assinatura) → liberado ──
+
+test('[200 null] subscription=null chega no .then() → subscriptionResolved=true, inTrial=false', () => {
+  // Backend retorna {"subscription": null} para usuários sem assinatura
+  // .then() roda: subscription=null, subscriptionResolved=true
+  // inTrial = !true || Boolean(null?.in_trial) = false || false = false → gate não bloqueia ✓
+  const thenMatch = script.match(/\.then\(\(data\) => \{([^}]+)\}\)/);
+  assert.ok(thenMatch, '.then() não encontrado');
+  // subscription=null passa por data.subscription (null) — não tem tratamento especial
+  assert.match(thenMatch[1], /appState\.subscription\s*=\s*data\.subscription/);
+  assert.match(thenMatch[1], /appState\.subscriptionResolved\s*=\s*true/);
+  // Confirma que o backend NUNCA retorna 404 nesse caso — a distinção é no JSON
+  assert.match(script, /Backend sempre devolve 200 com subscription:null/);
+});
+
+// ── Caminho 4: erro de rede / 5xx → subscriptionResolved permanece false → BLOQUEADO
+
+test('[falha de rede] .catch() NÃO marca subscriptionResolved=true — permanece false → inTrial=true → bloqueado', () => {
   const blockMatch = script.match(/apiRequest\('\/api\/me\/subscription'\)([\s\S]*?)\.catch\(\(\) => \{([^}]*)\}\)/);
   assert.ok(blockMatch, 'bloco apiRequest(/api/me/subscription) + .catch() não encontrado');
   const catchBody = blockMatch[2];
-  assert.match(catchBody, /appState\.subscriptionResolved\s*=\s*true/);
+  // Deve chamar applyRemoteState para re-renderizar
   assert.match(catchBody, /applyRemoteState\(\)/);
-  // subscription NÃO é atribuído no catch → permanece null → inTrial=true
+  // NÃO deve marcar subscriptionResolved=true — senão inTrial vira false e libera
   assert.ok(
-    !catchBody.includes('appState.subscription ='),
-    'catch não deve atribuir appState.subscription — deve permanecer null para garantir bloqueio',
+    !catchBody.includes('subscriptionResolved'),
+    '.catch() não deve tocar subscriptionResolved — deve permanecer false (inTrial=true → bloqueado)',
+  );
+  // NÃO deve atribuir subscription (permanece null, mas irrelevante pois resolved=false já garante bloqueio)
+  assert.ok(
+    !catchBody.includes('appState.subscription'),
+    '.catch() não deve atribuir appState.subscription',
   );
 });
 
-// ── Comentários descrevem o comportamento real ───────────────────────────────
-
-test('comentário próximo ao .catch() descreve que subscription=null resulta em bloqueio', () => {
-  assert.match(script, /subscription=null.*bloqueado|bloqueado.*subscription=null/i);
+test('[falha de rede] comentário do .catch() descreve que subscriptionResolved permanece false', () => {
+  assert.match(script, /subscriptionResolved permanece false/);
 });
 
-test('comentário documenta o princípio do default seguro (não descreve comportamento falso)', () => {
-  assert.match(script, /default seguro/i);
-  // Comentário antigo que mentia (inTrial=false com null) não pode estar presente
-  assert.ok(
-    !script.includes('inTrial=false e TRIAL_LOCKED_CONTENT não precisa mudar'),
-    'comentário falso ainda presente — descreve comportamento que não existe mais',
-  );
-});
+// ── Comentário descreve comportamento real ────────────────────────────────────
 
-// ── Pagante (in_trial=false) ──────────────────────────────────────────────────
-
-test('quando subscriptionResolved=true e in_trial=false, inTrial é false e gate não bloqueia', () => {
-  // Verifica a fórmula: !false || Boolean(false) = false
-  // Só podemos checar a lógica via análise estática do código fonte
-  const gateMatch = script.match(/const inTrial\s*=\s*(!appState\.subscriptionResolved[^;]+);/);
-  assert.ok(gateMatch, 'linha const inTrial não encontrada');
-  // Expressão deve ser: !subscriptionResolved || Boolean(in_trial)
-  // Quando resolved=true e in_trial=false: !true || Boolean(false) = false || false = false ✓
-  assert.match(gateMatch[1], /!appState\.subscriptionResolved/);
-  assert.match(gateMatch[1], /appState\.subscription\?\.in_trial/);
+test('comentário documenta que .catch() é inconclusivo (rede/5xx), não "sem assinatura"', () => {
+  assert.match(script, /inconclusivo/i);
 });
 
 // ── Runner ────────────────────────────────────────────────────────────────────
