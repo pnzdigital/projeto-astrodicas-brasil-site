@@ -43,6 +43,12 @@
     footer{margin-top:34px;color:var(--faint);font-size:12px;text-align:center}
     @media(max-width:820px){.grid{grid-template-columns:1fr}.summary{order:-1}}
     @media(prefers-reduced-motion:reduce){*{transition:none!important}}
+    /* Banner de sessão ativa */
+    .session-banner{padding:14px 16px;border:1px solid var(--line);border-radius:5px;background:rgba(217,172,92,.08);margin-bottom:18px;font-size:14px}
+    .session-banner strong{display:block;margin-bottom:2px;color:var(--gold-lit)}
+    .session-banner .switch-link{color:var(--faint);font-size:12px;text-decoration:underline;cursor:pointer;background:none;border:none;padding:0;font-family:inherit}
+    .session-banner .switch-link:hover{color:var(--muted)}
+    .other-email-warning{margin-bottom:14px;padding:11px 14px;border:1px solid rgba(242,180,80,.35);border-radius:5px;color:rgba(242,180,80,.9);font-size:13px}
   </style>
   <script src="/meta-pixel.js"></script>
 </head>
@@ -60,9 +66,18 @@
         <h1 id="title">Finalizá tu compra</h1>
         <p class="lede" id="lede">Completá tu e-mail para crear tu acceso al portal y pagá sin salir del sitio.</p>
 
+        <!-- Banner exibido quando há sessão ativa (logado) -->
+        <div class="session-banner" id="session-banner" hidden>
+          <strong id="session-who"></strong>
+          <button type="button" class="switch-link" id="switch-link"></button>
+        </div>
+
+        <!-- Aviso exibido quando o usuário logado escolhe usar outro e-mail -->
+        <p class="other-email-warning" id="other-email-warning" hidden></p>
+
         <form id="identity-form" novalidate>
-          <div class="field"><label for="buyer-name" id="label-name">Nombre completo</label><input id="buyer-name" name="name" autocomplete="name" required></div>
-          <div class="field"><label for="buyer-email" id="label-email">E-mail</label><input id="buyer-email" name="email" type="email" autocomplete="email" required></div>
+          <div class="field" id="field-name"><label for="buyer-name" id="label-name">Nombre completo</label><input id="buyer-name" name="name" autocomplete="name" required></div>
+          <div class="field" id="field-email"><label for="buyer-email" id="label-email">E-mail</label><input id="buyer-email" name="email" type="email" autocomplete="email" required></div>
           <button class="button" type="submit" id="continue-button">Continuar al pago →</button>
         </form>
 
@@ -100,6 +115,10 @@
         pending: 'Tu pago quedó en revisión. Te avisamos por e-mail apenas se acredite.',
         failed: 'No pudimos procesar el pago. Probá con otro medio.',
         unknownProduct: 'No encontramos ese producto. Volvé a la tienda y elegí tu lectura.',
+        // Sessão ativa
+        buyingAs: (name, email) => `Comprando como ${name} (${email})`,
+        switchLink: 'Usar otro e-mail',
+        otherEmailWarning: (email) => `El acceso se entregará al e-mail que ingreses, no al de tu cuenta (${email}).`,
       },
       'pt-BR': {
         secure: 'Pagamento protegido',
@@ -116,6 +135,10 @@
         pending: 'Seu pagamento ficou em análise. Avisamos por e-mail assim que for aprovado.',
         failed: 'Não conseguimos processar o pagamento. Tente outro meio.',
         unknownProduct: 'Não encontramos esse produto. Volte à loja e escolha sua leitura.',
+        // Sessão ativa
+        buyingAs: (name, email) => `Comprando como ${name} (${email})`,
+        switchLink: 'Usar outro e-mail',
+        otherEmailWarning: (email) => `O acesso será entregue ao e-mail que você digitar, não ao da sua conta (${email}).`,
       },
     };
 
@@ -127,6 +150,17 @@
     const notice = document.getElementById('notice');
     const form = document.getElementById('identity-form');
     const continueButton = document.getElementById('continue-button');
+    const sessionBanner = document.getElementById('session-banner');
+    const sessionWho = document.getElementById('session-who');
+    const switchLink = document.getElementById('switch-link');
+    const otherEmailWarning = document.getElementById('other-email-warning');
+    const fieldName = document.getElementById('field-name');
+    const fieldEmail = document.getElementById('field-email');
+
+    // Estado de identidade: null = deslogado; objeto = { email, name } da sessão
+    let sessionIdentity = null;
+    // Quando true, usa a sessão do servidor (use_session: true no POST)
+    let useSession = false;
 
     document.documentElement.lang = locale;
     const text = (id, value) => { const el = document.getElementById(id); if (el) el.textContent = value; };
@@ -139,12 +173,52 @@
     text('step-1-label', copy.step1); text('step-2-label', copy.step2);
     text('summary-title', copy.summary); text('total-label', copy.total);
     text('delivery-note', copy.delivery); text('footer-note-text', copy.footer);
+    switchLink.textContent = copy.switchLink;
 
     function show(message, kind = '') {
       notice.hidden = false;
       notice.textContent = message;
       notice.className = `notice ${kind}`.trim();
     }
+
+    // Modo logado: esconde campos, mostra banner "Comprando como X"
+    function applySessionMode() {
+      useSession = true;
+      sessionWho.textContent = copy.buyingAs(sessionIdentity.name || sessionIdentity.email, sessionIdentity.email);
+      sessionBanner.hidden = false;
+      fieldName.hidden = true;
+      fieldEmail.hidden = true;
+      otherEmailWarning.hidden = true;
+      document.getElementById('buyer-name').removeAttribute('required');
+      document.getElementById('buyer-email').removeAttribute('required');
+    }
+
+    // Modo "usar outro e-mail" (logado mas quer trocar): mostra campos + aviso
+    function applyOtherEmailMode() {
+      useSession = false;
+      fieldName.hidden = false;
+      fieldEmail.hidden = false;
+      document.getElementById('buyer-name').setAttribute('required', '');
+      document.getElementById('buyer-email').setAttribute('required', '');
+      // Aviso claro: o acesso vai para o e-mail digitado, não o da conta
+      otherEmailWarning.textContent = copy.otherEmailWarning(sessionIdentity.email);
+      otherEmailWarning.hidden = false;
+    }
+
+    switchLink.addEventListener('click', () => {
+      applyOtherEmailMode();
+    });
+
+    // Consulta sessão ao carregar — sem bloquear o catálogo
+    fetch('/api/session', { credentials: 'same-origin' })
+      .then((r) => r.ok ? r.json() : { authenticated: false })
+      .then((data) => {
+        if (data.authenticated && data.user) {
+          sessionIdentity = data.user;
+          applySessionMode();
+        }
+      })
+      .catch(() => { /* sessão indisponível — modo visitante */ });
 
     async function loadCatalog() {
       const response = await fetch(`/api/catalog?locale=${encodeURIComponent(locale)}`);
@@ -171,15 +245,26 @@
 
     form.addEventListener('submit', async (event) => {
       event.preventDefault();
-      const name = document.getElementById('buyer-name').value.trim();
-      const email = document.getElementById('buyer-email').value.trim().toLowerCase();
-      if (name.length < 2 || !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) { show(copy.missing, 'error'); return; }
+
+      let orderBody;
+      if (useSession) {
+        // Logado comprando com a conta: o servidor resolve e-mail pela sessão
+        orderBody = { product_id: productId, use_session: true, locale };
+      } else {
+        const name = document.getElementById('buyer-name').value.trim();
+        const email = document.getElementById('buyer-email').value.trim().toLowerCase();
+        if (name.length < 2 || !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) { show(copy.missing, 'error'); return; }
+        orderBody = { product_id: productId, email, name, locale, use_session: false };
+      }
+
       continueButton.disabled = true;
       show(copy.opening);
       try {
         const response = await fetch('/api/checkout/order', {
-          method: 'POST', headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ product_id: productId, email, name, locale }),
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          credentials: 'same-origin',
+          body: JSON.stringify(orderBody),
         });
         const data = await response.json();
         if (!response.ok) throw new Error(data.detail || 'order');

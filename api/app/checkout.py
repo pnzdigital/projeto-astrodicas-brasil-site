@@ -20,7 +20,7 @@ import secrets
 from datetime import datetime, timedelta, timezone
 from urllib.parse import urlencode, urlparse, urlunparse, parse_qs
 
-from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi import APIRouter, Cookie, Depends, HTTPException, Request
 from pydantic import BaseModel, EmailStr, Field
 from sqlalchemy import select
 from sqlalchemy.orm import Session
@@ -31,7 +31,7 @@ from .db import get_db
 from .mailer import send_purchase_confirmation
 from .models import Entitlement, Order, User, WebhookEvent
 from .ratelimit import checkout_rate_limit, webhook_rate_limit
-from .security import hash_password
+from .security import decode_token, hash_password
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -48,9 +48,12 @@ DIARIO_ASTRAL_ACCESS_DAYS = 30
 
 class OrderBody(BaseModel):
     product_id: str = Field(max_length=120)
-    email: EmailStr
+    email: EmailStr | None = None
     name: str = Field(default="", max_length=160)
     locale: str = Field(default="pt-BR", max_length=10)
+    # Quando True, o servidor usa o e-mail da sessão autenticada e ignora o campo
+    # email do corpo — o cliente não pode forjar o e-mail da conta.
+    use_session: bool = False
 
 
 class PaymentBody(BaseModel):
@@ -157,9 +160,29 @@ def catalog(locale: str = "pt-BR") -> dict:
 
 
 @router.post("/api/checkout/order", dependencies=[Depends(checkout_rate_limit)])
-def open_order(body: OrderBody, db: Session = Depends(get_db)) -> dict:
+def open_order(
+    body: OrderBody,
+    db: Session = Depends(get_db),
+    site_session: str | None = Cookie(default=None),
+) -> dict:
     if not pricing.is_known_product(body.product_id):
         raise HTTPException(status_code=404, detail="Produto não encontrado.")
+
+    # Resolução de identidade: sessão autenticada tem precedência quando solicitado.
+    if body.use_session:
+        payload = decode_token(site_session or "")
+        if not payload:
+            raise HTTPException(status_code=401, detail="Sessão inválida ou expirada. Faça login novamente.")
+        session_user = db.get(User, payload["user_id"])
+        if not session_user:
+            raise HTTPException(status_code=401, detail="Sessão inválida ou expirada. Faça login novamente.")
+        resolved_email = session_user.email
+        resolved_name = body.name.strip() or session_user.name or ""
+    else:
+        if not body.email:
+            raise HTTPException(status_code=422, detail="E-mail obrigatório para compra sem sessão.")
+        resolved_email = str(body.email).lower()
+        resolved_name = body.name.strip()
     locale = pricing.normalize_locale(body.locale)
     provider = provider_for(locale)
     if provider == "mercadopago" and not mp.is_enabled():
@@ -174,8 +197,8 @@ def open_order(body: OrderBody, db: Session = Depends(get_db)) -> dict:
         currency=pricing.currency_for(locale),
         locale=locale,
         market=pricing.market_for(locale),
-        customer_email=body.email.lower(),
-        raw_payload={"name": body.name},
+        customer_email=resolved_email,
+        raw_payload={"name": resolved_name},
     )
     db.add(order)
     db.commit()
@@ -196,7 +219,7 @@ def open_order(body: OrderBody, db: Session = Depends(get_db)) -> dict:
                 status_code=503,
                 detail="O checkout deste produto ainda não está disponível. Entre em contato pelo suporte.",
             )
-        init_point = _append_checkout_params(gg_url, body.email.lower(), order.id)
+        init_point = _append_checkout_params(gg_url, resolved_email, order.id)
     elif provider == "mercadopago":
         try:
             preference = mp.create_preference(

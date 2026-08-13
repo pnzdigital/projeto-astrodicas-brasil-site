@@ -410,3 +410,79 @@ def test_generation_works_for_every_paid_content(client, monkeypatch):
 
     listed = client.get("/api/me/readings").json()["readings"]
     assert len(listed) == len(contents)
+
+
+# ── Testes de compra com sessão autenticada ──────────────────────────────────
+
+def test_order_with_session_uses_account_email(client, monkeypatch):
+    """Logado + use_session=True: o servidor usa o e-mail da conta, ignora body.email."""
+    register(client, "logada@exemplo.com", "senha123", name="Fulana Logada")
+
+    fake_pref = {}
+    monkeypatch.setattr(mercadopago, "create_preference", lambda **kw: fake_pref.update(kw) or {"id": "p1", "init_point": "https://mp.example/p1"})
+
+    response = client.post(
+        "/api/checkout/order",
+        json={"product_id": "site:diario_astral_completo", "use_session": True, "locale": "es-AR"},
+    )
+    assert response.status_code == 200, response.text
+    assert fake_pref["payer_email"] == "logada@exemplo.com"
+
+
+def test_order_with_session_ignores_body_email(client, monkeypatch):
+    """use_session=True: e-mail no body é ignorado — não pode forjar identidade."""
+    register(client, "real@exemplo.com", "senha123", name="Real")
+
+    captured = {}
+    monkeypatch.setattr(mercadopago, "create_preference", lambda **kw: captured.update(kw) or {"id": "p2", "init_point": "https://mp.example/p2"})
+
+    response = client.post(
+        "/api/checkout/order",
+        json={"product_id": "site:diario_astral_completo", "email": "forjado@hacker.com", "use_session": True, "locale": "es-AR"},
+    )
+    assert response.status_code == 200, response.text
+    # Deve usar o e-mail da sessão, não o forjado
+    assert captured["payer_email"] == "real@exemplo.com"
+
+
+def test_order_with_use_session_true_but_no_cookie_returns_401(client):
+    """use_session=True sem cookie de sessão deve retornar 401."""
+    # client sem login — nenhum cookie de sessão
+    response = client.post(
+        "/api/checkout/order",
+        json={"product_id": "site:diario_astral_completo", "use_session": True, "locale": "es-AR"},
+    )
+    assert response.status_code == 401
+
+
+def test_order_guest_still_requires_email(client):
+    """use_session=False (visitante): e-mail é obrigatório, sem sessão não aceita body vazio."""
+    response = client.post(
+        "/api/checkout/order",
+        json={"product_id": "site:diario_astral_completo", "use_session": False, "locale": "pt-BR"},
+    )
+    assert response.status_code == 422
+
+
+def test_order_session_and_fulfill_links_to_existing_account(client, monkeypatch, sent_emails):
+    """Compra logada: fulfill_order não cria conta duplicada — usa a conta existente."""
+    register(client, "existente@exemplo.com", "senha123", name="Existente")
+
+    monkeypatch.setattr(mercadopago, "create_preference", lambda **kw: {"id": "p3", "init_point": "https://mp.example/p3"})
+    order = client.post(
+        "/api/checkout/order",
+        json={"product_id": "site:diario_astral_completo", "use_session": True, "locale": "es-AR"},
+    ).json()
+    assert "order_id" in order, order
+
+    # Simula aprovação do pagamento
+    from app.db import SessionLocal
+    from app.models import Order, User
+    from sqlalchemy import select as sa_select
+
+    with SessionLocal() as db:
+        db_order = db.get(Order, order["order_id"])
+        checkout.fulfill_order(db, db_order)
+        users = db.scalars(sa_select(User).where(User.email == "existente@exemplo.com")).all()
+    # Apenas uma conta com esse e-mail
+    assert len(users) == 1
