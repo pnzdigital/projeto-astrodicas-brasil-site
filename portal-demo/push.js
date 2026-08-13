@@ -24,6 +24,7 @@
   let _deferredInstallPrompt = null;
   let _swRegistration = null;
   let _pushChannel = null;
+  let _pushAvailable = false; // true só quando servidor confirmar VAPID configurado
 
   // -------------------------------------------------------------------------
   // Detecção de plataforma
@@ -164,19 +165,36 @@
   // API pública
   // -------------------------------------------------------------------------
 
+  async function _checkPushAvailable() {
+    try {
+      const r = await fetch(`${_apiBase}/api/me/push/vapid-public-key`);
+      if (!r.ok) return;
+      const { publicKey } = await r.json();
+      _pushAvailable = Boolean(publicKey && publicKey.length > 10);
+    } catch (_) {
+      _pushAvailable = false;
+    }
+  }
+
   async function init(apiBase, showToastFn) {
     _apiBase = (apiBase || '').replace(/\/$/, '');
     _showToast = showToastFn || (() => {});
     _captureInstallPrompt();
     await _registerSW();
     _listenPushChannel();
+    await _checkPushAvailable(); // esconde UI de push quando VAPID não configurado
   }
 
   function isPushGranted() {
     return 'Notification' in window && Notification.permission === 'granted';
   }
 
+  function isPushAvailable() {
+    return _pushAvailable;
+  }
+
   async function requestPushPermission() {
+    if (!_pushAvailable) return false;
     if (!('Notification' in window)) return false;
     if (!('PushManager' in window)) return false;
     const permission = await Notification.requestPermission();
@@ -196,6 +214,7 @@
     requestPushPermission,
     unsubscribePush,
     isPushGranted,
+    isPushAvailable,
     isIos,
     isInStandaloneMode,
     showIosInstallHint,

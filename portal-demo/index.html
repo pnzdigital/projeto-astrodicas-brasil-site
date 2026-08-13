@@ -2108,9 +2108,15 @@
       });
 
       function updatePushSettingsUI() {
-        const granted = AstroPush.isPushGranted();
-        document.getElementById('push-enable-btn')?.toggleAttribute('hidden', granted);
-        document.getElementById('push-disable-btn')?.toggleAttribute('hidden', !granted);
+        const available = AstroPush.isPushAvailable();
+        const granted = available && AstroPush.isPushGranted();
+        const enableBtn = document.getElementById('push-enable-btn');
+        const disableBtn = document.getElementById('push-disable-btn');
+        const settingsSection = document.getElementById('push-settings');
+        // Esconde toda a seção quando push não está configurado no servidor
+        if (settingsSection) settingsSection.hidden = !available;
+        if (enableBtn) enableBtn.hidden = granted;
+        if (disableBtn) disableBtn.hidden = !granted;
       }
       updatePushSettingsUI();
     }
@@ -2119,6 +2125,7 @@
     let _pushAsked = false;
     function _maybeSolicitarPush() {
       if (_pushAsked || typeof AstroPush === 'undefined') return;
+      if (!AstroPush.isPushAvailable()) return; // VAPID não configurado — não oferecer
       if (AstroPush.isPushGranted()) return;
       if (!('Notification' in window) || Notification.permission === 'denied') return;
       _pushAsked = true;
