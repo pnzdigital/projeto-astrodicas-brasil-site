@@ -1010,7 +1010,7 @@
 
     const toast = document.querySelector('.toast');
     const API_BASE = (window.PORTAL_API_URL || document.querySelector('meta[name="portal-api"]')?.content || '').replace(/\/$/, '');
-    const appState = { apiAvailable: false, authenticated: false, authResolved: !IS_DASHBOARD || DEMO_PAID, user: null, profile: null, subscription: null, entitlements: new Map(), readings: new Map(), allReadings: [], pendingContentId: null, activeReadingId: null, pollingContentIds: new Set() };
+    const appState = { apiAvailable: false, authenticated: false, authResolved: !IS_DASHBOARD || DEMO_PAID, user: null, profile: null, subscription: null, subscriptionResolved: false, entitlements: new Map(), readings: new Map(), allReadings: [], pendingContentId: null, activeReadingId: null, pollingContentIds: new Set() };
     let toastTimer;
     function showToast(message) {
       toast.textContent = message;
@@ -1105,7 +1105,9 @@
     const TRIAL_LOCKED_CONTENT = new Set(['site:content:guia_do_mes', 'site:content:previsao_semanal']);
 
     function applyRemoteState() {
-      const inTrial = Boolean(appState.subscription?.in_trial);
+      // Default seguro: enquanto a assinatura não foi resolvida (ainda carregando
+      // ou falhou), tratamos como trial — TRIAL_LOCKED_CONTENT permanece bloqueado.
+      const inTrial = !appState.subscriptionResolved || Boolean(appState.subscription?.in_trial);
       LIBRARY_ITEMS.forEach((item) => {
         const reading = appState.readings.get(item.id);
         const entitlement = item.productId && appState.entitlements.get(item.productId);
@@ -1114,7 +1116,7 @@
         else if (reading?.status === 'ready' || !item.productId || entitlement?.status === 'available') item.state = reading?.status === 'ready' ? ACCESS_STATES.available : (item.productId ? ACCESS_STATES.available : ACCESS_STATES.new);
         else if (entitlement && entitlement.status !== 'available') item.state = ACCESS_STATES.pending;
         else item.state = fallbackState(item);
-        // Conteúdo pago é bloqueado durante trial mesmo que o entitlement base exista.
+        // Conteúdo pago bloqueado em trial ou enquanto assinatura ainda não carregou.
         if (inTrial && TRIAL_LOCKED_CONTENT.has(item.id)) item.state = ACCESS_STATES.locked;
         if (item.id === 'site:content:guia_do_mes') {
           // Meta fixo ("Julho · 12 min") mentia sobre o mês pra quem abrisse o
@@ -1951,13 +1953,13 @@
       // Só existe assinatura pra quem entrou pelo trial argentino (Checkout
       // Pro). Falha aqui não pode travar o resto do painel: quem comprou
       // pelo Cakto simplesmente não tem GET /api/me/subscription pra achar.
-      // Assinatura carrega async: sem ela o trial lock não dispara. Por isso
-      // applyRemoteState() roda de novo no .then(). No .catch(), mantemos o
-      // default seguro: sem confirmação de plano, conteúdo fica bloqueado —
-      // appState.subscription já é null, então inTrial=false e TRIAL_LOCKED_CONTENT não precisa mudar.
+      // subscriptionResolved começa false → inTrial=true → TRIAL_LOCKED_CONTENT
+      // bloqueado por padrão. Só libera depois que .then() confirmar in_trial=false.
+      // Em caso de falha, subscriptionResolved vira true com subscription=null →
+      // inTrial=true → conteúdo segue bloqueado (default seguro).
       apiRequest('/api/me/subscription')
-        .then((data) => { appState.subscription = data.subscription; syncAccountDialog(); renderExpiryBanner(); applyRemoteState(); })
-        .catch(() => { applyRemoteState(); });  // re-render com subscription=null → conteúdo fica bloqueado
+        .then((data) => { appState.subscription = data.subscription; appState.subscriptionResolved = true; syncAccountDialog(); renderExpiryBanner(); applyRemoteState(); })
+        .catch(() => { appState.subscriptionResolved = true; applyRemoteState(); });  // subscription=null → inTrial=true → bloqueado
       applyRemoteState(); syncAccountDialog();
       void ensureDailyHoroscope();
     }
