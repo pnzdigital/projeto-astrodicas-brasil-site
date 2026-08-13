@@ -943,6 +943,10 @@ def _call_minimax(
     usage = result.get("usage") or {} if isinstance(result, dict) else {}
     prompt_tokens = usage.get("prompt_tokens")
     completion_tokens = usage.get("completion_tokens")
+    # Campos de cache que MiniMax pode devolver (nomes variam por versão da API;
+    # logamos todos para evidenciar na produção se o cache está ativo e qual
+    # nomenclatura usam). Grep: minimax_usage_full
+    cached_tokens = usage.get("cached_tokens") or usage.get("cache_read_input_tokens") or usage.get("prompt_cache_hit_tokens")
     finish_reason = None
     try:
         choice = result["choices"][0]
@@ -957,9 +961,13 @@ def _call_minimax(
     # pra reconstituir queima de cota via grep em produção (ver relatório
     # /tmp/claude-1000/roteamento-minimax.md, seção "Token logging").
     logger.info(
-        "minimax_call model=%s content_id=%s section=%s prompt_tokens=%s completion_tokens=%s finish_reason=%s",
-        model, content_id, section_label or "-", prompt_tokens, completion_tokens, finish_reason,
+        "minimax_call model=%s content_id=%s section=%s prompt_tokens=%s completion_tokens=%s cached_tokens=%s finish_reason=%s",
+        model, content_id, section_label or "-", prompt_tokens, completion_tokens, cached_tokens, finish_reason,
     )
+    # Dump completo de usage uma vez por chamada para descobrir campos novos
+    # (incluindo cache fields que a API pode devolver sem documentar na SDK).
+    if usage:
+        logger.debug("minimax_usage_full model=%s usage=%s", model, usage)
     _record_quota_usage(model, completion_tokens)
     _persist_quota_usage(model, completion_tokens)
 
