@@ -362,13 +362,66 @@ def health() -> dict:
 # devolve 404 nativo do FastAPI, sem handler dedicado.
 
 
+def _pregen_daily_horoscope(user_id: str, locale: str, customer_name: str) -> None:
+    """Pré-gera o horóscopo do dia para a assinante no background do login.
+
+    Silencioso: qualquer falha vira log, nunca exceção para o cliente.
+    Guarda exatamente as mesmas regras do endpoint /generate:
+    - Só dispara para quem tem acesso ativo (trial ou pago) a site:diario_astral.
+    - Não duplica job ativo: reutiliza enqueue_generation_job, que é idempotente.
+    - Não sobrescreve leitura de hoje que já está pronta.
+    - Exige perfil completo (birth_date + birth_city) — sem dados não gera.
+    """
+    db = SessionLocal()
+    try:
+        if not entitlements.active(db, user_id, "site:diario_astral"):
+            return
+        profile = db.get(Profile, user_id)
+        if not profile or not profile.birth_date or not profile.birth_city:
+            return
+        content_id = "site:content:horoscopo_diario"
+        snapshot = profile_to_dict(profile)
+        existing = db.scalar(
+            select(Reading).where(
+                Reading.user_id == user_id,
+                Reading.content_id == content_id,
+                Reading.status.in_(["ready", "in_progress"]),
+            ).order_by(Reading.created_at.desc())
+        )
+        if existing:
+            if existing.status == "in_progress":
+                return  # já gerando
+            if reading_is_current(existing, content_id, snapshot, locale):
+                return  # já pronto e válido para hoje
+        title = content_title(content_id)
+        reading = Reading(
+            user_id=user_id,
+            content_id=content_id,
+            product_id="site:diario_astral",
+            status="in_progress",
+            title=title,
+            input_snapshot=snapshot,
+            sections_total=len(sections_for(content_id)),
+        )
+        db.add(reading)
+        db.commit()
+        db.refresh(reading)
+        _worker.enqueue_generation_job(reading.id, content_id, user_id, locale, customer_name)
+        logger.info("pregen_daily login user=%s reading=%s", user_id, reading.id)
+    except Exception:
+        logger.exception("pregen_daily falhou silenciosamente para user=%s", user_id)
+    finally:
+        db.close()
+
+
 @app.post("/api/auth/login", dependencies=[Depends(auth_rate_limit)])
-def login(body: LoginBody, request: Request, response: Response, db: Session = Depends(get_db)) -> dict:
+def login(body: LoginBody, request: Request, response: Response, background_tasks: BackgroundTasks, db: Session = Depends(get_db)) -> dict:
     locale = _pick_locale(getattr(body, "locale", None), request.headers.get("accept-language"))
     user = db.scalar(select(User).where(User.email == body.email.lower()))
     if not user or not verify_password(body.password, user.password_hash):
         raise HTTPException(status_code=401, detail=_msg("login_invalid", locale))
     set_session(response, user)
+    background_tasks.add_task(_pregen_daily_horoscope, user.id, user.locale or locale, user.name or "")
     return {"user": {"id": user.id, "email": user.email, "name": user.name, "locale": user.locale}}
 
 
