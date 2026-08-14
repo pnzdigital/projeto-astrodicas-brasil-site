@@ -275,7 +275,25 @@ def _max_tokens_for(content_id: str) -> int:
 # ambos passaram limpo (Saturno 1154 tokens stop, Plutão 817 tokens stop).
 # Budget novo: ~60% de headroom sobre os 1560 tokens do pior caso observado
 # → arredondado para 2500.
-_SECTION_TOKEN_BUDGET = int(os.getenv("MINIMAX_SECTION_MAX_TOKENS", "2500"))
+# 2500 → 5000 em 14/08/2026, com medição (27 chamadas reais, 3 seções × 3 budgets
+# × 3 amostras, relatório em /tmp/claude-1000/medicao-thinking.md):
+#
+#   budget 2500 → 1 corpo vazio em 9 · thinking médio ~805 tokens
+#   budget 4000 → 0 vazios          · thinking médio ~629
+#   budget 5000 → 0 vazios          · thinking médio ~565
+#
+# Isso REFUTA o diagnóstico anterior ("M2.7 expande o thinking para preencher o
+# budget", registrado acima em TOKEN_BUDGETS): o completion fica em ~700-1300
+# tokens seja qual for o teto, e o modelo para sozinho (finish_reason=stop em 21
+# das 22 amostras válidas). 2500 não era "teto deslocado" — era teto encostado no
+# pior caso do thinking, e quando o raciocínio estourava sozinho os 2500 o corpo
+# vinha vazio com finish_reason=length, forçando uma seção inteira de retry com o
+# cliente esperando. Observado de novo em produção em 14/08 às 16:37, em três
+# content_ids ao mesmo tempo.
+#
+# Teto maior não custa cota (a do M2.7 é por REQUISIÇÃO) nem latência (que segue
+# os tokens realmente gerados) — só remove o piso onde a geração batia.
+_SECTION_TOKEN_BUDGET = int(os.getenv("MINIMAX_SECTION_MAX_TOKENS", "5000"))
 
 # Budget per section when primary model is M3. M3 reasoning block (<think>) consumes
 # significantly more tokens than M2.7 before producing any body — measured: M3 at 1800
@@ -1188,6 +1206,20 @@ def _section_prompt(
             "<escolha 1 trânsito do dia ou 1 aspecto natal dominante do calculated_chart e mostre como ele ressoa "
             "com o momento emocional da cliente — não percorra o mapa inteiro; "
             "2 parágrafos de 70 a 110 palavras cada>"
+        ),
+        # "O que cobra atenção" era a única seção do diário sem narrowing — e a
+        # única que devolveu corpo vazio na medição de 13/08 (budget 2500 inteiro
+        # consumido em thinking). Relações + trabalho num prompt aberto convida a
+        # varrer o mapa todo; restringir a 1 aspecto fecha o escopo.
+        "o que cobra atenção": (
+            "<escolha 1 aspecto ou trânsito do calculated_chart que toque relações OU trabalho e "
+            "derive dele o que merece atenção hoje — não percorra o mapa inteiro; "
+            "2 parágrafos de 70 a 110 palavras cada>"
+        ),
+        "lo que pide atención": (
+            "<elegí 1 aspecto o tránsito del calculated_chart que toque vínculos O trabajo y "
+            "derivá de él lo que merece atención hoy — no recorras la carta entera; "
+            "2 párrafos de 70 a 110 palabras cada uno>"
         ),
         "el día te refleja": (
             "<elegí 1 tránsito del día o 1 aspecto natal dominante del calculated_chart y mostrá cómo resuena "
