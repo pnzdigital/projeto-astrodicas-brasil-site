@@ -734,16 +734,14 @@
         <section class="offer-grid" id="offer-grid" aria-label="Produtos disponíveis para compra"></section>
 
         <section class="bottom-grid">
-          <article class="panel resume">
-            <p class="eyebrow">Continue de onde parou</p>
-            <h3>Manual do seu Ascendente</h3>
-            <p>Você estava na parte “Como sua presença chega antes das palavras”.</p>
-            <div class="resume-row">
-              <div class="resume-art" aria-hidden="true">↑</div>
-              <div><strong>Leitura 03 · 12 min restantes</strong><span>Último acesso hoje, às 08:42</span></div>
-              <button class="button ghost small" type="button" data-toast="Retomando sua leitura…">Continuar</button>
-            </div>
-          </article>
+          <!-- Painel "Continue de onde parou" REMOVIDO em 14/08/2026. Era HTML
+               fixo de demonstração — "Manual do seu Ascendente", "Leitura 03 ·
+               12 min restantes", "Último acesso hoje, às 08:42" — e o botão só
+               disparava um toast: não existe retomada de leitura no produto.
+               Estava aparecendo para cliente em trial, prometendo conteúdo que
+               ela não tem e um progresso que nunca houve.
+               Se um dia existir a feature, ela precisa nascer de readings reais
+               (posição de leitura por reading_id), nunca de texto fixo. -->
           <aside class="panel upsell">
             <p class="eyebrow">Seu próximo nível</p>
             <h3>Complete seu céu.</h3>
@@ -1204,10 +1202,10 @@
         heroStatus.textContent = IS_ARGENTINA
           ? 'Estamos leyendo tu mapa para escribir el horóscopo de hoy. Esto lleva solo unos instantes.'
           : 'Estamos lendo seu mapa para escrever o horóscopo de hoje. Isso leva só alguns instantes.';
-        headline.textContent = IS_ARGENTINA ? 'Generando tu lectura de hoy…' : 'Gerando sua leitura de hoje…';
+        headline.textContent = IS_ARGENTINA ? 'Leyendo tu carta para hoy…' : 'Lendo seu mapa para hoje…';
         body.textContent = IS_ARGENTINA ? 'No hace falta recargar la página — avisamos apenas esté lista.' : 'Não precisa recarregar a página — avisamos assim que estiver pronta.';
         tags.innerHTML = '';
-        setCta(IS_ARGENTINA ? 'Generando…' : 'Gerando…', true);
+        setCta(IS_ARGENTINA ? 'Leyendo…' : 'Lendo…', true);
         heroCta.dataset.dailyAction = 'open'; cta.dataset.dailyAction = 'open';
         return;
       }
@@ -1308,7 +1306,12 @@
       grid.innerHTML = LIBRARY_ITEMS.map((item) => {
         const locked = item.state === ACCESS_STATES.locked;
         const waiting = item.state === ACCESS_STATES.pending || item.state === ACCESS_STATES.inProgress;
-        const label = locked ? 'Conhecer produto →' : item.state === ACCESS_STATES.new ? 'Começar leitura →' : item.state === ACCESS_STATES.inProgress ? 'Gerando leitura…' : item.state === ACCESS_STATES.pending ? 'Aguardando acesso…' : 'Abrir leitura →';
+        const label = locked
+          ? (IS_ARGENTINA ? 'Conocer producto →' : 'Conhecer produto →')
+          : item.state === ACCESS_STATES.new ? (IS_ARGENTINA ? 'Empezar lectura →' : 'Começar leitura →')
+          : item.state === ACCESS_STATES.inProgress ? (IS_ARGENTINA ? 'Leyendo tu carta…' : 'Lendo seu mapa…')
+          : item.state === ACCESS_STATES.pending ? (IS_ARGENTINA ? 'Esperando acceso…' : 'Aguardando acesso…')
+          : (IS_ARGENTINA ? 'Abrir lectura →' : 'Abrir leitura →');
         return `<article class="asset${locked ? ' locked' : ''}" data-product="${item.id}" data-state="${item.state}" aria-label="${item.title}, ${stateLabel(item.state)}">
           ${locked ? '<span class="lock-label">bloqueado</span>' : ''}<div class="asset-icon" aria-hidden="true">${item.icon}</div><div class="asset-kicker">${item.kicker}</div><h3>${item.title}</h3><p>${item.description}</p><div class="state-badge">${stateLabel(item.state)}</div><div class="asset-meta">${item.meta}</div>
           <div class="asset-actions"><button class="button ${locked ? 'ghost' : ''} small" type="button" data-read="${item.id}"${waiting ? ' aria-busy="true"' : ''}>${label}</button>${!locked && !waiting && item.downloadable ? (item.downloadUrl ? '<a class="button ghost small" href="'+item.downloadUrl+'" download>Baixar PDF</a>' : '<button class="button ghost small" type="button" data-print="'+item.id+'" aria-label="Imprimir ou salvar '+item.title+'">PDF</button>') : ''}</div>
