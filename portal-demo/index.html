@@ -290,6 +290,7 @@
 
     .section-head { display: flex; align-items: baseline; justify-content: space-between; gap: 15px; margin: 40px 0 15px; }
     .section-head h2 { margin: 0; font: 500 30px/1 var(--display); }
+    .section-head-note { color: var(--cream-dim); font-size: 12px; }
     .section-head a { color: var(--gold-lit); font-size: 12px; }
     .metrics { display: grid; grid-template-columns: repeat(3, 1fr); gap: 13px; margin-top: 17px; }
     .metric {
@@ -632,8 +633,8 @@
       <div class="sidebar-bottom">
         <div class="nav-label">Ajuda</div>
         <nav class="nav">
-          <a class="nav-link" href="#" data-toast="Central de ajuda em breve."><span class="nav-icon">?</span>Central de ajuda</a>
-          <a class="nav-link" href="#" data-toast="Preferências salvas neste dispositivo."><span class="nav-icon">⚙</span>Configurações</a>
+          <a class="nav-link" href="mailto:oi@astrodicas.com.br"><span class="nav-icon">?</span>Central de ajuda</a>
+          <a class="nav-link" href="#" data-dialog="account-dialog"><span class="nav-icon">⚙</span>Configurações</a>
         </nav>
         <div class="support-card">
           <strong>Seu céu, sempre perto.</strong>
@@ -651,7 +652,7 @@
             <h1>Carregando sua conta.</h1>
           </div>
           <div class="top-actions">
-            <button class="icon-button" type="button" aria-label="Notificações" data-toast="Você está em dia. O próximo envio chega em 2 dias.">♧<span class="dot"></span></button>
+            <button class="icon-button" type="button" aria-label="Notificações" data-toast="Seu horóscopo do dia é gerado toda manhã e fica salvo aqui.">♧<span class="dot"></span></button>
             <button class="icon-button" type="button" aria-label="Ajuda" data-toast="Fale com nosso suporte: oi@astrodicas.com.br">?</button>
             <button class="avatar" type="button" aria-label="Abrir perfil" data-dialog="account-dialog">AD</button>
           </div>
@@ -729,7 +730,7 @@
 
         <div class="section-head" id="entregaveis">
           <h2>Minha biblioteca</h2>
-          <a href="#" data-toast="Todos os seus conteúdos já estão visíveis aqui.">04 conteúdos ativos</a>
+          <span id="library-count" class="section-head-note"></span>
         </div>
         <div id="ready-notifications" aria-live="polite" aria-label="Notificações de leituras prontas"></div>
         <section class="library" id="library-grid" aria-label="Entregáveis disponíveis"></section>
@@ -1310,6 +1311,17 @@
     }
     function renderLibrary() {
       const grid = document.getElementById('library-grid');
+      // Contador real de conteúdos liberados. Era o texto fixo "04 conteúdos
+      // ativos" no HTML: a cliente via 04 tendo 1 ou tendo 12.
+      const contador = document.getElementById('library-count');
+      if (contador) {
+        const liberados = LIBRARY_ITEMS.filter((item) => item.state !== ACCESS_STATES.locked).length;
+        contador.textContent = liberados === 0
+          ? (IS_ARGENTINA ? 'ningún contenido activo todavía' : 'nenhum conteúdo ativo ainda')
+          : liberados === 1
+            ? (IS_ARGENTINA ? '1 contenido activo' : '1 conteúdo ativo')
+            : (IS_ARGENTINA ? `${liberados} contenidos activos` : `${liberados} conteúdos ativos`);
+      }
       grid.innerHTML = LIBRARY_ITEMS.map((item) => {
         const locked = item.state === ACCESS_STATES.locked;
         const waiting = item.state === ACCESS_STATES.pending || item.state === ACCESS_STATES.inProgress;
