@@ -448,9 +448,16 @@
     .reading-header-actions { display: flex; flex-wrap: wrap; gap: 10px; }
     .reading-ascendant-warning { margin: 30px 0 0; padding: 10px 14px; border-left: 3px solid rgba(255,207,77,.5); border-radius: 0 4px 4px 0; background: transparent; color: var(--cream-dim); font-size: 12px; font-weight: 400; line-height: 1.6; }
     .reading-fallback-notice { margin: 22px 0 0; padding: 12px 14px; border: 1px solid var(--gold-lit); border-radius: 8px; color: var(--cream); font-size: 13px; }
-    .reading-toc { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; margin: 26px 0 0; padding: 18px 20px; border: 1px solid rgba(244,239,228,.12); background: rgba(19, 15, 59, .5); }
-    .reading-toc a { color: var(--cream-dim); font-size: 12px; }
-    .reading-toc a:hover { color: var(--gold-lit); }
+    /* Indice da leitura. Era um grid fixo de 2 colunas com links soltos: com 3
+       secoes sobrava um buraco na segunda linha e os titulos ficavam boiando,
+       sem hierarquia nem rotulo. Agora tem titulo, numeracao e colunas que se
+       ajustam a quantidade real de secoes. */
+    .reading-toc { margin: 30px 0 0; padding: 20px 22px 18px; border: 1px solid rgba(244,239,228,.12); border-radius: 10px; background: rgba(19, 15, 59, .5); }
+    .reading-toc-title { margin: 0 0 14px; color: var(--gold); font-size: 10px; font-weight: 600; letter-spacing: .2em; text-transform: uppercase; }
+    .reading-toc-list { display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 2px 26px; }
+    .reading-toc a { display: flex; align-items: baseline; gap: 10px; padding: 9px 10px; border-radius: 7px; color: var(--cream-dim); font-size: 13px; line-height: 1.35; text-decoration: none; transition: background .15s ease, color .15s ease; }
+    .reading-toc a:hover { background: rgba(217,172,92,.10); color: var(--gold-lit); }
+    .reading-toc a .toc-num { flex-shrink: 0; min-width: 20px; color: var(--gold); font-size: 11px; font-weight: 600; font-variant-numeric: tabular-nums; opacity: .75; }
     .reading-body { max-width: 760px; margin-top: 30px; }
     .reading-body .reading-section { margin-bottom: 34px; padding-top: 26px; border-top: 1px solid rgba(244,239,228,.1); scroll-margin-top: 24px; }
     .reading-body .reading-section:first-child { border-top: 0; padding-top: 0; }
@@ -1864,7 +1871,23 @@
       // já os tem em appState.profile (salvos via /api/me/profile).
       const profile = appState.profile;
       if (!profile || !profile.birth_date) return '';
-      const parts = [profile.birth_date, profile.birth_time, profile.birth_city].filter(Boolean).map(escapeHtml);
+      // Formata para leitura humana: a data vinha crua do banco ("2001-05-06")
+      // e a cidade como a pessoa digitou ("petrolina"), no topo de uma leitura
+      // paga. Hora sai sem os segundos.
+      const dataBonita = (iso) => {
+        const m = String(iso).match(/^(\d{4})-(\d{2})-(\d{2})/);
+        return m ? `${m[3]}/${m[2]}/${m[1]}` : iso;
+      };
+      const cidadeBonita = (cidade) => String(cidade)
+        .split(/\s+/)
+        .map((palavra) => (palavra.length > 2 ? palavra.charAt(0).toLocaleUpperCase('pt-BR') + palavra.slice(1) : palavra))
+        .join(' ');
+      const horaBonita = (hora) => String(hora).slice(0, 5);
+      const parts = [
+        profile.birth_date ? dataBonita(profile.birth_date) : '',
+        profile.birth_time ? horaBonita(profile.birth_time) : '',
+        profile.birth_city ? cidadeBonita(profile.birth_city) : '',
+      ].filter(Boolean).map(escapeHtml);
       if (!parts.length) return '';
       const label = IS_ARGENTINA ? 'Datos de nacimiento' : 'Dados de nascimento';
       return `<p>${label}: ${parts.join(' · ')}</p>`;
@@ -1886,7 +1909,7 @@
       let body = '';
       sections.forEach((section, index) => {
         const sectionId = `reading-section-${index}`;
-        toc += `<a href="#${sectionId}">${escapeHtml(section.title || '')}</a>`;
+        toc += `<a href="#${sectionId}"><span class="toc-num">${String(index + 1).padStart(2, '0')}</span><span>${escapeHtml(section.title || '')}</span></a>`;
         body += `<section class="reading-section" id="${sectionId}"><h2>${escapeHtml(section.title || '')}</h2>`;
         if (section.subtitle) body += `<p class="reading-subtitle">${escapeHtml(section.subtitle)}</p>`;
         const paragraphs = String(section.content || '').split(/\n\s*\n/).map((p) => p.trim()).filter(Boolean);
@@ -1902,7 +1925,9 @@
       document.getElementById('reading-page-birth').innerHTML = renderReadingBirth();
       document.getElementById('reading-page-warning').innerHTML = warning;
       const tocNode = document.getElementById('reading-page-toc');
-      tocNode.innerHTML = toc;
+      tocNode.innerHTML = toc
+        ? `<p class="reading-toc-title">${IS_ARGENTINA ? 'En esta lectura' : 'Nesta leitura'}</p><div class="reading-toc-list">${toc}</div>`
+        : '';
       tocNode.hidden = !toc;
       document.getElementById('reading-page-body').innerHTML = body;
       const printBtn = document.querySelector('[data-print-reading-page]');

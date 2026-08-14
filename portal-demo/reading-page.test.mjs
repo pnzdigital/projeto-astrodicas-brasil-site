@@ -49,7 +49,14 @@ test('página mostra título, kicker e bloco de dados de nascimento', () => {
   assert.match(html, /id="reading-page-kicker"/);
   assert.match(html, /id="reading-page-birth"/);
   assert.match(script, /function renderReadingBirth\(\)/);
-  assert.match(script, /profile\.birth_date, profile\.birth_time, profile\.birth_city/);
+  // Os três campos precisam aparecer no bloco, mas a asserção não pode depender
+  // de estarem na MESMA linha: a formatação (data dd/mm/aaaa, cidade
+  // capitalizada, hora sem segundos) quebrou a linha única em várias.
+  for (const campo of ['birth_date', 'birth_time', 'birth_city']) {
+    assert.match(script, new RegExp(`profile\\.${campo}`), `renderReadingBirth deve usar profile.${campo}`);
+  }
+  // A data não pode sair crua do banco ("2001-05-06") no topo de uma leitura paga.
+  assert.match(script, /dataBonita|toLocaleDateString/, 'a data de nascimento precisa ser formatada para leitura humana');
 });
 
 test('seções são renderizadas com hierarquia título (h2) / subtítulo / corpo, uma <section> por item', () => {
@@ -66,7 +73,10 @@ test('paridade com PDF: quando não há seções estruturadas, cai para body_htm
 
 test('índice (toc) gera um link <a href="#reading-section-N"> por seção, mesmo id usado no <section>', () => {
   assert.match(script, /const sectionId = `reading-section-\$\{index\}`;/);
-  assert.match(script, /toc \+= `<a href="#\$\{sectionId\}">\$\{escapeHtml\(section\.title \|\| ''\)\}<\/a>`;/);
+  // Verifica o CONTRATO (link ancorado no id da seção, com o título escapado),
+  // não o formato exato do template — o índice ganhou numeração e wrapper.
+  assert.match(script, /toc \+= `<a href="#\$\{sectionId\}">/, 'cada seção vira um link ancorado no próprio id');
+  assert.match(script, /escapeHtml\(section\.title \|\| ''\)/, 'o título da seção entra escapado no índice');
   assert.match(html, /<nav class="reading-toc" id="reading-page-toc" aria-label="Índice da leitura" hidden><\/nav>/);
 });
 
