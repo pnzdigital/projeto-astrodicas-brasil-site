@@ -1218,7 +1218,19 @@
         heroCta.dataset.dailyAction = 'retry'; cta.dataset.dailyAction = 'retry';
         return;
       }
-      heroKicker.textContent = IS_ARGENTINA ? 'Tu cielo de hoy' : 'Seu céu de hoje';
+      // Data da leitura no kicker. Sem isso a cliente não tinha como saber se o
+      // texto na tela era o de hoje ou o de um dia anterior que ficou em cache —
+      // e quando a leitura é de outro dia, dizer "hoje" é mentira. Mostramos a
+      // data sempre, e trocamos o rótulo quando não for do dia corrente.
+      const dataLeitura = reading.created_at ? new Date(reading.created_at) : null;
+      const ehDeHoje = dataLeitura ? dataLeitura.toDateString() === new Date().toDateString() : true;
+      const dataLegivel = dataLeitura
+        ? dataLeitura.toLocaleDateString(IS_ARGENTINA ? 'es-AR' : 'pt-BR', { day: '2-digit', month: 'long' })
+        : '';
+      const rotuloCeu = ehDeHoje
+        ? (IS_ARGENTINA ? 'Tu cielo de hoy' : 'Seu céu de hoje')
+        : (IS_ARGENTINA ? 'Tu última lectura' : 'Sua última leitura');
+      heroKicker.textContent = dataLegivel ? `${rotuloCeu} · ${dataLegivel}` : rotuloCeu;
       heroStatus.textContent = excerptFromHtml(reading.body_html, 180) || (IS_ARGENTINA ? 'Tu lectura de hoy ya está lista.' : 'Sua leitura de hoje já está pronta.');
       headline.textContent = reading.title || item.title;
       body.textContent = excerptFromHtml(reading.body_html, 220);
