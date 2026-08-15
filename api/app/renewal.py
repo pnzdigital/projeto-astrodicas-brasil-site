@@ -927,7 +927,20 @@ def run_daily_pregen(db: Session) -> dict:
 
         profile = db.get(Profile, user.id)
         if not profile or not profile.birth_date or not profile.birth_city:
+            # Não basta contar. Estas pessoas TÊM acesso liberado e não recebem
+            # leitura nenhuma — sem data e cidade de nascimento não há mapa para
+            # calcular. Antes o `continue` era mudo: 10 clientes sumiam todo dia
+            # num contador, sem log e sem tela no admin, então ninguém tinha como
+            # agir. Quem pagou conclui que o produto não funciona.
             stats["skipped_no_profile"] += 1
+            stats.setdefault("sem_perfil", []).append(
+                {"user_id": user.id, "email": user.email, "product_id": ent.product_id}
+            )
+            logger.warning(
+                "pregen_sem_perfil user=%s email=%s product=%s — acesso liberado sem "
+                "dados de nascimento; cliente não recebe leitura",
+                user.id, user.email, ent.product_id,
+            )
             continue
 
         locale = getattr(user, "locale", "pt-BR") or "pt-BR"
