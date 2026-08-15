@@ -324,12 +324,20 @@ _LONG_CONTENT_IDS = frozenset({
 # não 7000).
 _SECTION_MAX_ATTEMPTS_DEFAULT = "5"
 
-# Per-section timeout: a resposta ainda é bem menor que os 7000 tokens do
-# documento inteiro, mas o budget subiu para 1800 (ver _SECTION_TOKEN_BUDGET)
-# para acomodar o raciocínio do M2.7 — 60s cobre folgadamente o pior caso
-# observado de latência de rede + geração + thinking para um bloco desse
-# tamanho, sem herdar os 120s dimensionados para o documento inteiro.
-_SECTION_TIMEOUT_SECONDS_DEFAULT = "60"
+# Per-section timeout: medição de 13/08 (27 chamadas reais) mostrou mediana de
+# 22s e cauda de 40s para chamadas que completam. 40s cobre todas as respostas
+# válidas observadas e falha 20s mais rápido quando a API trava (timeout real,
+# não chamada lenta): a economia é 20s × 18,5% × 3 seções/horóscopo ≈ 11s por
+# leitura no pior caso. 60s → 40s não gera falsos negativos porque nenhuma
+# chamada que retornou conteúdo demorou mais de 40s nos dados coletados.
+_SECTION_TIMEOUT_SECONDS_DEFAULT = "40"
+
+# Quantos timeouts consecutivos numa mesma seção antes de desistir do modelo
+# atual e passar para o fallback de modelo (ou fallback editorial). Cada timeout
+# consecutivo é evidência de que a API está indisponível naquele momento — vale
+# menos tentar mais 3× do que falhar rápido. 2 é o mínimo que distingue "fluke
+# de rede" (1 timeout isolado) de "API down" (2+ seguidos).
+_SECTION_TIMEOUT_CONSECUTIVE_LIMIT_DEFAULT = "2"
 
 # Pool limitado: gerar as 15 seções em paralelo sem limite sobrecarregaria a
 # API do MiniMax (rate limit) e o processo local; 4 workers equilibra tempo
@@ -1313,6 +1321,8 @@ def _generate_section(
         # vezes 400. Dar mais espaço nas tentativas seguintes quebra o ciclo de
         # falha sem custar cota extra quando a 1ª tentativa passa limpo.
         _BUDGET_ESCALATION = [0, 750, 1500, 2000, 2500]
+        timeout_limit = max(1, int(os.getenv("MINIMAX_SECTION_TIMEOUT_CONSECUTIVE_LIMIT", _SECTION_TIMEOUT_CONSECUTIVE_LIMIT_DEFAULT)))
+        consecutive_timeouts = 0
         for attempt in range(1, attempts + 1):
             escalated_budget = min(
                 budget + _BUDGET_ESCALATION[min(attempt - 1, len(_BUDGET_ESCALATION) - 1)],
@@ -1322,11 +1332,23 @@ def _generate_section(
                 raw = _call_minimax(
                     prompt, locale, max_tokens=escalated_budget, timeout=timeout, model=model_name, section_label=section_title,
                 )
+                consecutive_timeouts = 0  # resposta obtida — reset do contador de timeout
             except RuntimeError as exc:
+                is_timeout = "TimeoutError" in str(exc)
+                if is_timeout:
+                    consecutive_timeouts += 1
+                else:
+                    consecutive_timeouts = 0
                 logger.warning(
                     "MiniMax (%s) falhou na seção '%s' (tentativa %d/%d, budget=%d): %s",
                     model_name, section_title, attempt, attempts, escalated_budget, exc,
                 )
+                if is_timeout and consecutive_timeouts >= timeout_limit:
+                    logger.warning(
+                        "minimax_timeout_abort model=%s section=%s consecutive=%d limit=%d — desistindo deste modelo",
+                        model_name, section_title, consecutive_timeouts, timeout_limit,
+                    )
+                    break
                 continue
 
             parsed = _parse_markdown_sections(raw)
