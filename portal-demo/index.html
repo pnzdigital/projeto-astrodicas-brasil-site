@@ -1537,6 +1537,10 @@
           ? (IS_ARGENTINA ? 'Modo demostración habilitado por el backend.' : 'Modo demonstração habilitado pelo backend.')
           : (IS_ARGENTINA ? 'Iniciá sesión para ver tu portal.' : 'Faça login para acessar seu portal.'));
       if (appState.authenticated) {
+        // Deixa o suporte saber quem está falando: sem isso o cliente logado
+        // teria de digitar o e-mail que o portal já conhece.
+        window.__astroSupportUser = { email: appState.user?.email || '', name: appState.user?.name || '' };
+        window.astroIdentifySupport?.();
         document.querySelector('[data-account-email]').textContent = appState.user?.email || '—';
         document.querySelector('[data-account-profile]').textContent = profileComplete() ? `${appState.profile.birth_date} · ${appState.profile.birth_city}` : (IS_ARGENTINA ? 'Todavía no completados' : 'Ainda não preenchidos');
         renderSubscriptionBlock();
@@ -2297,6 +2301,43 @@
       document.getElementById('push-permission-banner').hidden = true;
     });
 
+  </script>
+
+  <!-- Suporte (Chatwoot, inbox "Suporte AstroDicas" da conta Astro Dicas).
+       Carrega na tela de login e dentro do portal: quem não consegue entrar é
+       justamente quem mais precisa falar com o suporte. O pré-chat pergunta o
+       problema e exige o e-mail; se a pessoa já está logada, mandamos os dados
+       dela por setUser e ela não precisa digitar nada. -->
+  <script>
+    window.chatwootSettings = {
+      position: 'right',
+      type: 'expanded_bubble',
+      launcherTitle: (typeof IS_ARGENTINA !== 'undefined' && IS_ARGENTINA) ? 'Soporte' : 'Suporte',
+      locale: (document.documentElement.lang || 'pt').startsWith('es') ? 'es' : 'pt_BR',
+      darkMode: 'auto'
+    };
+    (function (d, t) {
+      var BASE = 'https://atendimento.pnzdigital.com.br';
+      var g = d.createElement(t), s = d.getElementsByTagName(t)[0];
+      g.src = BASE + '/packs/js/sdk.js'; g.defer = true; g.async = true;
+      s.parentNode.insertBefore(g, s);
+      g.onload = function () {
+        window.chatwootSDK.run({ websiteToken: 'oH4bygfwDRAHS5kUBBMB35yz', baseUrl: BASE });
+      };
+    })(document, 'script');
+
+    // Identifica o cliente logado. O portal publica window.__astroSupportUser
+    // quando a sessão resolve; se o widget subir antes disso, o evento
+    // chatwoot:ready cobre o outro lado da corrida.
+    function astroIdentifySupport() {
+      var u = window.__astroSupportUser;
+      if (!u || !u.email || !window.$chatwoot) return;
+      try {
+        window.$chatwoot.setUser(u.email, { email: u.email, name: u.name || undefined });
+      } catch (e) { /* suporte nunca pode derrubar o portal */ }
+    }
+    window.addEventListener('chatwoot:ready', astroIdentifySupport);
+    window.astroIdentifySupport = astroIdentifySupport;
   </script>
 </body>
 </html>
