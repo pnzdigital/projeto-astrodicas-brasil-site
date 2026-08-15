@@ -1079,13 +1079,13 @@
     }
     function apiError(message, statusCode = 0) { const error = new Error(message); error.status = statusCode; return error; }
     async function apiRequest(path, options = {}) {
-      if (!API_BASE && !window.location.origin) throw apiError('API indisponível.');
+      if (!API_BASE && !window.location.origin) throw apiError(IS_ARGENTINA ? 'API no disponible.' : 'API indisponível.');
       let response;
       try {
         response = await fetch(`${API_BASE}${path}`, { credentials: 'include', ...options, headers: { 'Content-Type': 'application/json', ...(options.headers || {}) } });
-      } catch (error) { throw apiError('Não foi possível conectar ao portal.'); }
+      } catch (error) { throw apiError(IS_ARGENTINA ? 'No fue posible conectarse al portal.' : 'Não foi possível conectar ao portal.'); }
       const data = await response.json().catch(() => ({}));
-      if (!response.ok) throw apiError(data.detail || 'Não foi possível concluir esta ação.', response.status);
+      if (!response.ok) throw apiError(data.detail || (IS_ARGENTINA ? 'No fue posible completar esta acción.' : 'Não foi possível concluir esta ação.'), response.status);
       return data;
     }
     // Vai para a página interna de checkout, que cria o pedido em
@@ -1153,7 +1153,14 @@
     function excerptFromHtml(html, maxLen = 220) {
       const div = document.createElement('div');
       div.innerHTML = html || '';
-      const text = (div.textContent || '').replace(/\s+/g, ' ').trim();
+      // Remove headings e subtítulos antes de extrair — sem isso o textContent
+      // concatena "TítuloSubtítuloTexto" sem separador, gerando strings coladas.
+      div.querySelectorAll('h1, h2, h3, h4, h5, h6, .reading-subtitle').forEach((el) => el.remove());
+      const paragraphs = [...div.querySelectorAll('p')].map((p) => (p.textContent || '').trim()).filter(Boolean);
+      // Fallback para body_html sem estrutura (blob sem <p>).
+      const text = paragraphs.length
+        ? paragraphs.join(' ')
+        : (div.textContent || '').replace(/\s+/g, ' ').trim();
       if (text.length <= maxLen) return text;
       return `${text.slice(0, maxLen).trim()}…`;
     }
@@ -1478,7 +1485,22 @@
         'Manter minha assinatura': 'Mantener mi suscripción',
         'Sim, cancelar': 'Sí, cancelar',
         'Um calendário para acompanhar luas novas, cheias e os momentos de recolhimento e expansão do ciclo lunar em curso.': 'Un calendario para seguir lunas nuevas, llenas y los momentos de recogimiento y expansión del ciclo lunar en curso.',
-        'As fases do mês atual, revalidadas mensalmente, para você planejar, pausar e recomeçar.': 'Las fases del mes actual, revalidadas mensualmente, para que planifiques, pauses y recomiences.',
+        'As fases do mês atual, revalidadas mensalmente, para você planejar, pausar e recomeçar.': 'Las fases del mes actual, revalidadas mensalmente, para que planifiques, pauses y recomiences.',
+        // Labels do formulário de perfil não traduzidos anteriormente
+        'Data de nascimento': 'Fecha de nacimiento',
+        'Cidade de nascimento': 'Ciudad de nacimiento',
+        'Fuso horário': 'Huso horario',
+        'Parceiro (opcional)': 'Pareja (opcional)',
+        'Nome': 'Nombre',
+        'Hora de nascimento': 'Hora de nacimiento',
+        'Salvar dados →': 'Guardar datos →',
+        // Banner PWA
+        'Adicionar AstroDicas à tela de início': 'Agregar AstroDicas a la pantalla de inicio',
+        // Diálogo de conta
+        'Plano e acessos': 'Plan y accesos',
+        'Conta AstroDicas': 'Cuenta AstroDicas',
+        'Área segura do seu céu · canal web': 'Área segura de tu cielo · canal web',
+        'Esses dados ficam associados à sua conta web e são usados para gerar suas leituras. Os campos do parceiro são opcionais.': 'Estos datos quedan asociados a tu cuenta web y se usan para generar tus lecturas. Los campos de la pareja son opcionales.',
       });
       const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
       const nodes = [];
@@ -1486,10 +1508,17 @@
       nodes.forEach((node) => { let value = node.nodeValue; Object.entries(replacements).forEach(([from, to]) => { value = value.split(from).join(to); }); node.nodeValue = value; });
       document.querySelectorAll('[data-toast]').forEach((node) => {
         node.dataset.toast = node.dataset.toast.replace('Todos os seus conteúdos já estão visíveis aqui.', 'Todos tus contenidos ya están visibles aquí.');
+        node.dataset.toast = node.dataset.toast.replace('Seu horóscopo do dia é gerado toda manhã e fica salvo aqui.', 'Tu horóscopo de cada día se genera cada mañana y queda guardado aquí.');
+        node.dataset.toast = node.dataset.toast.replace('Fale com nosso suporte: oi@astrodicas.com.br', 'Hablá con nuestro soporte: oi@astrodicas.com.br');
+        node.dataset.toast = node.dataset.toast.replace('Ofertas do canal web AstroDicas.', 'Ofertas del canal web AstroDicas.');
       });
       document.querySelectorAll('[aria-label="Produtos disponíveis para compra"]').forEach((node) => node.setAttribute('aria-label', 'Productos disponibles para comprar'));
       document.querySelectorAll('[aria-label="Navegação principal"]').forEach((node) => node.setAttribute('aria-label', 'Navegación principal'));
       document.querySelectorAll('[aria-label="Resumo da conta"]').forEach((node) => node.setAttribute('aria-label', 'Resumen de la cuenta'));
+      document.querySelectorAll('[aria-label="Índice da leitura"]').forEach((node) => node.setAttribute('aria-label', 'Índice de la lectura'));
+      document.querySelectorAll('[aria-label="Entregáveis disponíveis"]').forEach((node) => node.setAttribute('aria-label', 'Entregas disponibles'));
+      document.querySelectorAll('[aria-label="Notificações de leituras prontas"]').forEach((node) => node.setAttribute('aria-label', 'Notificaciones de lecturas listas'));
+      document.querySelectorAll('[aria-label="Navegação móvel"]').forEach((node) => node.setAttribute('aria-label', 'Navegación móvil'));
     }
     function syncAccountDialog() {
       const auth = document.getElementById('account-auth');
@@ -1520,12 +1549,17 @@
       if (!banner || !appState.authenticated) { if (banner) banner.hidden = true; return; }
       const sub = appState.subscription;
       if (sub?.in_trial && sub.trial_ends_at) {
-        const msLeft = new Date(sub.trial_ends_at) - Date.now();
+        const _trialEnd = new Date(sub.trial_ends_at);
+        const msLeft = _trialEnd - Date.now();
         if (msLeft >= 0 && msLeft <= 36 * 3600 * 1000) {
           const dateStr = formatSubscriptionDate(sub.trial_ends_at);
+          const _now = new Date(); const _tom = new Date(_now); _tom.setDate(_now.getDate() + 1);
+          const _isToday = _trialEnd.toDateString() === _now.toDateString();
+          const _isTom = !_isToday && _trialEnd.toDateString() === _tom.toDateString();
+          const _sfx = dateStr ? ` — ${dateStr}` : '';
           document.getElementById('expiry-banner-title').textContent = IS_ARGENTINA
-            ? `Tu acceso gratis termina mañana${dateStr ? ` — ${dateStr}` : ''}`
-            : `Seu acesso grátis termina amanhã${dateStr ? ` — ${dateStr}` : ''}`;
+            ? (_isToday ? `Tu acceso gratis termina hoy${_sfx}` : _isTom ? `Tu acceso gratis termina mañana${_sfx}` : `Tu acceso gratis termina${_sfx}`)
+            : (_isToday ? `Seu acesso grátis termina hoje${_sfx}` : _isTom ? `Seu acesso grátis termina amanhã${_sfx}` : `Seu acesso grátis termina${_sfx}`);
           document.getElementById('expiry-banner-body').textContent = IS_ARGENTINA
             ? 'Al vencer perdés tu horóscopo diario, la Guía del Mes y la previsión semanal. Activá el Diario Astral para seguir recibiendo todo.'
             : 'Ao vencer você perde seu horóscopo diário, o Guia do Mês e a previsão semanal. Ative o Diário Astral para continuar recebendo tudo.';
@@ -1537,9 +1571,17 @@
       const ent = appState.entitlements.get('site:diario_astral');
       if (ent?.active && ent.days_remaining !== null && ent.days_remaining !== undefined && ent.days_remaining <= 1 && !sub?.in_trial) {
         const dateStr = ent.expires_at ? formatSubscriptionDate(ent.expires_at) : null;
+        let _isToday2 = ent.days_remaining === 0;
+        let _isTom2 = ent.days_remaining === 1;
+        if (ent.expires_at) {
+          const _exp = new Date(ent.expires_at); const _n2 = new Date(); const _t2 = new Date(_n2); _t2.setDate(_n2.getDate() + 1);
+          _isToday2 = _exp.toDateString() === _n2.toDateString();
+          _isTom2 = !_isToday2 && _exp.toDateString() === _t2.toDateString();
+        }
+        const _sfx2 = dateStr ? ` — ${dateStr}` : '';
         document.getElementById('expiry-banner-title').textContent = IS_ARGENTINA
-          ? `Tu acceso vence mañana${dateStr ? ` — ${dateStr}` : ''}`
-          : `Seu acesso vence amanhã${dateStr ? ` — ${dateStr}` : ''}`;
+          ? (_isToday2 ? `Tu acceso vence hoy${_sfx2}` : _isTom2 ? `Tu acceso vence mañana${_sfx2}` : `Tu acceso vence${_sfx2}`)
+          : (_isToday2 ? `Seu acesso vence hoje${_sfx2}` : _isTom2 ? `Seu acesso vence amanhã${_sfx2}` : `Seu acesso vence${_sfx2}`);
         document.getElementById('expiry-banner-body').textContent = IS_ARGENTINA
           ? 'Al vencer perdés tu horóscopo diario, la Guía del Mes y la previsión semanal. Renovar antes de vencer mantiene tu historial de lecturas.'
           : 'Ao vencer você perde seu horóscopo diário, o Guia do Mês e a previsão semanal. Renovar antes de vencer mantém seu histórico de leituras.';
@@ -1788,7 +1830,7 @@
     }
     async function generateReading(item) {
       if (!appState.apiAvailable || !appState.authenticated) { showStaticReading(item); return; }
-      if (!profileComplete()) { appState.pendingContentId = item.id; showToast('Complete seus dados de nascimento para gerar esta leitura.'); openDialog('profile-dialog'); return; }
+      if (!profileComplete()) { appState.pendingContentId = item.id; showToast(IS_ARGENTINA ? 'Completá tus datos de nacimiento para generar esta lectura.' : 'Complete seus dados de nascimento para gerar esta leitura.'); openDialog('profile-dialog'); return; }
       const reading = appState.readings.get(item.id);
       if (reading?.status === 'ready' || reading?.status === 'fallback') { showReading(item, reading); return; }
       // Já está gerando: leva o usuário à tela de progresso (ele decide ir lá).
@@ -2002,7 +2044,7 @@
         const cta = dialog.querySelector('[data-checkout-upgrade]'); cta.dataset.checkoutKey = item.checkoutKey || 'diario_astral_premium'; cta.dataset.offerTitle = item.title; cta.textContent = IS_ARGENTINA ? 'Ver opciones de acceso →' : 'Ver opções de acesso →';
         openDialog('upgrade-dialog'); return;
       }
-      if (item.state === ACCESS_STATES.pending) { showToast('Seu acesso está sendo confirmado. Tente novamente em instantes.'); return; }
+      if (item.state === ACCESS_STATES.pending) { showToast(IS_ARGENTINA ? 'Tu acceso está siendo confirmado. Intentá de nuevo en unos instantes.' : 'Seu acesso está sendo confirmado. Tente novamente em instantes.'); return; }
       // Card em progresso: o usuário quer acompanhar — leva à tela de progresso.
       if (item.state === ACCESS_STATES.inProgress) { showReadingProgress(item); return; }
       generateReading(item);
@@ -2028,11 +2070,44 @@
       applyRemoteState(); syncAccountDialog();
       void ensureDailyHoroscope();
     }
+    // Redireciona para a versão correta do portal seguindo três níveis de prioridade:
+    //   1. user.locale da conta logada — sinal mais forte, ganha de tudo.
+    //   2. Path atual (/es) — respeitado: quem já está na versão certa não é movido.
+    //   3. navigator.language — só para visitantes deslogados na raiz, é palpite.
+    //
+    // Anti-loop: quando user.locale força saída do /es (pt-BR saindo de /es),
+    // grava _loc_override no sessionStorage para impedir que um futuro redirect de
+    // nível 3 devolva a pessoa ao /es. O override é limpo quando um es-AR loga.
+    function maybeRedirectForLocale(user) {
+      if (!user?.locale) return false;
+      const userEs = user.locale.startsWith('es');
+      if (userEs && !IS_ARGENTINA) {
+        sessionStorage.removeItem('_loc_override');
+        window.location.replace('/es' + window.location.search + window.location.hash);
+        return true;
+      }
+      if (!userEs && IS_ARGENTINA) {
+        // Conta PT em /es: volta para '/' e marca override para não ser re-enviado
+        // por navigator.language na próxima carga.
+        sessionStorage.setItem('_loc_override', '1');
+        window.location.replace('/' + window.location.search + window.location.hash);
+        return true;
+      }
+      return false;
+    }
     async function bootstrap() {
       try {
         const data = await apiRequest('/api/session');
         appState.apiAvailable = true; appState.authenticated = Boolean(data.authenticated); appState.user = data.user || null;
-        if (appState.authenticated) await refreshPrivateData();
+        if (appState.authenticated) { if (maybeRedirectForLocale(appState.user)) return; await refreshPrivateData(); }
+        // Nível 3: navegador — apenas visitantes deslogados na raiz, sem override ativo.
+        if (!appState.authenticated && !IS_ARGENTINA && !sessionStorage.getItem('_loc_override')) {
+          const _navLang = navigator.language || (navigator.languages && navigator.languages[0]) || '';
+          if (_navLang.startsWith('es')) {
+            window.location.replace('/es' + window.location.search + window.location.hash);
+            return;
+          }
+        }
       } catch (error) {
         appState.apiAvailable = false; appState.authenticated = false; appState.user = null;
       } finally {
@@ -2047,7 +2122,9 @@
         const payload = Object.fromEntries(new FormData(form).entries());
         payload.locale = PORTAL_CONFIG.locale || (IS_ARGENTINA ? 'es-AR' : 'pt-BR');
         const data = await apiRequest(`/api/auth/${mode}`, { method: 'POST', body: JSON.stringify(payload) });
-        appState.apiAvailable = true; appState.authenticated = true; appState.authResolved = true; appState.user = data.user; await refreshPrivateData();
+        appState.apiAvailable = true; appState.authenticated = true; appState.authResolved = true; appState.user = data.user;
+        if (maybeRedirectForLocale(data.user)) return;
+        await refreshPrivateData();
         form.closest('dialog')?.close(); renderUser(); syncAccountDialog(); enforceDashboardGate();
         showToast(IS_ARGENTINA ? 'Acceso confirmado. Buen reencuentro con tu cielo.' : 'Acesso realizado. Bom reencontro com seu céu.');
       } catch (error) {
