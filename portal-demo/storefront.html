@@ -350,5 +350,23 @@
       menu.querySelectorAll('a').forEach(a=>a.addEventListener('click',closeMenu));
     })();
   </script>
+  <script>
+    window.chatwootSettings = {
+      position: 'right',
+      type: 'expanded_bubble',
+      launcherTitle: (typeof IS_ARGENTINA !== 'undefined' && IS_ARGENTINA) ? 'Soporte' : 'Suporte',
+      locale: (document.documentElement.lang || 'pt').startsWith('es') ? 'es' : 'pt_BR',
+      darkMode: 'auto'
+    };
+    (function (d, t) {
+      var BASE = 'https://atendimento.pnzdigital.com.br';
+      var g = d.createElement(t), s = d.getElementsByTagName(t)[0];
+      g.src = BASE + '/packs/js/sdk.js'; g.defer = true; g.async = true;
+      s.parentNode.insertBefore(g, s);
+      g.onload = function () {
+        window.chatwootSDK.run({ websiteToken: 'oH4bygfwDRAHS5kUBBMB35yz', baseUrl: BASE });
+      };
+    })(document, 'script');
+  </script>
 </body>
 </html>
