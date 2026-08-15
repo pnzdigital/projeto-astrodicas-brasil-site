@@ -12,7 +12,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@500;600&family=Jost:wght@400;500;600;700&display=swap" rel="stylesheet">
   <style>
-    :root{--ink:#080719;--ink-2:#100d2e;--violet:#1b154b;--gold:#d9ac5c;--gold-lit:#f4d79a;--cream:#f4efe4;--muted:rgba(244,239,228,.7);--faint:rgba(244,239,228,.45);--line:rgba(217,172,92,.24);--bad:#e5788a;--good:#7fd6a0;--display:"Cormorant Garamond",Georgia,serif;--body:"Jost",system-ui,sans-serif}
+    :root{--ink:#080719;--ink-2:#100d2e;--violet:#1b154b;--gold:#d9ac5c;--gold-lit:#f4d79a;--cream:#f4efe4;--muted:rgba(244,239,228,.7);--faint:rgba(244,239,228,.45);--line:rgba(217,172,92,.24);--bad:#e5788a;--good:#7fd6a0;--warn:#f0c96a;--display:"Cormorant Garamond",Georgia,serif;--body:"Jost",system-ui,sans-serif}
     *{box-sizing:border-box}
     body{margin:0;min-width:320px;background:radial-gradient(circle at 75% -10%,rgba(87,63,180,.32),transparent 34rem),var(--ink);color:var(--cream);font:400 16px/1.6 var(--body);-webkit-font-smoothing:antialiased}
     a{color:inherit}
@@ -35,6 +35,7 @@
     .button:hover{transform:translateY(-1px);background:var(--gold-lit)}
     .button.small{width:auto;min-height:36px;padding:0 14px;font-size:12px}
     .button.secondary{color:var(--gold-lit);background:transparent}
+    .button:disabled{opacity:.4;cursor:default;transform:none}
     .error-msg{margin-top:12px;color:var(--bad);font-size:12px;min-height:16px}
 
     /* app shell */
@@ -43,22 +44,33 @@
     header.top .wrap{display:flex;min-height:64px;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap;padding:10px 0}
     .brand{display:inline-flex;align-items:center;gap:9px;color:var(--gold-lit);font:600 22px var(--display)}
     .brand .brand-mark{display:grid;width:26px;height:26px;place-items:center;border:1px solid var(--gold);border-radius:50%;font:600 12px var(--body)}
-    main{padding:32px 0 60px}
-    .cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:14px;margin-bottom:28px}
+    main{padding:24px 0 60px}
+
+    /* tabs */
+    .tabs-nav{display:flex;flex-wrap:wrap;gap:4px;margin-bottom:24px;padding-bottom:0;border-bottom:1px solid var(--line)}
+    .tab-btn{min-height:40px;padding:0 18px;border:none;border-bottom:2px solid transparent;background:transparent;color:var(--muted);font-size:13px;font-weight:600;cursor:pointer;transition:color .15s,border-color .15s;border-radius:4px 4px 0 0;white-space:nowrap}
+    .tab-btn:hover{color:var(--cream)}
+    .tab-btn.active{color:var(--gold-lit);border-bottom-color:var(--gold)}
+    .tab-pane{display:none}
+    .tab-pane.active{display:block}
+
+    /* panels & cards */
+    .cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:14px;margin-bottom:28px}
     .card{padding:22px;border:1px solid var(--line);border-radius:8px;background:rgba(18,14,54,.6)}
     .card .label{color:var(--gold);font-size:11px;font-weight:700;letter-spacing:.1em;text-transform:uppercase}
     .card .value{margin-top:10px;font:600 32px var(--display);color:var(--gold-lit)}
     .card .sub{margin-top:6px;color:var(--muted);font-size:12px}
-
     section.panel{margin-bottom:28px;padding:22px;border:1px solid var(--line);border-radius:8px;background:rgba(18,14,54,.4)}
     section.panel > h2{font-size:20px;margin-bottom:16px}
 
+    /* bar chart */
     .bars{display:flex;align-items:flex-end;gap:3px;height:140px;padding-top:10px}
     .bars .bar-col{flex:1;min-width:6px;display:flex;flex-direction:column;align-items:center;justify-content:flex-end;height:100%}
     .bars .bar{width:100%;background:linear-gradient(180deg,var(--gold-lit),var(--gold));border-radius:2px 2px 0 0;min-height:2px}
     .bars .bar-col:hover .bar{background:var(--gold-lit)}
     .bars-labels{display:flex;justify-content:space-between;margin-top:6px;color:var(--faint);font-size:10px}
 
+    /* table */
     table{width:100%;border-collapse:collapse;font-size:13px}
     caption{text-align:left;color:var(--muted);font-size:12px;margin-bottom:10px}
     th,td{padding:10px 8px;text-align:left;border-bottom:1px solid rgba(244,239,228,.08)}
@@ -66,15 +78,54 @@
     tbody tr:hover{background:rgba(217,172,92,.06)}
     .table-scroll{overflow-x:auto}
     .pill{display:inline-block;padding:3px 9px;border-radius:100px;font-size:11px;font-weight:600}
-    .pill.paid,.pill.approved{color:#0d3a20;background:var(--good)}
-    .pill.pending{color:#4a3300;background:#f0c96a}
-    .pill.rejected,.pill.cancelled,.pill.refunded{color:#4a0f18;background:var(--bad)}
+    .pill.paid,.pill.approved,.pill.ready,.pill.available,.pill.active,.pill.done{color:#0d3a20;background:var(--good)}
+    .pill.pending,.pill.queued,.pill.running,.pill.trialing{color:#4a3300;background:var(--warn)}
+    .pill.rejected,.pill.cancelled,.pill.refunded,.pill.failed,.pill.fallback,.pill.needs-human,.pill.expired{color:#4a0f18;background:var(--bad)}
+    .pill.superseded,.pill.used{color:rgba(244,239,228,.5);background:rgba(244,239,228,.1)}
+    .pill.minimax{color:#0d3a20;background:var(--good)}
+    .pill.in_progress{color:#4a3300;background:var(--warn)}
 
+    /* filters row */
     .filters-row{display:flex;flex-wrap:wrap;gap:12px;margin-bottom:18px;align-items:end}
     .filters-row .field{margin:0;min-width:150px}
     select{min-height:38px;padding:0 10px;border:1px solid var(--line);border-radius:5px;background:rgba(8,7,25,.6)}
-
     .pager{display:flex;justify-content:flex-end;gap:8px;margin-top:14px}
+
+    /* pipeline status panel */
+    .pipeline-alerts{margin-bottom:20px}
+    .alert-ok{padding:14px 18px;border-radius:8px;border:1px solid rgba(127,214,160,.3);background:rgba(127,214,160,.08);color:var(--good);font-weight:600;font-size:14px}
+    .alert-critical{display:flex;align-items:center;gap:14px;padding:14px 18px;border-radius:8px;border:1px solid rgba(229,120,138,.4);background:rgba(229,120,138,.1);margin-bottom:10px}
+    .alert-critical .count{font:700 28px var(--display);color:var(--bad);min-width:36px}
+    .alert-critical .desc{font-size:13px}
+    .alert-critical .desc strong{color:var(--bad);display:block;font-size:14px;margin-bottom:2px}
+    .alert-warn{display:flex;align-items:center;gap:14px;padding:14px 18px;border-radius:8px;border:1px solid rgba(240,201,106,.4);background:rgba(240,201,106,.08);margin-bottom:10px}
+    .alert-warn .count{font:700 28px var(--display);color:var(--warn);min-width:36px}
+    .alert-warn .desc{font-size:13px}
+    .alert-warn .desc strong{color:var(--warn);display:block;font-size:14px;margin-bottom:2px}
+    .pipeline-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-top:16px}
+    .pipeline-section h3{font-size:13px;color:var(--gold);letter-spacing:.08em;text-transform:uppercase;font-weight:700;margin:0 0 10px}
+    .status-chips{display:flex;flex-wrap:wrap;gap:8px}
+    .status-chip{display:inline-flex;align-items:center;gap:6px;padding:4px 12px;border-radius:100px;font-size:12px;font-weight:600;background:rgba(244,239,228,.08);border:1px solid rgba(244,239,228,.1)}
+    .status-chip .chip-count{font:700 15px var(--display);color:var(--gold-lit)}
+    .status-chip.chip-ok{background:rgba(127,214,160,.08);border-color:rgba(127,214,160,.2);color:var(--good)}
+    .status-chip.chip-ok .chip-count{color:var(--good)}
+    .status-chip.chip-warn{background:rgba(240,201,106,.08);border-color:rgba(240,201,106,.2)}
+    .status-chip.chip-bad{background:rgba(229,120,138,.1);border-color:rgba(229,120,138,.3);color:rgba(229,120,138,.9)}
+    .status-chip.chip-bad .chip-count{color:var(--bad)}
+
+    /* clients table */
+    .client-row-problem{border-left:3px solid var(--bad)}
+    .client-row-ok{border-left:3px solid transparent}
+    .reading-summary{display:flex;flex-wrap:wrap;gap:5px;align-items:center}
+    .rs{display:inline-flex;align-items:center;gap:3px;font-size:11px;padding:2px 7px;border-radius:100px;font-weight:600}
+    .rs.rs-ok{background:rgba(127,214,160,.12);color:var(--good)}
+    .rs.rs-warn{background:rgba(240,201,106,.12);color:#c9a73a}
+    .rs.rs-bad{background:rgba(229,120,138,.12);color:var(--bad)}
+    .rs.rs-muted{background:rgba(244,239,228,.06);color:var(--muted)}
+    .ent-pills{display:flex;flex-wrap:wrap;gap:4px}
+    .ent-pill{font-size:10px;padding:2px 7px;border-radius:100px;background:rgba(217,172,92,.12);color:var(--gold-lit);font-weight:600;white-space:nowrap}
+    .details-btn{padding:4px 12px;min-height:30px;font-size:11px;font-weight:700;border:1px solid var(--gold);border-radius:4px;background:transparent;color:var(--gold-lit);cursor:pointer;white-space:nowrap}
+    .details-btn:hover{background:rgba(217,172,92,.1)}
 
     /* quota panel */
     .quota-head{display:flex;flex-wrap:wrap;align-items:baseline;justify-content:space-between;gap:10px;margin-bottom:14px}
@@ -85,33 +136,12 @@
     .quota-meter.warn .fill{background:linear-gradient(90deg,#e0a63a,#f0c96a)}
     .quota-meter.danger .fill{background:linear-gradient(90deg,#c94a5a,var(--bad))}
     .quota-banner{display:none;margin-top:12px;padding:10px 14px;border-radius:6px;font-size:13px;font-weight:600}
-    .quota-banner.warn{display:block;color:#4a3300;background:#f0c96a}
+    .quota-banner.warn{display:block;color:#4a3300;background:var(--warn)}
     .quota-banner.danger{display:block;color:#4a0f18;background:var(--bad)}
     .quota-by-model{margin-top:18px}
-    #status-msg{color:var(--muted);font-size:13px;padding:40px 0;text-align:center}
-    @media(max-width:640px){.cards{grid-template-columns:1fr 1fr}.card .value{font-size:24px}}
 
-    /* suporte de leituras */
-    .search-row{display:flex;gap:10px;margin-bottom:18px}
-    .search-row input[type=email]{flex:1;min-height:40px;padding:0 12px;border:1px solid var(--line);border-radius:5px;background:rgba(8,7,25,.6);color:var(--cream)}
-    .pill.fallback{color:#4a0f18;background:var(--bad)}
-    .pill.superseded{color:rgba(244,239,228,.5);background:rgba(244,239,228,.1)}
-    .pill.minimax{color:#0d3a20;background:var(--good)}
-    .pill.pending,.pill.queued,.pill.running{color:#4a3300;background:#f0c96a}
-    .pill.ready{color:#0d3a20;background:var(--good)}
-    .regen-btn{padding:4px 12px;min-height:30px;font-size:11px;font-weight:700;border:1px solid var(--gold);border-radius:4px;background:transparent;color:var(--gold-lit);cursor:pointer;white-space:nowrap}
-    .regen-btn:disabled{opacity:.4;cursor:default}
+    /* deliveries */
     .support-info{margin-bottom:14px;padding:10px 14px;border-radius:6px;background:rgba(217,172,92,.08);color:var(--muted);font-size:13px}
-    #regen-modal-overlay{display:none;position:fixed;inset:0;background:rgba(8,7,25,.82);z-index:100;place-items:center}
-    #regen-modal-overlay.open{display:grid}
-    .regen-modal{width:min(420px,calc(100% - 32px));padding:28px 24px;border:1px solid var(--line);border-radius:10px;background:#120e36}
-    .regen-modal h3{font-size:19px;margin-bottom:12px}
-    .regen-modal p{font-size:13px;color:var(--muted);margin:0 0 8px}
-    .regen-modal .cost-badge{display:inline-block;margin-top:4px;padding:5px 12px;border-radius:6px;background:rgba(229,120,138,.12);color:var(--bad);font-weight:700;font-size:13px}
-    .regen-modal-actions{display:flex;gap:10px;margin-top:20px}
-    .regen-modal-actions .button{flex:1}
-
-    /* entregas do dia */
     .del-toolbar{display:flex;flex-wrap:wrap;gap:12px;align-items:end;margin-bottom:18px}
     .del-toolbar .field{margin:0}
     .del-toolbar input[type=date]{min-height:38px;padding:0 10px;border:1px solid var(--line);border-radius:5px;background:rgba(8,7,25,.6);color:var(--cream)}
@@ -126,8 +156,7 @@
     .del-group-head h3{font-size:17px}
     .del-group-head .counts{color:var(--muted);font-size:12px}
     .pill.needs-human{color:#4a0f18;background:var(--bad)}
-    .pill.auto-retry{color:#4a3300;background:#f0c96a}
-    .pill.done{color:#0d3a20;background:var(--good)}
+    .pill.auto-retry{color:#4a3300;background:var(--warn)}
     .del-note{display:block;margin-top:3px;color:var(--faint);font-size:11px}
     .del-err{display:block;margin-top:3px;max-width:340px;color:var(--bad);font-size:11px;word-break:break-word}
     .retry-btn{padding:4px 12px;min-height:30px;font-size:11px;font-weight:700;border:1px solid var(--gold);border-radius:4px;background:transparent;color:var(--gold-lit);cursor:pointer;white-space:nowrap}
@@ -136,6 +165,48 @@
     #del-error{color:var(--bad);font-size:12px;min-height:16px}
     #del-feedback{margin-top:14px;padding:10px 14px;border-radius:6px;background:rgba(217,172,92,.08);color:var(--muted);font-size:13px}
     .batch-list{margin:10px 0 0;padding-left:18px;max-height:160px;overflow:auto;color:var(--muted);font-size:12px}
+
+    /* support tab */
+    .search-row{display:flex;gap:10px;margin-bottom:18px}
+    .search-row input[type=email]{flex:1;min-height:40px;padding:0 12px;border:1px solid var(--line);border-radius:5px;background:rgba(8,7,25,.6);color:var(--cream)}
+    .regen-btn{padding:4px 12px;min-height:30px;font-size:11px;font-weight:700;border:1px solid var(--gold);border-radius:4px;background:transparent;color:var(--gold-lit);cursor:pointer;white-space:nowrap}
+    .regen-btn:disabled{opacity:.4;cursor:default}
+    .support-info-box{margin-bottom:14px;padding:10px 14px;border-radius:6px;background:rgba(217,172,92,.08);color:var(--muted);font-size:13px}
+
+    /* user detail modal */
+    .ud-modal-overlay{display:none;position:fixed;inset:0;background:rgba(8,7,25,.88);z-index:200;place-items:center;padding:16px}
+    .ud-modal-overlay.open{display:grid}
+    .ud-modal{width:min(780px,100%);max-height:90vh;overflow-y:auto;padding:28px 24px;border:1px solid var(--line);border-radius:10px;background:#120e36}
+    .ud-modal-head{display:flex;justify-content:space-between;align-items:flex-start;gap:16px;margin-bottom:20px}
+    .ud-modal-head h3{font-size:20px}
+    .ud-close-btn{padding:6px 14px;font-size:12px;border:1px solid var(--line);border-radius:4px;background:transparent;color:var(--muted);cursor:pointer}
+    .ud-close-btn:hover{color:var(--cream)}
+    .ud-user-meta{font-size:13px;color:var(--muted);margin-bottom:18px;display:flex;flex-wrap:wrap;gap:8px 20px}
+    .ud-user-meta span strong{color:var(--cream)}
+    .ud-section-title{font-size:11px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--gold);margin:0 0 10px}
+    .ud-ents{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:22px}
+    .ud-ent{padding:6px 12px;border-radius:6px;border:1px solid var(--line);background:rgba(18,14,54,.6);font-size:12px}
+    .ud-ent .ent-name{color:var(--cream);font-weight:600}
+    .ud-ent .ent-status{color:var(--muted);font-size:11px;margin-top:2px}
+    .no-content-flag{color:var(--bad);font-size:11px;font-weight:700;margin-left:6px}
+    .ud-readings-title{font-size:11px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--gold);margin:0 0 10px}
+    .ud-error{color:var(--bad);font-size:13px;margin-top:10px}
+    tr.reading-problem td{background:rgba(229,120,138,.04)}
+    tr.reading-no-content td:first-child{border-left:3px solid var(--bad)}
+
+    /* shared modal styles */
+    .regen-modal-overlay{display:none;position:fixed;inset:0;background:rgba(8,7,25,.82);z-index:300;place-items:center}
+    .regen-modal-overlay.open{display:grid}
+    .regen-modal{width:min(420px,calc(100% - 32px));padding:28px 24px;border:1px solid var(--line);border-radius:10px;background:#120e36}
+    .regen-modal h3{font-size:19px;margin-bottom:12px}
+    .regen-modal p{font-size:13px;color:var(--muted);margin:0 0 8px}
+    .regen-modal .cost-badge{display:inline-block;margin-top:4px;padding:5px 12px;border-radius:6px;background:rgba(229,120,138,.12);color:var(--bad);font-weight:700;font-size:13px}
+    .regen-modal-actions{display:flex;gap:10px;margin-top:20px}
+    .regen-modal-actions .button{flex:1}
+
+    #status-msg{color:var(--muted);font-size:13px;padding:40px 0;text-align:center}
+    @media(max-width:640px){.cards{grid-template-columns:1fr 1fr}.card .value{font-size:24px}.pipeline-grid{grid-template-columns:1fr}}
+    @media(max-width:480px){.tabs-nav{gap:2px}.tab-btn{padding:0 10px;font-size:12px}}
   </style>
 </head>
 <body>
@@ -163,155 +234,236 @@
     <main class="wrap">
       <p id="status-msg" hidden>Carregando…</p>
       <div id="dashboard" hidden>
-        <div class="cards" id="summary-cards"></div>
+        <!-- tabs navigation -->
+        <nav class="tabs-nav" role="tablist" aria-label="Seções do painel">
+          <button class="tab-btn active" role="tab" aria-selected="true" aria-controls="tab-geral" data-tab="geral">Geral</button>
+          <button class="tab-btn" role="tab" aria-selected="false" aria-controls="tab-clientes" data-tab="clientes">Clientes</button>
+          <button class="tab-btn" role="tab" aria-selected="false" aria-controls="tab-entregas" data-tab="entregas">Entregas do dia</button>
+          <button class="tab-btn" role="tab" aria-selected="false" aria-controls="tab-suporte" data-tab="suporte">Suporte</button>
+          <button class="tab-btn" role="tab" aria-selected="false" aria-controls="tab-cota" data-tab="cota">Cota MiniMax</button>
+        </nav>
 
-        <section class="panel" aria-labelledby="chart-title">
-          <h2 id="chart-title">Vendas · últimos 30 dias</h2>
-          <div class="bars" id="chart-bars" role="img" aria-label="Gráfico de barras de vendas diárias dos últimos 30 dias"></div>
-          <div class="bars-labels" id="chart-labels" aria-hidden="true"></div>
-        </section>
+        <!-- ================================================================== -->
+        <!-- TAB: GERAL                                                          -->
+        <!-- ================================================================== -->
+        <div class="tab-pane active" id="tab-geral" role="tabpanel" aria-labelledby="">
 
-        <section class="panel" aria-labelledby="quota-title">
-          <h2 id="quota-title">Cota MiniMax · semana corrente</h2>
-          <div class="quota-head">
-            <div>
-              <div class="quota-total" id="quota-total">—</div>
-              <div class="quota-sub" id="quota-sub">carregando…</div>
+          <!-- Pipeline status panel -->
+          <section class="panel" aria-labelledby="pipeline-title">
+            <h2 id="pipeline-title">Status do pipeline</h2>
+            <div id="pipeline-alerts" class="pipeline-alerts"></div>
+            <div class="pipeline-grid">
+              <div class="pipeline-section">
+                <p class="pipeline-section h3" id="pipeline-readings-title" style="font-size:11px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--gold);margin:0 0 10px">Leituras · todos os tempos</p>
+                <div class="status-chips" id="pipeline-reading-chips"></div>
+              </div>
+              <div class="pipeline-section">
+                <p style="font-size:11px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--gold);margin:0 0 10px">Jobs · todos os tempos</p>
+                <div class="status-chips" id="pipeline-job-chips"></div>
+              </div>
             </div>
-          </div>
-          <div class="quota-meter" id="quota-meter" role="img" aria-label="Percentual do teto semanal usado">
-            <div class="fill" id="quota-fill" style="width:0%"></div>
-          </div>
-          <p class="quota-banner" id="quota-banner" role="alert"></p>
-          <div class="quota-by-model table-scroll">
-            <table>
-              <caption class="visually-hidden">Consumo por modelo na semana corrente</caption>
-              <thead><tr><th scope="col">Modelo</th><th scope="col">Requisições</th><th scope="col">Tokens</th></tr></thead>
-              <tbody id="quota-model-rows"></tbody>
-            </table>
-          </div>
-        </section>
+          </section>
 
-        <section class="panel" aria-labelledby="product-title">
-          <h2 id="product-title">Total por produto</h2>
-          <div class="table-scroll">
-            <table>
-              <caption class="visually-hidden">Total de vendas e receita por produto</caption>
-              <thead><tr><th scope="col">Produto</th><th scope="col">Vendas</th><th scope="col">Receita</th></tr></thead>
-              <tbody id="product-rows"></tbody>
-            </table>
-          </div>
-        </section>
+          <!-- Revenue summary cards -->
+          <div class="cards" id="summary-cards"></div>
 
-        <section class="panel" aria-labelledby="sales-title">
-          <h2 id="sales-title">Vendas</h2>
-          <form class="filters-row" id="filters-form">
-            <div class="field">
-              <label for="filter-market">Mercado</label>
-              <select id="filter-market">
-                <option value="">Todos</option>
-                <option value="BR">Brasil (BRL)</option>
-                <option value="AR">Argentina (ARS)</option>
-              </select>
-            </div>
-            <div class="field">
-              <label for="filter-status">Status</label>
-              <select id="filter-status">
-                <option value="">Todos</option>
-                <option value="paid">Pago</option>
-                <option value="approved">Aprovado</option>
-                <option value="pending">Pendente</option>
-                <option value="rejected">Rejeitado</option>
-                <option value="cancelled">Cancelado</option>
-                <option value="refunded">Reembolsado</option>
-              </select>
-            </div>
-            <button class="button small" type="submit">Filtrar</button>
-          </form>
-          <div class="table-scroll">
-            <table>
-              <caption class="visually-hidden">Lista de vendas, mais recentes primeiro</caption>
-              <thead>
-                <tr>
-                  <th scope="col">Data</th>
-                  <th scope="col">Cliente</th>
-                  <th scope="col">Produto</th>
-                  <th scope="col">Status</th>
-                  <th scope="col">Provedor</th>
-                  <th scope="col">Mercado</th>
-                  <th scope="col">Valor</th>
-                </tr>
-              </thead>
-              <tbody id="sales-rows"></tbody>
-            </table>
-          </div>
-          <div class="pager">
-            <button class="button secondary small" id="prev-page" type="button">← Anteriores</button>
-            <button class="button secondary small" id="next-page" type="button">Próximas →</button>
-          </div>
-        </section>
+          <!-- Sales bar chart -->
+          <section class="panel" aria-labelledby="chart-title">
+            <h2 id="chart-title">Vendas · últimos 30 dias</h2>
+            <div class="bars" id="chart-bars" role="img" aria-label="Gráfico de barras de vendas diárias dos últimos 30 dias"></div>
+            <div class="bars-labels" id="chart-labels" aria-hidden="true"></div>
+          </section>
 
-        <section class="panel" aria-labelledby="deliveries-title">
-          <h2 id="deliveries-title">Entregas do dia</h2>
-          <p class="support-info">
-            O pipeline automático continua rodando sozinho (fila, backoff, até 3 tentativas). Esta tela é o
-            <strong>fallback manual</strong>: use o botão só onde o automático já desistiu. Quem ainda está marcado como
-            <span class="pill auto-retry">automático vai tentar</span> não precisa de você — redisparar ali só gera fila duplicada e queima cota.
-          </p>
-          <form class="del-toolbar" id="del-filters">
-            <div class="field">
-              <label for="del-date">Dia (horário de Brasília)</label>
-              <input type="date" id="del-date">
+          <!-- Products totals -->
+          <section class="panel" aria-labelledby="product-title">
+            <h2 id="product-title">Total por produto</h2>
+            <div class="table-scroll">
+              <table>
+                <caption class="visually-hidden">Total de vendas e receita por produto</caption>
+                <thead><tr><th scope="col">Produto</th><th scope="col">Vendas</th><th scope="col">Receita</th></tr></thead>
+                <tbody id="product-rows"></tbody>
+              </table>
             </div>
-            <div class="field">
-              <label for="del-product">Produto</label>
-              <select id="del-product"><option value="">Todos</option></select>
-            </div>
-            <button class="button small" type="submit">Ver entregas</button>
-            <button class="button secondary small" id="del-refresh" type="button">Atualizar</button>
-          </form>
-          <p id="del-error" role="alert"></p>
-          <div class="del-cards" id="del-cards"></div>
-          <div style="display:flex;flex-wrap:wrap;gap:10px;align-items:center">
-            <button class="button small" id="del-batch-btn" type="button" style="width:auto">Redisparar todos com erro/pendente</button>
-            <span style="color:var(--faint);font-size:12px" id="del-batch-hint"></span>
-          </div>
-          <div id="del-feedback" hidden></div>
-          <div id="del-groups"></div>
-        </section>
+          </section>
+        </div>
 
-        <section class="panel" aria-labelledby="support-title">
-          <h2 id="support-title">Suporte de Leituras / Soporte de Lecturas</h2>
-          <p class="support-info">Busque um cliente pelo e-mail para ver suas leituras e regerar qualquer uma delas. Regeração marca a leitura atual como substituída e cria uma nova geração. Cada requisição ao MiniMax consome cota semanal.</p>
-          <form class="search-row" id="support-search-form">
-            <input type="email" id="support-email" placeholder="cliente@example.com" required autocomplete="off">
-            <button class="button small" type="submit">Buscar</button>
-          </form>
-          <p id="support-error" style="color:var(--bad);font-size:12px;min-height:16px"></p>
-          <div id="support-user-info" hidden></div>
-          <div class="table-scroll" id="support-readings-wrap" hidden>
-            <table>
-              <caption class="visually-hidden">Leituras do cliente selecionado</caption>
-              <thead>
-                <tr>
-                  <th scope="col">Leitura</th>
-                  <th scope="col">Status</th>
-                  <th scope="col">Fonte</th>
-                  <th scope="col">Data</th>
-                  <th scope="col">Custo (req)</th>
-                  <th scope="col">Ação</th>
-                </tr>
-              </thead>
-              <tbody id="support-readings-rows"></tbody>
-            </table>
-          </div>
-        </section>
-      </div>
+        <!-- ================================================================== -->
+        <!-- TAB: CLIENTES                                                       -->
+        <!-- ================================================================== -->
+        <div class="tab-pane" id="tab-clientes" role="tabpanel">
+
+          <!-- Per-client view -->
+          <section class="panel" aria-labelledby="clients-title">
+            <h2 id="clients-title">Clientes</h2>
+            <p class="support-info">Uma linha por cliente. Clientes com problema (fallback ou geração falhou) aparecem primeiro, em vermelho. Clique em <strong>Detalhes</strong> para ver entitlements, leituras e regerar.</p>
+            <div id="clients-loading" style="color:var(--muted);font-size:13px;padding:20px 0">Carregando…</div>
+            <div class="table-scroll" id="clients-wrap" hidden>
+              <table>
+                <caption class="visually-hidden">Lista de clientes com resumo de entitlements e leituras</caption>
+                <thead>
+                  <tr>
+                    <th scope="col">Cliente</th>
+                    <th scope="col">Produtos</th>
+                    <th scope="col">Leituras</th>
+                    <th scope="col">Ação</th>
+                  </tr>
+                </thead>
+                <tbody id="clients-rows"></tbody>
+              </table>
+            </div>
+            <div class="pager">
+              <button class="button secondary small" id="clients-prev" type="button">← Anteriores</button>
+              <button class="button secondary small" id="clients-next" type="button">Próximos →</button>
+            </div>
+          </section>
+
+          <!-- Orders view (raw) -->
+          <section class="panel" aria-labelledby="sales-title">
+            <h2 id="sales-title">Pedidos</h2>
+            <form class="filters-row" id="filters-form">
+              <div class="field">
+                <label for="filter-market">Mercado</label>
+                <select id="filter-market">
+                  <option value="">Todos</option>
+                  <option value="BR">Brasil (BRL)</option>
+                  <option value="AR">Argentina (ARS)</option>
+                </select>
+              </div>
+              <div class="field">
+                <label for="filter-status">Status</label>
+                <select id="filter-status">
+                  <option value="">Todos</option>
+                  <option value="paid">Pago</option>
+                  <option value="approved">Aprovado</option>
+                  <option value="pending">Pendente</option>
+                  <option value="rejected">Rejeitado</option>
+                  <option value="cancelled">Cancelado</option>
+                  <option value="refunded">Reembolsado</option>
+                </select>
+              </div>
+              <button class="button small" type="submit">Filtrar</button>
+            </form>
+            <div class="table-scroll">
+              <table>
+                <caption class="visually-hidden">Lista de pedidos, mais recentes primeiro</caption>
+                <thead>
+                  <tr>
+                    <th scope="col">Data</th>
+                    <th scope="col">Cliente</th>
+                    <th scope="col">Produto</th>
+                    <th scope="col">Status</th>
+                    <th scope="col">Mercado</th>
+                    <th scope="col">Valor</th>
+                    <th scope="col">Ação</th>
+                  </tr>
+                </thead>
+                <tbody id="sales-rows"></tbody>
+              </table>
+            </div>
+            <div class="pager">
+              <button class="button secondary small" id="prev-page" type="button">← Anteriores</button>
+              <button class="button secondary small" id="next-page" type="button">Próximas →</button>
+            </div>
+          </section>
+        </div>
+
+        <!-- ================================================================== -->
+        <!-- TAB: ENTREGAS DO DIA                                               -->
+        <!-- ================================================================== -->
+        <div class="tab-pane" id="tab-entregas" role="tabpanel">
+          <section class="panel" aria-labelledby="deliveries-title">
+            <h2 id="deliveries-title">Entregas do dia</h2>
+            <p class="support-info">
+              O pipeline automático continua rodando sozinho (fila, backoff, até 3 tentativas). Esta tela é o
+              <strong>fallback manual</strong>: use o botão só onde o automático já desistiu. Quem ainda está marcado como
+              <span class="pill auto-retry">automático vai tentar</span> não precisa de você — redisparar ali só gera fila duplicada e queima cota.
+            </p>
+            <form class="del-toolbar" id="del-filters">
+              <div class="field">
+                <label for="del-date">Dia (horário de Brasília)</label>
+                <input type="date" id="del-date">
+              </div>
+              <div class="field">
+                <label for="del-product">Produto</label>
+                <select id="del-product"><option value="">Todos</option></select>
+              </div>
+              <button class="button small" type="submit">Ver entregas</button>
+              <button class="button secondary small" id="del-refresh" type="button">Atualizar</button>
+            </form>
+            <p id="del-error" role="alert"></p>
+            <div class="del-cards" id="del-cards"></div>
+            <div style="display:flex;flex-wrap:wrap;gap:10px;align-items:center">
+              <button class="button small" id="del-batch-btn" type="button" style="width:auto">Redisparar todos com erro/pendente</button>
+              <span style="color:var(--faint);font-size:12px" id="del-batch-hint"></span>
+            </div>
+            <div id="del-feedback" hidden></div>
+            <div id="del-groups"></div>
+          </section>
+        </div>
+
+        <!-- ================================================================== -->
+        <!-- TAB: SUPORTE                                                        -->
+        <!-- ================================================================== -->
+        <div class="tab-pane" id="tab-suporte" role="tabpanel">
+          <section class="panel" aria-labelledby="support-title">
+            <h2 id="support-title">Suporte de Leituras / Soporte de Lecturas</h2>
+            <p class="support-info-box">Busque um cliente pelo e-mail para ver suas leituras e regerar qualquer uma delas. Regeração marca a leitura atual como substituída e cria uma nova geração. Cada requisição ao MiniMax consome cota semanal.</p>
+            <form class="search-row" id="support-search-form">
+              <input type="email" id="support-email" placeholder="cliente@example.com" required autocomplete="off">
+              <button class="button small" type="submit">Buscar</button>
+            </form>
+            <p id="support-error" style="color:var(--bad);font-size:12px;min-height:16px"></p>
+            <div id="support-user-info" hidden></div>
+            <div class="table-scroll" id="support-readings-wrap" hidden>
+              <table>
+                <caption class="visually-hidden">Leituras do cliente selecionado</caption>
+                <thead>
+                  <tr>
+                    <th scope="col">Leitura</th>
+                    <th scope="col">Status</th>
+                    <th scope="col">Fonte</th>
+                    <th scope="col">Data</th>
+                    <th scope="col">Custo (req)</th>
+                    <th scope="col">Ação</th>
+                  </tr>
+                </thead>
+                <tbody id="support-readings-rows"></tbody>
+              </table>
+            </div>
+          </section>
+        </div>
+
+        <!-- ================================================================== -->
+        <!-- TAB: COTA MINIMAX                                                  -->
+        <!-- ================================================================== -->
+        <div class="tab-pane" id="tab-cota" role="tabpanel">
+          <section class="panel" aria-labelledby="quota-title">
+            <h2 id="quota-title">Cota MiniMax · semana corrente</h2>
+            <div class="quota-head">
+              <div>
+                <div class="quota-total" id="quota-total">—</div>
+                <div class="quota-sub" id="quota-sub">carregando…</div>
+              </div>
+            </div>
+            <div class="quota-meter" id="quota-meter" role="img" aria-label="Percentual do teto semanal usado">
+              <div class="fill" id="quota-fill" style="width:0%"></div>
+            </div>
+            <p class="quota-banner" id="quota-banner" role="alert"></p>
+            <div class="quota-by-model table-scroll">
+              <table>
+                <caption class="visually-hidden">Consumo por modelo na semana corrente</caption>
+                <thead><tr><th scope="col">Modelo</th><th scope="col">Requisições</th><th scope="col">Tokens</th></tr></thead>
+                <tbody id="quota-model-rows"></tbody>
+              </table>
+            </div>
+          </section>
+        </div>
+      </div><!-- #dashboard -->
     </main>
-  </div>
+  </div><!-- #app-screen -->
 
-  <!-- Modal de confirmação de regeração -->
-  <div id="regen-modal-overlay" role="dialog" aria-modal="true" aria-labelledby="regen-modal-title">
+  <!-- Modal: confirmação de regeração (Suporte) -->
+  <div id="regen-modal-overlay" class="regen-modal-overlay" role="dialog" aria-modal="true" aria-labelledby="regen-modal-title">
     <div class="regen-modal">
       <h3 id="regen-modal-title">Regerar leitura</h3>
       <p id="regen-modal-desc"></p>
@@ -323,7 +475,7 @@
     </div>
   </div>
 
-  <!-- Confirmação de redisparo (individual e em lote) -->
+  <!-- Modal: confirmação de redisparo (Entregas) -->
   <div id="del-modal-overlay" role="dialog" aria-modal="true" aria-labelledby="del-modal-title" style="display:none;position:fixed;inset:0;background:rgba(8,7,25,.82);z-index:100;place-items:center">
     <div class="regen-modal">
       <h3 id="del-modal-title">Redisparar entregas</h3>
@@ -337,6 +489,19 @@
     </div>
   </div>
 
+  <!-- Modal: detalhe do cliente (Clientes tab + pedidos inline) -->
+  <div id="ud-modal-overlay" class="ud-modal-overlay" role="dialog" aria-modal="true" aria-labelledby="ud-modal-title">
+    <div class="ud-modal">
+      <div class="ud-modal-head">
+        <h3 id="ud-modal-title">Detalhe do cliente</h3>
+        <button class="ud-close-btn" id="ud-close-btn" type="button">Fechar</button>
+      </div>
+      <div id="ud-modal-body">
+        <p style="color:var(--muted);font-size:13px">Carregando…</p>
+      </div>
+    </div>
+  </div>
+
   <script type="module">
     const API = '/api/admin';
     const loginScreen = document.getElementById('login-screen');
@@ -345,20 +510,36 @@
     const dashboard = document.getElementById('dashboard');
     const loginError = document.getElementById('login-error');
 
-    const state = { limit: 20, offset: 0, market: '', status: '' };
+    const salesState = { limit: 20, offset: 0, market: '', status: '' };
+    const clientsState = { limit: 50, offset: 0 };
 
+    // ---------------------------------------------------------------------------
+    // Core API helper
+    // ---------------------------------------------------------------------------
     async function api(path, options = {}) {
-      const response = await fetch(API + path, { credentials: 'include', headers: { 'Content-Type': 'application/json' }, ...options });
+      const response = await fetch(API + path, {
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        ...options,
+      });
       if (response.status === 401) throw new Error('unauthorized');
       if (!response.ok) throw new Error('request-failed');
       return response.json();
     }
 
+    function escapeHtml(v) {
+      return String(v ?? '').replace(/[&<>"']/g, (c) =>
+        ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c])
+      );
+    }
+
+    // ---------------------------------------------------------------------------
+    // Auth / session
+    // ---------------------------------------------------------------------------
     function showApp() {
       loginScreen.style.display = 'none';
       appScreen.style.display = 'block';
     }
-
     function showLogin() {
       appScreen.style.display = 'none';
       loginScreen.style.display = 'grid';
@@ -367,25 +548,17 @@
     async function checkSession() {
       try {
         const { authenticated } = await api('/session');
-        if (authenticated) {
-          showApp();
-          loadDashboard();
-        } else {
-          showLogin();
-        }
-      } catch {
-        showLogin();
-      }
+        if (authenticated) { showApp(); loadDashboard(); } else { showLogin(); }
+      } catch { showLogin(); }
     }
 
-    document.getElementById('login-form').addEventListener('submit', async (event) => {
-      event.preventDefault();
+    document.getElementById('login-form').addEventListener('submit', async (ev) => {
+      ev.preventDefault();
       loginError.textContent = '';
       const password = document.getElementById('admin-password').value;
       try {
         const response = await fetch(API + '/login', {
-          method: 'POST',
-          credentials: 'include',
+          method: 'POST', credentials: 'include',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ password }),
         });
@@ -394,9 +567,7 @@
         if (!response.ok) { loginError.textContent = 'Erro ao entrar. Tente novamente.'; return; }
         showApp();
         loadDashboard();
-      } catch {
-        loginError.textContent = 'Falha de conexão. Tente novamente.';
-      }
+      } catch { loginError.textContent = 'Falha de conexão. Tente novamente.'; }
     });
 
     document.getElementById('logout-btn').addEventListener('click', async () => {
@@ -404,28 +575,125 @@
       showLogin();
     });
 
-    document.getElementById('filters-form').addEventListener('submit', (event) => {
-      event.preventDefault();
-      state.market = document.getElementById('filter-market').value;
-      state.status = document.getElementById('filter-status').value;
-      state.offset = 0;
-      loadSales();
+    // ---------------------------------------------------------------------------
+    // Tab switching
+    // ---------------------------------------------------------------------------
+    document.querySelectorAll('.tab-btn').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        const tab = btn.dataset.tab;
+        document.querySelectorAll('.tab-btn').forEach((b) => {
+          b.classList.remove('active');
+          b.setAttribute('aria-selected', 'false');
+        });
+        document.querySelectorAll('.tab-pane').forEach((p) => p.classList.remove('active'));
+        btn.classList.add('active');
+        btn.setAttribute('aria-selected', 'true');
+        document.getElementById('tab-' + tab).classList.add('active');
+      });
     });
 
-    document.getElementById('prev-page').addEventListener('click', () => {
-      state.offset = Math.max(0, state.offset - state.limit);
-      loadSales();
-    });
-    document.getElementById('next-page').addEventListener('click', () => {
-      state.offset += state.limit;
-      loadSales();
-    });
+    // ---------------------------------------------------------------------------
+    // Pipeline status
+    // ---------------------------------------------------------------------------
+    function renderPipelineStatus(data) {
+      const alertsEl = document.getElementById('pipeline-alerts');
+      const readingChips = document.getElementById('pipeline-reading-chips');
+      const jobChips = document.getElementById('pipeline-job-chips');
 
+      const critPaid = data.critical.paid_no_content;
+      const critStuck = data.critical.stuck_in_progress;
+
+      alertsEl.innerHTML = '';
+      if (critPaid === 0 && critStuck === 0) {
+        alertsEl.innerHTML = '<div class="alert-ok">✓ Tudo OK — nenhum alerta crítico</div>';
+      } else {
+        if (critPaid > 0) {
+          const d = document.createElement('div');
+          d.className = 'alert-critical';
+          d.innerHTML = `<div class="count">${critPaid}</div><div class="desc"><strong>Leitura${critPaid > 1 ? 's' : ''} sem conteúdo</strong>Job falhou + body vazio — cliente pagou e não recebeu. Regere no <a href="#tab-suporte" style="color:var(--bad)">Suporte</a>.</div>`;
+          d.querySelector('a').addEventListener('click', (ev) => {
+            ev.preventDefault();
+            document.querySelector('[data-tab="suporte"]').click();
+          });
+          alertsEl.appendChild(d);
+        }
+        if (critStuck > 0) {
+          const d = document.createElement('div');
+          d.className = 'alert-warn';
+          d.innerHTML = `<div class="count">${critStuck}</div><div class="desc"><strong>Leitura${critStuck > 1 ? 's' : ''} travada${critStuck > 1 ? 's' : ''} há +30 min</strong>Status in_progress sem atualização. Worker pode estar morto.</div>`;
+          alertsEl.appendChild(d);
+        }
+      }
+
+      const READING_STATUS_META = {
+        ready:       { label: 'Prontas',       cls: 'chip-ok' },
+        in_progress: { label: 'Gerando',        cls: 'chip-warn' },
+        pending:     { label: 'Aguardando',     cls: 'chip-warn' },
+        queued:      { label: 'Na fila',        cls: 'chip-warn' },
+        running:     { label: 'Executando',     cls: 'chip-warn' },
+        fallback:    { label: 'Fallback',       cls: 'chip-bad' },
+        failed:      { label: 'Falhou',         cls: 'chip-bad' },
+        superseded:  { label: 'Substituídas',   cls: '' },
+      };
+      readingChips.innerHTML = '';
+      for (const [st, meta] of Object.entries(READING_STATUS_META)) {
+        const n = data.readings_by_status[st] || 0;
+        if (n === 0 && st === 'superseded') continue;
+        const chip = document.createElement('span');
+        chip.className = `status-chip${meta.cls ? ' ' + meta.cls : ''}`;
+        chip.innerHTML = `<span class="chip-count">${n}</span><span>${meta.label}</span>`;
+        readingChips.appendChild(chip);
+      }
+      for (const [st, n] of Object.entries(data.readings_by_status)) {
+        if (!READING_STATUS_META[st]) {
+          const chip = document.createElement('span');
+          chip.className = 'status-chip';
+          chip.innerHTML = `<span class="chip-count">${n}</span><span>${st}</span>`;
+          readingChips.appendChild(chip);
+        }
+      }
+
+      const JOB_STATUS_META = {
+        done:    { label: 'Concluídos', cls: 'chip-ok' },
+        queued:  { label: 'Na fila',    cls: 'chip-warn' },
+        running: { label: 'Executando', cls: 'chip-warn' },
+        failed:  { label: 'Falharam',   cls: 'chip-bad' },
+      };
+      jobChips.innerHTML = '';
+      for (const [st, meta] of Object.entries(JOB_STATUS_META)) {
+        const n = data.jobs_by_status[st] || 0;
+        const chip = document.createElement('span');
+        chip.className = `status-chip${meta.cls ? ' ' + meta.cls : ''}`;
+        chip.innerHTML = `<span class="chip-count">${n}</span><span>${meta.label}</span>`;
+        jobChips.appendChild(chip);
+      }
+      for (const [st, n] of Object.entries(data.jobs_by_status)) {
+        if (!JOB_STATUS_META[st]) {
+          const chip = document.createElement('span');
+          chip.className = 'status-chip';
+          chip.innerHTML = `<span class="chip-count">${n}</span><span>${st}</span>`;
+          jobChips.appendChild(chip);
+        }
+      }
+    }
+
+    async function loadPipelineStatus() {
+      try {
+        const data = await api('/pipeline-status');
+        renderPipelineStatus(data);
+      } catch { /* non-critical, skip */ }
+    }
+
+    // ---------------------------------------------------------------------------
+    // Geral tab: summary cards, chart, products
+    // ---------------------------------------------------------------------------
     function formatAmount(minor, currency) {
       const whole = Math.floor(Math.abs(minor) / 100);
       const cents = Math.abs(minor) % 100;
       const grouped = whole.toLocaleString('pt-BR');
-      return currency === 'ARS' ? `ARS ${grouped},${String(cents).padStart(2, '0')}` : `R$ ${grouped},${String(cents).padStart(2, '0')}`;
+      return currency === 'ARS'
+        ? `ARS ${grouped},${String(cents).padStart(2, '0')}`
+        : `R$ ${grouped},${String(cents).padStart(2, '0')}`;
     }
 
     function renderCards(summary) {
@@ -436,7 +704,9 @@
         const bucket = markets[code];
         const card = document.createElement('div');
         card.className = 'card';
-        card.innerHTML = `<div class="label">Receita ${code === 'BR' ? 'Brasil' : 'Argentina'}</div><div class="value">${bucket ? bucket.revenue_label || (code === 'BR' ? 'R$ 0,00' : 'ARS 0') : (code === 'BR' ? 'R$ 0,00' : 'ARS 0')}</div><div class="sub">${bucket ? bucket.sales_count : 0} vendas pagas · ${bucket ? bucket.orders_count : 0} pedidos</div>`;
+        card.innerHTML = `<div class="label">Receita ${code === 'BR' ? 'Brasil' : 'Argentina'}</div>
+          <div class="value">${bucket?.revenue_label || (code === 'BR' ? 'R$ 0,00' : 'ARS 0')}</div>
+          <div class="sub">${bucket?.sales_count || 0} vendas pagas · ${bucket?.orders_count || 0} pedidos</div>`;
         container.appendChild(card);
       }
       const usersCard = document.createElement('div');
@@ -481,10 +751,250 @@
           .map(([currency, minor]) => formatAmount(minor, currency))
           .join(' + ');
         const row = document.createElement('tr');
-        row.innerHTML = `<td>${productId}</td><td>${data.sales_count}</td><td>${revenueText}</td>`;
+        row.innerHTML = `<td>${escapeHtml(productId)}</td><td>${data.sales_count}</td><td>${escapeHtml(revenueText)}</td>`;
         tbody.appendChild(row);
       }
     }
+
+    // ---------------------------------------------------------------------------
+    // Clients tab
+    // ---------------------------------------------------------------------------
+    function productLabel(productId) {
+      const labels = {
+        'site:mapa_astral': 'Mapa Astral',
+        'site:mapa_amor_sinastria': 'Mapa do Amor',
+        'site:mapa_carreira': 'Mapa da Carreira',
+        'site:mapa_prosperidade': 'Mapa da Prosperidade',
+        'site:diario_astral': 'Diário Astral',
+        'site:diario_astral_completo': 'Diário Completo',
+      };
+      return labels[productId] || productId.replace('site:', '').replace(/_/g, ' ');
+    }
+
+    function renderClients(payload) {
+      const wrap = document.getElementById('clients-wrap');
+      const tbody = document.getElementById('clients-rows');
+      const loading = document.getElementById('clients-loading');
+      loading.hidden = true;
+      wrap.hidden = false;
+
+      tbody.innerHTML = '';
+      if (!payload.clients.length) {
+        tbody.innerHTML = '<tr><td colspan="4" style="color:var(--muted);text-align:center;padding:24px">Nenhum cliente encontrado.</td></tr>';
+      }
+
+      for (const c of payload.clients) {
+        const tr = document.createElement('tr');
+        tr.className = c.has_problem ? 'client-row-problem' : 'client-row-ok';
+
+        const entHtml = c.entitlements.length
+          ? c.entitlements.map((e) => `<span class="ent-pill">${escapeHtml(productLabel(e.product_id))}</span>`).join('')
+          : '<span style="color:var(--faint);font-size:11px">sem produto</span>';
+
+        const rReady = c.readings_ready;
+        const rInProg = c.readings_in_progress + c.readings_pending;
+        const rBad = c.readings_failed + c.readings_fallback;
+
+        const rsHtml = [
+          rReady > 0 ? `<span class="rs rs-ok">✓ ${rReady}</span>` : '',
+          rInProg > 0 ? `<span class="rs rs-warn">⟳ ${rInProg}</span>` : '',
+          rBad > 0 ? `<span class="rs rs-bad">✗ ${rBad}</span>` : '',
+          (rReady === 0 && rInProg === 0 && rBad === 0) ? `<span class="rs rs-muted">sem leituras</span>` : '',
+        ].join('');
+
+        tr.innerHTML = `
+          <td>
+            <span style="font-weight:600">${escapeHtml(c.name || '—')}</span><br>
+            <span style="font-size:11px;color:var(--muted)">${escapeHtml(c.email)}</span>
+          </td>
+          <td><div class="ent-pills">${entHtml}</div></td>
+          <td><div class="reading-summary">${rsHtml}</div></td>
+          <td><button class="details-btn" data-uid="${escapeHtml(c.user_id)}">Detalhes</button></td>`;
+        tbody.appendChild(tr);
+      }
+
+      document.getElementById('clients-prev').disabled = clientsState.offset === 0;
+      document.getElementById('clients-next').disabled =
+        clientsState.offset + clientsState.limit >= payload.total;
+    }
+
+    async function loadClients() {
+      const params = new URLSearchParams({
+        limit: clientsState.limit,
+        offset: clientsState.offset,
+      });
+      try {
+        const payload = await api('/clients?' + params.toString());
+        renderClients(payload);
+      } catch (err) {
+        if (err.message === 'unauthorized') showLogin();
+        document.getElementById('clients-loading').textContent = 'Não foi possível carregar clientes.';
+      }
+    }
+
+    document.getElementById('clients-prev').addEventListener('click', () => {
+      clientsState.offset = Math.max(0, clientsState.offset - clientsState.limit);
+      loadClients();
+    });
+    document.getElementById('clients-next').addEventListener('click', () => {
+      clientsState.offset += clientsState.limit;
+      loadClients();
+    });
+
+    // ---------------------------------------------------------------------------
+    // User detail modal
+    // ---------------------------------------------------------------------------
+    const udModal = document.getElementById('ud-modal-overlay');
+    const udModalBody = document.getElementById('ud-modal-body');
+    let _udCurrentUserId = null;
+
+    const STATUS_LABEL = {
+      fallback: 'Fallback', ready: 'Pronta', pending: 'Aguardando',
+      in_progress: 'Gerando', superseded: 'Substituída', failed: 'Falhou',
+      queued: 'Na fila', running: 'Executando',
+    };
+
+    function readingPillClass(status, source) {
+      if (status === 'fallback' || source === 'fallback') return 'fallback';
+      if (status === 'ready') return 'ready';
+      if (status === 'superseded') return 'superseded';
+      if (['pending', 'in_progress', 'queued', 'running'].includes(status)) return 'in_progress';
+      if (status === 'failed') return 'failed';
+      return '';
+    }
+
+    function renderUserDetailModal(data) {
+      const u = data.user;
+      const ents = data.entitlements;
+      const readings = data.readings;
+
+      const entHtml = ents.length
+        ? ents.map((e) => `
+            <div class="ud-ent">
+              <div class="ent-name">${escapeHtml(productLabel(e.product_id))}</div>
+              <div class="ent-status"><span class="pill ${e.status}">${e.status}</span>${e.expires_at ? ' · expira ' + new Date(e.expires_at).toLocaleDateString('pt-BR') : ''}</div>
+            </div>`).join('')
+        : '<p style="color:var(--muted);font-size:13px">Nenhum entitlement.</p>';
+
+      const readingRows = readings.map((r) => {
+        const pc = readingPillClass(r.status, r.source);
+        const statusLabel = STATUS_LABEL[r.status] || r.status;
+        const isFallback = r.is_fallback;
+        const noContent = !r.has_content && r.status !== 'superseded';
+        const date = new Date(r.created_at).toLocaleString('pt-BR');
+        const canRegen = r.status !== 'superseded';
+        const rowClass = noContent ? 'reading-no-content' : (isFallback ? 'reading-problem' : '');
+        return `
+          <tr class="${rowClass}">
+            <td>
+              <span style="font-size:11px;color:var(--muted)">${escapeHtml(r.content_id.replace('site:content:',''))}</span><br>
+              <span>${escapeHtml(r.title || '—')}</span>
+              ${noContent ? '<span class="no-content-flag">⚠ SEM CONTEÚDO</span>' : ''}
+            </td>
+            <td>
+              <span class="pill ${pc}">${escapeHtml(statusLabel)}</span>
+              ${isFallback && r.status !== 'fallback' ? '<span class="pill fallback" title="Fallback">⚠</span>' : ''}
+            </td>
+            <td style="font-size:11px">${r.has_content ? '<span style="color:var(--good)">✓ ' + r.body_html_len + ' chars</span>' : '<span style="color:var(--bad)">vazio</span>'}</td>
+            <td style="font-size:12px;white-space:nowrap">${escapeHtml(date)}</td>
+            <td>
+              <button class="regen-btn" data-rid="${escapeHtml(r.id)}"
+                data-title="${escapeHtml(r.title || r.content_id)}"
+                data-cost="${r.estimated_requests}"
+                ${canRegen ? '' : 'disabled'}>Regerar</button>
+            </td>
+          </tr>`;
+      }).join('');
+
+      udModalBody.innerHTML = `
+        <div class="ud-user-meta">
+          <span><strong>${escapeHtml(u.email)}</strong></span>
+          <span>Nome: <strong>${escapeHtml(u.name || '—')}</strong></span>
+          <span>Idioma: <strong>${escapeHtml(u.locale)}</strong></span>
+          <span>Cadastro: <strong>${new Date(u.created_at).toLocaleDateString('pt-BR')}</strong></span>
+        </div>
+        <p class="ud-section-title">Produtos (entitlements)</p>
+        <div class="ud-ents">${entHtml}</div>
+        <p class="ud-readings-title">Leituras</p>
+        <div class="table-scroll">
+          <table>
+            <thead>
+              <tr>
+                <th scope="col">Conteúdo</th>
+                <th scope="col">Status</th>
+                <th scope="col">Conteúdo entregue</th>
+                <th scope="col">Data</th>
+                <th scope="col">Ação</th>
+              </tr>
+            </thead>
+            <tbody id="ud-readings-tbody">${readingRows}</tbody>
+          </table>
+        </div>
+        <p class="ud-error" id="ud-error" hidden></p>`;
+
+      document.getElementById('ud-readings-tbody').addEventListener('click', (ev) => {
+        const btn = ev.target.closest('.regen-btn');
+        if (!btn || btn.disabled) return;
+        _pendingRegenReadingId = btn.dataset.rid;
+        _pendingRegenEstimatedReqs = parseInt(btn.dataset.cost, 10);
+        regenModalDesc.textContent = `Leitura: ${decodeURIComponent(btn.dataset.title)}`;
+        regenModalCost.textContent = `⚠ Isso vai consumir ~${_pendingRegenEstimatedReqs} requisição(ões) no MiniMax (cota semanal).`;
+        regenModalOverlay.classList.add('open');
+        regenCancelBtn.focus();
+        _regenSource = 'user-detail';
+      });
+    }
+
+    async function openUserDetailModal(userId) {
+      _udCurrentUserId = userId;
+      udModalBody.innerHTML = '<p style="color:var(--muted);font-size:13px">Carregando…</p>';
+      udModal.classList.add('open');
+      try {
+        const data = await api(`/users/${userId}/detail`);
+        renderUserDetailModal(data);
+      } catch {
+        udModalBody.innerHTML = '<p style="color:var(--bad);font-size:13px">Não foi possível carregar o detalhe do cliente.</p>';
+      }
+    }
+
+    document.getElementById('ud-close-btn').addEventListener('click', () => {
+      udModal.classList.remove('open');
+      _udCurrentUserId = null;
+    });
+    udModal.addEventListener('click', (ev) => {
+      if (ev.target === udModal) { udModal.classList.remove('open'); _udCurrentUserId = null; }
+    });
+
+    // Delegation: "Detalhes" em qualquer linha do clients-rows e sales-rows
+    document.getElementById('clients-rows').addEventListener('click', (ev) => {
+      const btn = ev.target.closest('.details-btn');
+      if (!btn) return;
+      openUserDetailModal(btn.dataset.uid);
+    });
+    document.getElementById('sales-rows').addEventListener('click', (ev) => {
+      const btn = ev.target.closest('.details-btn');
+      if (!btn || !btn.dataset.uid) return;
+      openUserDetailModal(btn.dataset.uid);
+    });
+
+    // ---------------------------------------------------------------------------
+    // Sales / orders
+    // ---------------------------------------------------------------------------
+    document.getElementById('filters-form').addEventListener('submit', (ev) => {
+      ev.preventDefault();
+      salesState.market = document.getElementById('filter-market').value;
+      salesState.status = document.getElementById('filter-status').value;
+      salesState.offset = 0;
+      loadSales();
+    });
+    document.getElementById('prev-page').addEventListener('click', () => {
+      salesState.offset = Math.max(0, salesState.offset - salesState.limit);
+      loadSales();
+    });
+    document.getElementById('next-page').addEventListener('click', () => {
+      salesState.offset += salesState.limit;
+      loadSales();
+    });
 
     function renderSales(payload) {
       const tbody = document.getElementById('sales-rows');
@@ -492,20 +1002,32 @@
       for (const sale of payload.sales) {
         const row = document.createElement('tr');
         const date = new Date(sale.created_at).toLocaleString('pt-BR');
+        const hasUser = !!sale.user_id;
         row.innerHTML = `
-          <td>${date}</td>
-          <td>${sale.customer_email || '—'}</td>
-          <td>${sale.title || sale.product_id}</td>
-          <td><span class="pill ${sale.status}">${sale.status}</span></td>
-          <td>${sale.provider}</td>
-          <td>${sale.market}</td>
-          <td>${sale.amount_label}</td>`;
+          <td>${escapeHtml(date)}</td>
+          <td>${escapeHtml(sale.customer_email || '—')}</td>
+          <td>${escapeHtml(sale.title || sale.product_id)}</td>
+          <td><span class="pill ${sale.status}">${escapeHtml(sale.status)}</span></td>
+          <td>${escapeHtml(sale.market)}</td>
+          <td>${escapeHtml(sale.amount_label)}</td>
+          <td>${hasUser ? `<button class="details-btn" data-uid="${escapeHtml(sale.user_id)}">Detalhes</button>` : '<span style="color:var(--faint);font-size:11px">—</span>'}</td>`;
         tbody.appendChild(row);
       }
-      document.getElementById('prev-page').disabled = state.offset === 0;
-      document.getElementById('next-page').disabled = state.offset + state.limit >= payload.total;
+      document.getElementById('prev-page').disabled = salesState.offset === 0;
+      document.getElementById('next-page').disabled = salesState.offset + salesState.limit >= payload.total;
     }
 
+    async function loadSales() {
+      const params = new URLSearchParams({ limit: salesState.limit, offset: salesState.offset });
+      if (salesState.market) params.set('market', salesState.market);
+      if (salesState.status) params.set('status', salesState.status);
+      const payload = await api('/sales?' + params.toString());
+      renderSales(payload);
+    }
+
+    // ---------------------------------------------------------------------------
+    // Quota
+    // ---------------------------------------------------------------------------
     function renderQuota(quota) {
       const total = document.getElementById('quota-total');
       const sub = document.getElementById('quota-sub');
@@ -517,35 +1039,26 @@
       if (!quota.available) {
         total.textContent = '—';
         sub.textContent = 'Não foi possível ler o consumo de cota agora.';
-        meter.className = 'quota-meter';
-        fill.style.width = '0%';
-        banner.className = 'quota-banner';
+        meter.className = 'quota-meter'; fill.style.width = '0%'; banner.className = 'quota-banner';
         tbody.innerHTML = '';
         return;
       }
-
       const pct = Math.min(100, quota.percent_used);
       total.textContent = `${quota.total_requests.toLocaleString('pt-BR')} / ${quota.limit.toLocaleString('pt-BR')}`;
       sub.textContent = `${quota.percent_used}% do teto semanal usado · ${quota.remaining.toLocaleString('pt-BR')} restantes · semana de ${quota.week_start}`;
       fill.style.width = `${pct}%`;
-
-      meter.className = 'quota-meter';
-      banner.className = 'quota-banner';
+      meter.className = 'quota-meter'; banner.className = 'quota-banner';
       if (quota.percent_used >= 90) {
-        meter.classList.add('danger');
-        banner.classList.add('danger');
+        meter.classList.add('danger'); banner.classList.add('danger');
         banner.textContent = `Atenção: ${quota.percent_used}% do teto semanal do MiniMax já foi usado. Considere upgrade de plano.`;
       } else if (quota.percent_used >= 70) {
-        meter.classList.add('warn');
-        banner.classList.add('warn');
+        meter.classList.add('warn'); banner.classList.add('warn');
         banner.textContent = `${quota.percent_used}% do teto semanal do MiniMax já foi usado.`;
       }
-
       tbody.innerHTML = '';
-      const entries = Object.entries(quota.by_model || {}).sort((a, b) => b[1].requests - a[1].requests);
-      for (const [model, data] of entries) {
+      for (const [model, data] of Object.entries(quota.by_model || {}).sort((a, b) => b[1].requests - a[1].requests)) {
         const row = document.createElement('tr');
-        row.innerHTML = `<td>${model}</td><td>${data.requests.toLocaleString('pt-BR')}</td><td>${data.tokens.toLocaleString('pt-BR')}</td>`;
+        row.innerHTML = `<td>${escapeHtml(model)}</td><td>${data.requests.toLocaleString('pt-BR')}</td><td>${data.tokens.toLocaleString('pt-BR')}</td>`;
         tbody.appendChild(row);
       }
     }
@@ -555,170 +1068,9 @@
       renderQuota(quota);
     }
 
-    async function loadSales() {
-      const params = new URLSearchParams({ limit: state.limit, offset: state.offset });
-      if (state.market) params.set('market', state.market);
-      if (state.status) params.set('status', state.status);
-      const payload = await api('/sales?' + params.toString());
-      renderSales(payload);
-    }
-
-    async function loadDashboard() {
-      statusMsg.hidden = false;
-      dashboard.hidden = true;
-      try {
-        const summary = await api('/summary');
-        renderCards(summary);
-        renderChart(summary.daily_series);
-        renderProducts(summary.by_product);
-        await loadQuota();
-        await loadSales();
-        await loadDeliveries();
-        statusMsg.hidden = true;
-        dashboard.hidden = false;
-      } catch (error) {
-        if (error.message === 'unauthorized') {
-          showLogin();
-        } else {
-          statusMsg.textContent = 'Não foi possível carregar o painel. Tente novamente.';
-        }
-      }
-    }
-
     // ---------------------------------------------------------------------------
-    // Suporte de leituras
+    // Deliveries (unchanged logic, moved to Entregas tab)
     // ---------------------------------------------------------------------------
-
-    const supportEmail = document.getElementById('support-email');
-    const supportError = document.getElementById('support-error');
-    const supportUserInfo = document.getElementById('support-user-info');
-    const supportReadingsWrap = document.getElementById('support-readings-wrap');
-    const supportReadingsRows = document.getElementById('support-readings-rows');
-    const regenModalOverlay = document.getElementById('regen-modal-overlay');
-    const regenModalDesc = document.getElementById('regen-modal-desc');
-    const regenModalCost = document.getElementById('regen-modal-cost');
-    const regenCancelBtn = document.getElementById('regen-cancel-btn');
-    const regenConfirmBtn = document.getElementById('regen-confirm-btn');
-
-    let _currentUserId = null;
-    let _pendingRegenReadingId = null;
-    let _pendingRegenEstimatedReqs = 0;
-
-    const SOURCE_LABEL = { fallback: 'FALLBACK', minimax: 'MiniMax', llm: 'LLM' };
-    const STATUS_LABEL = {
-      fallback: 'Fallback', ready: 'Pronta', pending: 'Aguardando',
-      in_progress: 'Gerando', superseded: 'Substituída', failed: 'Falhou',
-      queued: 'Na fila', running: 'Gerando',
-    };
-
-    function pillClass(status, source) {
-      if (status === 'fallback' || source === 'fallback') return 'fallback';
-      if (status === 'ready') return 'ready';
-      if (status === 'superseded') return 'superseded';
-      if (['pending', 'in_progress', 'queued', 'running'].includes(status)) return 'pending';
-      return '';
-    }
-
-    function renderReadings(readings) {
-      supportReadingsRows.innerHTML = '';
-      if (!readings.length) {
-        supportReadingsRows.innerHTML = '<tr><td colspan="6" style="color:var(--muted);text-align:center">Nenhuma leitura encontrada.</td></tr>';
-        return;
-      }
-      for (const r of readings) {
-        const isFallback = r.is_fallback;
-        const statusLabel = STATUS_LABEL[r.status] || r.status;
-        const sourceLabel = SOURCE_LABEL[r.source] || r.source;
-        const pc = pillClass(r.status, r.source);
-        const fallbackBadge = isFallback ? '<span class="pill fallback" title="Texto genérico entregue ao cliente">⚠ FALLBACK</span>' : '';
-        const date = new Date(r.created_at).toLocaleString('pt-BR');
-        const canRegen = r.status !== 'superseded';
-        const tr = document.createElement('tr');
-        tr.innerHTML = `
-          <td><span style="font-size:11px;color:var(--muted)">${r.content_id}</span><br><span style="font-size:13px">${r.title || '—'}</span></td>
-          <td><span class="pill ${pc}">${statusLabel}</span> ${fallbackBadge}</td>
-          <td><span class="pill ${r.source === 'fallback' ? 'fallback' : 'minimax'}">${sourceLabel}</span></td>
-          <td style="font-size:12px;white-space:nowrap">${date}</td>
-          <td style="text-align:center">${r.estimated_requests}</td>
-          <td><button class="regen-btn" data-rid="${r.id}" data-title="${encodeURIComponent(r.title || r.content_id)}" data-cost="${r.estimated_requests}" ${canRegen ? '' : 'disabled'}>Regerar</button></td>`;
-        supportReadingsRows.appendChild(tr);
-      }
-    }
-
-    async function loadUserReadings(userId) {
-      const data = await api(`/users/${userId}/readings`);
-      renderReadings(data.readings);
-      supportReadingsWrap.hidden = false;
-    }
-
-    document.getElementById('support-search-form').addEventListener('submit', async (ev) => {
-      ev.preventDefault();
-      supportError.textContent = '';
-      supportUserInfo.hidden = true;
-      supportReadingsWrap.hidden = true;
-      const email = supportEmail.value.trim();
-      try {
-        const user = await api(`/users/search?email=${encodeURIComponent(email)}`);
-        _currentUserId = user.id;
-        supportUserInfo.hidden = false;
-        supportUserInfo.innerHTML = `<p style="font-size:13px;margin:0 0 12px;color:var(--muted)">Cliente: <strong style="color:var(--cream)">${user.name || '—'}</strong> · ${user.email} · ${user.locale}</p>`;
-        await loadUserReadings(user.id);
-      } catch (err) {
-        if (err.message === 'request-failed') {
-          supportError.textContent = 'Usuário não encontrado.';
-        } else {
-          supportError.textContent = 'Erro ao buscar. Tente novamente.';
-        }
-      }
-    });
-
-    supportReadingsRows.addEventListener('click', (ev) => {
-      const btn = ev.target.closest('.regen-btn');
-      if (!btn || btn.disabled) return;
-      _pendingRegenReadingId = btn.dataset.rid;
-      _pendingRegenEstimatedReqs = parseInt(btn.dataset.cost, 10);
-      const title = decodeURIComponent(btn.dataset.title);
-      regenModalDesc.textContent = `Leitura: ${title}`;
-      regenModalCost.textContent = `⚠ Isso vai consumir ~${_pendingRegenEstimatedReqs} requisição(ões) no MiniMax (cota semanal).`;
-      regenModalOverlay.classList.add('open');
-      regenCancelBtn.focus();
-    });
-
-    regenCancelBtn.addEventListener('click', () => {
-      regenModalOverlay.classList.remove('open');
-      _pendingRegenReadingId = null;
-    });
-
-    regenConfirmBtn.addEventListener('click', async () => {
-      if (!_pendingRegenReadingId) return;
-      regenConfirmBtn.disabled = true;
-      regenConfirmBtn.textContent = 'Enviando…';
-      try {
-        const result = await api(`/readings/${_pendingRegenReadingId}/regenerate`, { method: 'POST' });
-        regenModalOverlay.classList.remove('open');
-        // Recarrega leituras para mostrar estado atualizado
-        if (_currentUserId) await loadUserReadings(_currentUserId);
-      } catch (err) {
-        if (err.message === 'request-failed') {
-          regenModalDesc.textContent += '\n⚠ Já existe um job ativo para esta leitura. Aguarde terminar.';
-        } else {
-          regenModalDesc.textContent += '\n⚠ Erro ao regerar. Tente novamente.';
-        }
-      } finally {
-        regenConfirmBtn.disabled = false;
-        regenConfirmBtn.textContent = 'Confirmar regeração';
-        _pendingRegenReadingId = null;
-      }
-    });
-
-    // ---------------------------------------------------------------------------
-    // Entregas do dia — fallback manual
-    // ---------------------------------------------------------------------------
-    //
-    // O botão só existe para o que o automático abandonou. Linha marcada como
-    // "automático vai tentar" mantém o botão desabilitado de propósito: o
-    // backend recusaria (409) e, pior, um redisparo ali competiria com a fila.
-
     const delDate = document.getElementById('del-date');
     const delProduct = document.getElementById('del-product');
     const delError = document.getElementById('del-error');
@@ -736,14 +1088,7 @@
 
     const delState = { date: '', productId: '', batchMax: 200, lastPayload: null, pendingAction: null };
 
-    function escapeHtml(value) {
-      return String(value ?? '').replace(/[&<>"']/g, (c) => (
-        { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]
-      ));
-    }
-
     function todayInSaoPaulo() {
-      // pt-BR + timeZone dá DD/MM/AAAA; o input[type=date] quer AAAA-MM-DD.
       const [d, m, y] = new Intl.DateTimeFormat('pt-BR', { timeZone: 'America/Sao_Paulo' })
         .format(new Date()).split('/');
       return `${y}-${m}-${d}`;
@@ -822,11 +1167,10 @@
                 <button class="retry-btn${canRetry ? '' : ' soft'}" data-rid="${item.reading_id}"
                   data-email="${escapeHtml(item.email)}"
                   data-auto="${item.auto_will_retry ? '1' : '0'}"
-                  ${item.auto_will_retry ? 'disabled title="O automático ainda vai tentar esta entrega."' : ''}>${btnLabel}</button>
+                  ${item.auto_will_retry ? 'disabled title="O automático ainda vai tentar esta entrega."' : ''}>${escapeHtml(btnLabel)}</button>
               </td>
             </tr>`;
         }).join('');
-
         section.innerHTML = `
           <div class="del-group-head">
             <h3>${escapeHtml(group.product_title || group.product_id)}</h3>
@@ -847,7 +1191,7 @@
     }
 
     function fillProductFilter(payload) {
-      if (delProduct.options.length > 1) return;  // preenchido uma vez só
+      if (delProduct.options.length > 1) return;
       for (const group of payload.products) {
         const option = document.createElement('option');
         option.value = group.product_id;
@@ -931,7 +1275,6 @@
       const protegidos = items.filter((i) => i.auto_will_retry);
       const teto = delState.batchMax;
       const disparar = Math.min(alvos.length, teto);
-
       openDeliveryModal({
         title: 'Redisparar todos com erro/pendente',
         desc: `${disparar} entrega(s) serão redisparadas agora${alvos.length > teto ? ` (das ${alvos.length} elegíveis — o teto por chamada é ${teto}; rode de novo para as restantes)` : ''}.`
@@ -971,10 +1314,164 @@
       delState.productId = delProduct.value;
       loadDeliveries();
     });
-
     document.getElementById('del-refresh').addEventListener('click', () => loadDeliveries());
-
     delDate.value = todayInSaoPaulo();
+
+    // ---------------------------------------------------------------------------
+    // Support tab (search by email → regen)
+    // ---------------------------------------------------------------------------
+    const supportEmail = document.getElementById('support-email');
+    const supportError = document.getElementById('support-error');
+    const supportUserInfo = document.getElementById('support-user-info');
+    const supportReadingsWrap = document.getElementById('support-readings-wrap');
+    const supportReadingsRows = document.getElementById('support-readings-rows');
+    const regenModalOverlay = document.getElementById('regen-modal-overlay');
+    const regenModalDesc = document.getElementById('regen-modal-desc');
+    const regenModalCost = document.getElementById('regen-modal-cost');
+    const regenCancelBtn = document.getElementById('regen-cancel-btn');
+    const regenConfirmBtn = document.getElementById('regen-confirm-btn');
+
+    let _currentSupportUserId = null;
+    let _pendingRegenReadingId = null;
+    let _pendingRegenEstimatedReqs = 0;
+    let _regenSource = 'support'; // 'support' | 'user-detail'
+
+    const SOURCE_LABEL = { fallback: 'FALLBACK', minimax: 'MiniMax', llm: 'LLM' };
+
+    function supportPillClass(status, source) {
+      if (status === 'fallback' || source === 'fallback') return 'fallback';
+      if (status === 'ready') return 'ready';
+      if (status === 'superseded') return 'superseded';
+      if (['pending', 'in_progress', 'queued', 'running'].includes(status)) return 'in_progress';
+      return '';
+    }
+
+    function renderReadings(readings) {
+      supportReadingsRows.innerHTML = '';
+      if (!readings.length) {
+        supportReadingsRows.innerHTML = '<tr><td colspan="6" style="color:var(--muted);text-align:center">Nenhuma leitura encontrada.</td></tr>';
+        return;
+      }
+      for (const r of readings) {
+        const isFallback = r.is_fallback;
+        const statusLabel = STATUS_LABEL[r.status] || r.status;
+        const sourceLabel = SOURCE_LABEL[r.source] || r.source;
+        const pc = supportPillClass(r.status, r.source);
+        const fallbackBadge = isFallback ? '<span class="pill fallback" title="Texto genérico entregue ao cliente">⚠ FALLBACK</span>' : '';
+        const date = new Date(r.created_at).toLocaleString('pt-BR');
+        const canRegen = r.status !== 'superseded';
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+          <td><span style="font-size:11px;color:var(--muted)">${escapeHtml(r.content_id)}</span><br><span style="font-size:13px">${escapeHtml(r.title || '—')}</span></td>
+          <td><span class="pill ${pc}">${escapeHtml(statusLabel)}</span> ${fallbackBadge}</td>
+          <td><span class="pill minimax">${escapeHtml(sourceLabel)}</span></td>
+          <td style="font-size:12px;white-space:nowrap">${escapeHtml(date)}</td>
+          <td style="text-align:center">${r.estimated_requests}</td>
+          <td><button class="regen-btn" data-rid="${escapeHtml(r.id)}" data-title="${escapeHtml(r.title || r.content_id)}" data-cost="${r.estimated_requests}" ${canRegen ? '' : 'disabled'}>Regerar</button></td>`;
+        supportReadingsRows.appendChild(tr);
+      }
+    }
+
+    async function loadUserReadings(userId) {
+      const data = await api(`/users/${userId}/readings`);
+      renderReadings(data.readings);
+      supportReadingsWrap.hidden = false;
+    }
+
+    document.getElementById('support-search-form').addEventListener('submit', async (ev) => {
+      ev.preventDefault();
+      supportError.textContent = '';
+      supportUserInfo.hidden = true;
+      supportReadingsWrap.hidden = true;
+      const email = supportEmail.value.trim();
+      try {
+        const user = await api(`/users/search?email=${encodeURIComponent(email)}`);
+        _currentSupportUserId = user.id;
+        supportUserInfo.hidden = false;
+        supportUserInfo.innerHTML = `<p style="font-size:13px;margin:0 0 12px;color:var(--muted)">Cliente: <strong style="color:var(--cream)">${escapeHtml(user.name || '—')}</strong> · ${escapeHtml(user.email)} · ${escapeHtml(user.locale)}</p>`;
+        await loadUserReadings(user.id);
+      } catch (err) {
+        if (err.message === 'request-failed') {
+          supportError.textContent = 'Usuário não encontrado.';
+        } else {
+          supportError.textContent = 'Erro ao buscar. Tente novamente.';
+        }
+      }
+    });
+
+    supportReadingsRows.addEventListener('click', (ev) => {
+      const btn = ev.target.closest('.regen-btn');
+      if (!btn || btn.disabled) return;
+      _pendingRegenReadingId = btn.dataset.rid;
+      _pendingRegenEstimatedReqs = parseInt(btn.dataset.cost, 10);
+      const title = btn.dataset.title;
+      regenModalDesc.textContent = `Leitura: ${title}`;
+      regenModalCost.textContent = `⚠ Isso vai consumir ~${_pendingRegenEstimatedReqs} requisição(ões) no MiniMax (cota semanal).`;
+      regenModalOverlay.classList.add('open');
+      regenCancelBtn.focus();
+      _regenSource = 'support';
+    });
+
+    regenCancelBtn.addEventListener('click', () => {
+      regenModalOverlay.classList.remove('open');
+      _pendingRegenReadingId = null;
+    });
+
+    regenConfirmBtn.addEventListener('click', async () => {
+      if (!_pendingRegenReadingId) return;
+      regenConfirmBtn.disabled = true;
+      regenConfirmBtn.textContent = 'Enviando…';
+      try {
+        await api(`/readings/${_pendingRegenReadingId}/regenerate`, { method: 'POST' });
+        regenModalOverlay.classList.remove('open');
+        // Recarrega a fonte certa após a regeração
+        if (_regenSource === 'user-detail' && _udCurrentUserId) {
+          const data = await api(`/users/${_udCurrentUserId}/detail`);
+          renderUserDetailModal(data);
+        } else if (_currentSupportUserId) {
+          await loadUserReadings(_currentSupportUserId);
+        }
+      } catch (err) {
+        if (err.message === 'request-failed') {
+          regenModalDesc.textContent += '\n⚠ Já existe um job ativo para esta leitura. Aguarde terminar.';
+        } else {
+          regenModalDesc.textContent += '\n⚠ Erro ao regerar. Tente novamente.';
+        }
+      } finally {
+        regenConfirmBtn.disabled = false;
+        regenConfirmBtn.textContent = 'Confirmar regeração';
+        _pendingRegenReadingId = null;
+      }
+    });
+
+    // ---------------------------------------------------------------------------
+    // Dashboard loader
+    // ---------------------------------------------------------------------------
+    async function loadDashboard() {
+      statusMsg.hidden = false;
+      dashboard.hidden = true;
+      try {
+        const summary = await api('/summary');
+        renderCards(summary);
+        renderChart(summary.daily_series);
+        renderProducts(summary.by_product);
+        await Promise.all([
+          loadPipelineStatus(),
+          loadQuota(),
+          loadSales(),
+          loadClients(),
+          loadDeliveries(),
+        ]);
+        statusMsg.hidden = true;
+        dashboard.hidden = false;
+      } catch (error) {
+        if (error.message === 'unauthorized') {
+          showLogin();
+        } else {
+          statusMsg.textContent = 'Não foi possível carregar o painel. Tente novamente.';
+        }
+      }
+    }
 
     checkSession();
   </script>

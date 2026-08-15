@@ -88,6 +88,7 @@ def sales(
     rows = [
         {
             "id": order.id,
+            "user_id": order.user_id,
             "created_at": order.created_at.isoformat(),
             "customer_email": order.customer_email,
             "product_id": order.product_id,
@@ -1180,6 +1181,229 @@ def deliveries_retry(
     result["triggered_by"] = "manual"
     result["triggered_by_admin"] = _admin
     return result
+
+
+@router.get("/pipeline-status")
+def pipeline_status(_admin: str = Depends(require_admin), db: Session = Depends(get_db)) -> dict:
+    """Status global do pipeline: leituras por status, jobs por status, alertas críticos.
+
+    Alertas críticos:
+    - paid_no_content: leitura com job failed + body_html vazio (não superseded).
+      É o caso "cliente pagou e não recebeu" — o mais urgente da tela.
+    - stuck_in_progress: leitura com status=in_progress parada há mais de 30 min
+      (updated_at defasado). Indica job travado ou worker morto.
+    """
+    reading_counts_raw = (
+        db.query(Reading.status, func.count(Reading.id))
+        .group_by(Reading.status)
+        .all()
+    )
+    readings_by_status = {st: cnt for st, cnt in reading_counts_raw}
+
+    job_counts_raw = (
+        db.query(GenerationJob.status, func.count(GenerationJob.id))
+        .group_by(GenerationJob.status)
+        .all()
+    )
+    jobs_by_status = {st: cnt for st, cnt in job_counts_raw}
+
+    failed_reading_ids = db.scalars(
+        select(GenerationJob.reading_id).where(GenerationJob.status == "failed")
+    ).all()
+
+    paid_no_content = 0
+    if failed_reading_ids:
+        paid_no_content = (
+            db.query(func.count(Reading.id))
+            .filter(
+                Reading.id.in_(failed_reading_ids),
+                Reading.status != "superseded",
+                func.length(Reading.body_html) == 0,
+            )
+            .scalar()
+            or 0
+        )
+
+    thirty_min_ago = datetime.now(timezone.utc) - timedelta(minutes=30)
+    stuck_count = (
+        db.query(func.count(Reading.id))
+        .filter(
+            Reading.status == "in_progress",
+            Reading.updated_at < thirty_min_ago,
+        )
+        .scalar()
+        or 0
+    )
+
+    return {
+        "readings_by_status": readings_by_status,
+        "jobs_by_status": jobs_by_status,
+        "critical": {
+            "paid_no_content": paid_no_content,
+            "stuck_in_progress": stuck_count,
+        },
+    }
+
+
+@router.get("/clients")
+def clients(
+    limit: int = 50,
+    offset: int = 0,
+    _admin: str = Depends(require_admin),
+    db: Session = Depends(get_db),
+) -> dict:
+    """Visão por cliente: entitlements + contagem de leituras por status.
+
+    Uma linha por usuário (não por pedido). Clientes com problema (fallback ou
+    failed sem conteúdo) aparecem primeiro. Leituras superseded são excluídas
+    da contagem — são histórico, não estado atual.
+    """
+    from sqlalchemy import union
+
+    ent_user_ids_q = select(Entitlement.user_id).distinct()
+    order_user_ids_q = select(Order.user_id).where(Order.user_id.is_not(None)).distinct()
+    all_ids_q = union(ent_user_ids_q, order_user_ids_q)
+    all_user_ids = list(db.scalars(all_ids_q).all())
+
+    if not all_user_ids:
+        return {"total": 0, "limit": limit, "offset": offset, "clients": []}
+
+    total = db.scalar(select(func.count(User.id)).where(User.id.in_(all_user_ids))) or 0
+
+    users = db.scalars(
+        select(User)
+        .where(User.id.in_(all_user_ids))
+        .order_by(User.created_at.desc())
+        .offset(offset)
+        .limit(limit)
+    ).all()
+
+    page_ids = [u.id for u in users]
+
+    ents_by_user: dict[str, list] = {}
+    for e in db.scalars(select(Entitlement).where(Entitlement.user_id.in_(page_ids))).all():
+        ents_by_user.setdefault(e.user_id, []).append(e)
+
+    reading_stats: dict[str, dict[str, int]] = {}
+    for uid, st, cnt in db.execute(
+        select(Reading.user_id, Reading.status, func.count(Reading.id))
+        .where(Reading.user_id.in_(page_ids), Reading.status != "superseded")
+        .group_by(Reading.user_id, Reading.status)
+    ).all():
+        reading_stats.setdefault(uid, {})[st] = cnt
+
+    rows = []
+    for user in users:
+        ents = ents_by_user.get(user.id, [])
+        r_stats = reading_stats.get(user.id, {})
+        ready = r_stats.get("ready", 0)
+        in_prog = r_stats.get("in_progress", 0)
+        failed = r_stats.get("failed", 0)
+        fallback = r_stats.get("fallback", 0)
+        pending = (
+            r_stats.get("pending", 0)
+            + r_stats.get("queued", 0)
+            + r_stats.get("running", 0)
+        )
+        rows.append({
+            "user_id": user.id,
+            "email": user.email,
+            "name": user.name,
+            "locale": user.locale,
+            "created_at": user.created_at.isoformat(),
+            "entitlements": [
+                {
+                    "product_id": e.product_id,
+                    "status": e.status,
+                    "expires_at": e.expires_at.isoformat() if e.expires_at else None,
+                }
+                for e in ents
+            ],
+            "entitlement_count": len(ents),
+            "readings_ready": ready,
+            "readings_in_progress": in_prog,
+            "readings_pending": pending,
+            "readings_failed": failed,
+            "readings_fallback": fallback,
+            "readings_total": sum(r_stats.values()),
+            "has_problem": failed > 0 or fallback > 0,
+        })
+
+    rows.sort(key=lambda r: 0 if r["has_problem"] else 1)
+    return {"total": total, "limit": limit, "offset": offset, "clients": rows}
+
+
+@router.get("/users/{user_id}/detail")
+def user_detail(
+    user_id: str,
+    _admin: str = Depends(require_admin),
+    db: Session = Depends(get_db),
+) -> dict:
+    """Detalhe completo de um usuário: entitlements + todas as leituras (incluindo supersedidas).
+
+    Expõe has_content e body_html_len para identificar rapidamente leituras
+    entregues com corpo vazio (pior caso: cliente pagou, geração falhou, fallback
+    nem rodou, cliente não recebeu nada).
+    """
+    user = db.get(User, user_id)
+    if not user:
+        raise HTTPException(status_code=404, detail="Usuário não encontrado.")
+
+    entitlements = db.scalars(
+        select(Entitlement)
+        .where(Entitlement.user_id == user_id)
+        .order_by(Entitlement.granted_at.desc())
+    ).all()
+
+    readings = db.scalars(
+        select(Reading)
+        .where(Reading.user_id == user_id)
+        .order_by(Reading.created_at.desc())
+    ).all()
+
+    reading_rows = []
+    for r in readings:
+        sections = engine_module.sections_for(r.content_id)
+        body_len = len(r.body_html) if r.body_html else 0
+        reading_rows.append({
+            "id": r.id,
+            "content_id": r.content_id,
+            "title": r.title,
+            "status": r.status,
+            "source": r.source,
+            "is_fallback": r.status == "fallback" or r.source == "fallback",
+            "has_content": body_len > 0,
+            "body_html_len": body_len,
+            "sections_done": r.sections_done,
+            "sections_total": r.sections_total,
+            "created_at": r.created_at.isoformat(),
+            "updated_at": r.updated_at.isoformat(),
+            "estimated_requests": len(sections) if sections else 1,
+            "error_message": r.error_message,
+            "product_id": r.product_id,
+        })
+
+    return {
+        "user": {
+            "id": user.id,
+            "email": user.email,
+            "name": user.name,
+            "locale": user.locale,
+            "created_at": user.created_at.isoformat(),
+        },
+        "entitlements": [
+            {
+                "id": e.id,
+                "product_id": e.product_id,
+                "status": e.status,
+                "source": e.source,
+                "granted_at": e.granted_at.isoformat(),
+                "expires_at": e.expires_at.isoformat() if e.expires_at else None,
+            }
+            for e in entitlements
+        ],
+        "readings": reading_rows,
+    }
 
 
 @router.get("/cost")
