@@ -235,3 +235,11 @@ class GenerationJob(Base):
     not_before: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now_utc)
     last_error: Mapped[str | None] = mapped_column(Text, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now_utc)
+    # Origem do disparo. "auto" = pipeline normal (checkout, pré-geração, worker).
+    # "manual" = admin apertou o botão de emergência no painel de entregas.
+    # Sem esta coluna não dá para distinguir depois o que o automático resolveu
+    # sozinho do que precisou de mão humana — que é justamente a métrica que diz
+    # se o pipeline está saudável.
+    triggered_by: Mapped[str] = mapped_column(String(16), default="auto")
+    triggered_by_admin: Mapped[str | None] = mapped_column(String(120), nullable=True)
+    triggered_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)

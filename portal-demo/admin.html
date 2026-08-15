@@ -110,6 +110,32 @@
     .regen-modal .cost-badge{display:inline-block;margin-top:4px;padding:5px 12px;border-radius:6px;background:rgba(229,120,138,.12);color:var(--bad);font-weight:700;font-size:13px}
     .regen-modal-actions{display:flex;gap:10px;margin-top:20px}
     .regen-modal-actions .button{flex:1}
+
+    /* entregas do dia */
+    .del-toolbar{display:flex;flex-wrap:wrap;gap:12px;align-items:end;margin-bottom:18px}
+    .del-toolbar .field{margin:0}
+    .del-toolbar input[type=date]{min-height:38px;padding:0 10px;border:1px solid var(--line);border-radius:5px;background:rgba(8,7,25,.6);color:var(--cream)}
+    .del-cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;margin-bottom:20px}
+    .del-card{padding:16px;border:1px solid var(--line);border-radius:8px;background:rgba(18,14,54,.6)}
+    .del-card .label{color:var(--gold);font-size:10px;font-weight:700;letter-spacing:.1em;text-transform:uppercase}
+    .del-card .value{margin-top:8px;font:600 28px var(--display);color:var(--gold-lit)}
+    .del-card.alarm{border-color:var(--bad)}
+    .del-card.alarm .value{color:var(--bad)}
+    .del-group{margin-top:22px;padding-top:18px;border-top:1px solid var(--line)}
+    .del-group-head{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:10px;margin-bottom:12px}
+    .del-group-head h3{font-size:17px}
+    .del-group-head .counts{color:var(--muted);font-size:12px}
+    .pill.needs-human{color:#4a0f18;background:var(--bad)}
+    .pill.auto-retry{color:#4a3300;background:#f0c96a}
+    .pill.done{color:#0d3a20;background:var(--good)}
+    .del-note{display:block;margin-top:3px;color:var(--faint);font-size:11px}
+    .del-err{display:block;margin-top:3px;max-width:340px;color:var(--bad);font-size:11px;word-break:break-word}
+    .retry-btn{padding:4px 12px;min-height:30px;font-size:11px;font-weight:700;border:1px solid var(--gold);border-radius:4px;background:transparent;color:var(--gold-lit);cursor:pointer;white-space:nowrap}
+    .retry-btn.soft{border-color:var(--line);color:var(--muted)}
+    .retry-btn:disabled{opacity:.4;cursor:default}
+    #del-error{color:var(--bad);font-size:12px;min-height:16px}
+    #del-feedback{margin-top:14px;padding:10px 14px;border-radius:6px;background:rgba(217,172,92,.08);color:var(--muted);font-size:13px}
+    .batch-list{margin:10px 0 0;padding-left:18px;max-height:160px;overflow:auto;color:var(--muted);font-size:12px}
   </style>
 </head>
 <body>
@@ -225,6 +251,35 @@
           </div>
         </section>
 
+        <section class="panel" aria-labelledby="deliveries-title">
+          <h2 id="deliveries-title">Entregas do dia</h2>
+          <p class="support-info">
+            O pipeline automático continua rodando sozinho (fila, backoff, até 3 tentativas). Esta tela é o
+            <strong>fallback manual</strong>: use o botão só onde o automático já desistiu. Quem ainda está marcado como
+            <span class="pill auto-retry">automático vai tentar</span> não precisa de você — redisparar ali só gera fila duplicada e queima cota.
+          </p>
+          <form class="del-toolbar" id="del-filters">
+            <div class="field">
+              <label for="del-date">Dia (horário de Brasília)</label>
+              <input type="date" id="del-date">
+            </div>
+            <div class="field">
+              <label for="del-product">Produto</label>
+              <select id="del-product"><option value="">Todos</option></select>
+            </div>
+            <button class="button small" type="submit">Ver entregas</button>
+            <button class="button secondary small" id="del-refresh" type="button">Atualizar</button>
+          </form>
+          <p id="del-error" role="alert"></p>
+          <div class="del-cards" id="del-cards"></div>
+          <div style="display:flex;flex-wrap:wrap;gap:10px;align-items:center">
+            <button class="button small" id="del-batch-btn" type="button" style="width:auto">Redisparar todos com erro/pendente</button>
+            <span style="color:var(--faint);font-size:12px" id="del-batch-hint"></span>
+          </div>
+          <div id="del-feedback" hidden></div>
+          <div id="del-groups"></div>
+        </section>
+
         <section class="panel" aria-labelledby="support-title">
           <h2 id="support-title">Suporte de Leituras / Soporte de Lecturas</h2>
           <p class="support-info">Busque um cliente pelo e-mail para ver suas leituras e regerar qualquer uma delas. Regeração marca a leitura atual como substituída e cria uma nova geração. Cada requisição ao MiniMax consome cota semanal.</p>
@@ -264,6 +319,20 @@
       <div class="regen-modal-actions">
         <button class="button secondary" id="regen-cancel-btn" type="button">Cancelar</button>
         <button class="button" id="regen-confirm-btn" type="button">Confirmar regeração</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Confirmação de redisparo (individual e em lote) -->
+  <div id="del-modal-overlay" role="dialog" aria-modal="true" aria-labelledby="del-modal-title" style="display:none;position:fixed;inset:0;background:rgba(8,7,25,.82);z-index:100;place-items:center">
+    <div class="regen-modal">
+      <h3 id="del-modal-title">Redisparar entregas</h3>
+      <p id="del-modal-desc"></p>
+      <p class="cost-badge" id="del-modal-cost"></p>
+      <ul class="batch-list" id="del-modal-list" hidden></ul>
+      <div class="regen-modal-actions">
+        <button class="button secondary" id="del-cancel-btn" type="button">Cancelar</button>
+        <button class="button" id="del-confirm-btn" type="button">Confirmar</button>
       </div>
     </div>
   </div>
@@ -504,6 +573,7 @@
         renderProducts(summary.by_product);
         await loadQuota();
         await loadSales();
+        await loadDeliveries();
         statusMsg.hidden = true;
         dashboard.hidden = false;
       } catch (error) {
@@ -640,6 +710,271 @@
         _pendingRegenReadingId = null;
       }
     });
+
+    // ---------------------------------------------------------------------------
+    // Entregas do dia — fallback manual
+    // ---------------------------------------------------------------------------
+    //
+    // O botão só existe para o que o automático abandonou. Linha marcada como
+    // "automático vai tentar" mantém o botão desabilitado de propósito: o
+    // backend recusaria (409) e, pior, um redisparo ali competiria com a fila.
+
+    const delDate = document.getElementById('del-date');
+    const delProduct = document.getElementById('del-product');
+    const delError = document.getElementById('del-error');
+    const delCards = document.getElementById('del-cards');
+    const delGroups = document.getElementById('del-groups');
+    const delFeedback = document.getElementById('del-feedback');
+    const delBatchBtn = document.getElementById('del-batch-btn');
+    const delBatchHint = document.getElementById('del-batch-hint');
+    const delModal = document.getElementById('del-modal-overlay');
+    const delModalDesc = document.getElementById('del-modal-desc');
+    const delModalCost = document.getElementById('del-modal-cost');
+    const delModalList = document.getElementById('del-modal-list');
+    const delCancelBtn = document.getElementById('del-cancel-btn');
+    const delConfirmBtn = document.getElementById('del-confirm-btn');
+
+    const delState = { date: '', productId: '', batchMax: 200, lastPayload: null, pendingAction: null };
+
+    function escapeHtml(value) {
+      return String(value ?? '').replace(/[&<>"']/g, (c) => (
+        { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]
+      ));
+    }
+
+    function todayInSaoPaulo() {
+      // pt-BR + timeZone dá DD/MM/AAAA; o input[type=date] quer AAAA-MM-DD.
+      const [d, m, y] = new Intl.DateTimeFormat('pt-BR', { timeZone: 'America/Sao_Paulo' })
+        .format(new Date()).split('/');
+      return `${y}-${m}-${d}`;
+    }
+
+    function delParams() {
+      const params = new URLSearchParams();
+      if (delState.date) params.set('date', delState.date);
+      if (delState.productId) params.set('product_id', delState.productId);
+      const query = params.toString();
+      return query ? `?${query}` : '';
+    }
+
+    function renderDeliveryCards(summary) {
+      const t = summary.totals;
+      delCards.innerHTML = '';
+      const cards = [
+        { label: 'Entregas do dia', value: t.total, alarm: false },
+        { label: 'Entregues', value: t.done, alarm: false },
+        { label: 'Em andamento', value: t.pending, alarm: false },
+        { label: 'Automático desistiu', value: t.failed, alarm: t.failed > 0 },
+        { label: 'Sem job (órfãs)', value: t.orphan, alarm: t.orphan > 0 },
+        { label: 'Precisam de você', value: t.needs_human, alarm: t.needs_human > 0 },
+      ];
+      for (const card of cards) {
+        const el = document.createElement('div');
+        el.className = 'del-card' + (card.alarm ? ' alarm' : '');
+        el.innerHTML = `<div class="label">${card.label}</div><div class="value">${card.value}</div>`;
+        delCards.appendChild(el);
+      }
+      delBatchHint.textContent = `${t.needs_human} precisam de mão humana · ${t.auto_will_retry} o automático ainda tenta · teto de ${summary.retry_batch_max} por disparo`;
+      delBatchBtn.disabled = t.needs_human === 0;
+    }
+
+    function deliveryStatePill(item) {
+      if (item.delivered) return '<span class="pill done">Entregue</span>';
+      if (item.auto_gave_up) return '<span class="pill needs-human">Automático desistiu</span>';
+      if (item.bucket === 'orphan') return '<span class="pill needs-human">Sem job</span>';
+      if (item.auto_will_retry) return '<span class="pill auto-retry">Automático vai tentar</span>';
+      return `<span class="pill pending">${escapeHtml(item.status)}</span>`;
+    }
+
+    function renderDeliveryGroups(payload) {
+      delState.batchMax = payload.retry_batch_max;
+      delGroups.innerHTML = '';
+      if (!payload.products.length) {
+        delGroups.innerHTML = '<p style="color:var(--muted);font-size:13px;padding:20px 0;text-align:center">Nenhuma entrega neste dia.</p>';
+        return;
+      }
+      for (const group of payload.products) {
+        const section = document.createElement('div');
+        section.className = 'del-group';
+        const rows = group.items.map((item) => {
+          const hora = item.created_at
+            ? new Date(item.created_at).toLocaleTimeString('pt-BR', { timeZone: 'America/Sao_Paulo', hour: '2-digit', minute: '2-digit' })
+            : '—';
+          const erro = item.last_error || item.error_message;
+          const canRetry = item.needs_human;
+          const btnLabel = item.delivered ? 'Regerar' : 'Redisparar';
+          return `
+            <tr>
+              <td>
+                <span style="font-size:13px">${escapeHtml(item.name || '—')}</span><br>
+                <span style="font-size:11px;color:var(--muted)">${escapeHtml(item.email)}</span>
+              </td>
+              <td><span style="font-size:11px;color:var(--muted)">${escapeHtml(item.content_title || item.content_id)}</span></td>
+              <td>
+                ${deliveryStatePill(item)}
+                ${item.auto_note ? `<span class="del-note">${escapeHtml(item.auto_note)}</span>` : ''}
+                ${erro ? `<span class="del-err" title="${escapeHtml(erro)}">${escapeHtml(erro.slice(0, 120))}</span>` : ''}
+                ${item.triggered_by === 'manual' ? `<span class="del-note">disparo manual por ${escapeHtml(item.triggered_by_admin || 'admin')}${item.triggered_at ? ' em ' + new Date(item.triggered_at).toLocaleString('pt-BR') : ''}</span>` : ''}
+              </td>
+              <td style="text-align:center">${item.attempts}</td>
+              <td style="font-size:12px;white-space:nowrap">${hora}</td>
+              <td>
+                <button class="retry-btn${canRetry ? '' : ' soft'}" data-rid="${item.reading_id}"
+                  data-email="${escapeHtml(item.email)}"
+                  data-auto="${item.auto_will_retry ? '1' : '0'}"
+                  ${item.auto_will_retry ? 'disabled title="O automático ainda vai tentar esta entrega."' : ''}>${btnLabel}</button>
+              </td>
+            </tr>`;
+        }).join('');
+
+        section.innerHTML = `
+          <div class="del-group-head">
+            <h3>${escapeHtml(group.product_title || group.product_id)}</h3>
+            <span class="counts">${group.total} entregas · ${group.done} ok · ${group.pending} em andamento · ${group.failed + group.orphan} com problema · ${group.needs_human} precisam de você</span>
+          </div>
+          <div class="table-scroll">
+            <table>
+              <caption class="visually-hidden">Entregas de ${escapeHtml(group.product_title || group.product_id)}</caption>
+              <thead><tr>
+                <th scope="col">Cliente</th><th scope="col">Conteúdo</th><th scope="col">Situação</th>
+                <th scope="col">Tentativas</th><th scope="col">Hora</th><th scope="col">Ação</th>
+              </tr></thead>
+              <tbody>${rows}</tbody>
+            </table>
+          </div>`;
+        delGroups.appendChild(section);
+      }
+    }
+
+    function fillProductFilter(payload) {
+      if (delProduct.options.length > 1) return;  // preenchido uma vez só
+      for (const group of payload.products) {
+        const option = document.createElement('option');
+        option.value = group.product_id;
+        option.textContent = group.product_title || group.product_id;
+        delProduct.appendChild(option);
+      }
+    }
+
+    async function loadDeliveries() {
+      delError.textContent = '';
+      try {
+        const [summary, payload] = await Promise.all([
+          api('/deliveries/summary' + delParams()),
+          api('/deliveries' + delParams()),
+        ]);
+        delState.lastPayload = payload;
+        renderDeliveryCards(summary);
+        renderDeliveryGroups(payload);
+        fillProductFilter(payload);
+      } catch (err) {
+        if (err.message === 'unauthorized') { showLogin(); return; }
+        delError.textContent = 'Não foi possível carregar as entregas do dia.';
+      }
+    }
+
+    function openDeliveryModal({ title, desc, cost, list, onConfirm }) {
+      delModalDesc.textContent = desc;
+      delModalCost.textContent = cost;
+      document.getElementById('del-modal-title').textContent = title;
+      delModalList.innerHTML = (list || []).map((line) => `<li>${escapeHtml(line)}</li>`).join('');
+      delModalList.hidden = !(list && list.length);
+      delState.pendingAction = onConfirm;
+      delModal.style.display = 'grid';
+      delCancelBtn.focus();
+    }
+
+    function closeDeliveryModal() {
+      delModal.style.display = 'none';
+      delState.pendingAction = null;
+    }
+
+    delCancelBtn.addEventListener('click', closeDeliveryModal);
+
+    delConfirmBtn.addEventListener('click', async () => {
+      const action = delState.pendingAction;
+      if (!action) return;
+      delConfirmBtn.disabled = true;
+      delConfirmBtn.textContent = 'Enviando…';
+      try {
+        await action();
+        closeDeliveryModal();
+        await loadDeliveries();
+      } catch (err) {
+        delModalDesc.textContent = err.message === 'unauthorized'
+          ? 'Sessão expirada. Entre de novo.'
+          : 'Falha ao redisparar. O automático pode ter pego a entrega antes — atualize e confira.';
+      } finally {
+        delConfirmBtn.disabled = false;
+        delConfirmBtn.textContent = 'Confirmar';
+      }
+    });
+
+    delGroups.addEventListener('click', (ev) => {
+      const btn = ev.target.closest('.retry-btn');
+      if (!btn || btn.disabled) return;
+      const readingId = btn.dataset.rid;
+      const email = btn.dataset.email;
+      openDeliveryModal({
+        title: 'Redisparar entrega',
+        desc: `Cliente: ${email}`,
+        cost: '⚠ Gera uma nova leitura e consome cota semanal do MiniMax.',
+        onConfirm: () => api(`/deliveries/${readingId}/retry`, { method: 'POST' }),
+      });
+    });
+
+    delBatchBtn.addEventListener('click', () => {
+      const payload = delState.lastPayload;
+      if (!payload) return;
+      const items = payload.products.flatMap((g) => g.items);
+      const alvos = items.filter((i) => i.needs_human);
+      const protegidos = items.filter((i) => i.auto_will_retry);
+      const teto = delState.batchMax;
+      const disparar = Math.min(alvos.length, teto);
+
+      openDeliveryModal({
+        title: 'Redisparar todos com erro/pendente',
+        desc: `${disparar} entrega(s) serão redisparadas agora${alvos.length > teto ? ` (das ${alvos.length} elegíveis — o teto por chamada é ${teto}; rode de novo para as restantes)` : ''}.`
+          + (protegidos.length ? ` ${protegidos.length} ficam de fora: o automático ainda vai tentar sozinho.` : ''),
+        cost: `⚠ Isso enfileira ${disparar} geração(ões) no MiniMax e consome cota semanal.`,
+        list: alvos.slice(0, teto).map((i) => `${i.email} · ${i.content_title || i.content_id}`),
+        onConfirm: async () => {
+          const result = await api('/deliveries/retry-batch', {
+            method: 'POST',
+            body: JSON.stringify({
+              date: delState.date || undefined,
+              product_id: delState.productId || undefined,
+              statuses: ['failed', 'pending'],
+            }),
+          });
+          delFeedback.hidden = false;
+          const pulados = {};
+          for (const s of result.skipped) pulados[s.reason] = (pulados[s.reason] || 0) + 1;
+          const detalhe = Object.entries(pulados)
+            .map(([reason, count]) => `${count} ${{
+              auto_will_retry: 'porque o automático ainda vai tentar',
+              batch_limit: 'por causa do teto por chamada',
+              not_found: 'por leitura inexistente',
+              error: 'por erro no disparo',
+            }[reason] || reason}`)
+            .join(' · ');
+          delFeedback.textContent = `${result.enqueued_count} enfileirada(s), ${result.skipped_count} pulada(s)`
+            + (detalhe ? ` — ${detalhe}.` : '.')
+            + (result.remaining ? ` Faltam ${result.remaining}: rode o lote de novo.` : '');
+        },
+      });
+    });
+
+    document.getElementById('del-filters').addEventListener('submit', (ev) => {
+      ev.preventDefault();
+      delState.date = delDate.value;
+      delState.productId = delProduct.value;
+      loadDeliveries();
+    });
+
+    document.getElementById('del-refresh').addEventListener('click', () => loadDeliveries());
+
+    delDate.value = todayInSaoPaulo();
 
     checkSession();
   </script>

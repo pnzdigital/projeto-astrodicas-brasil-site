@@ -59,6 +59,14 @@ NEW_COLUMNS: dict[str, tuple[tuple[str, str, str], ...]] = {
         ("sections_done", "INTEGER", "0"),
         ("sections_total", "INTEGER", "0"),
     ),
+    "generation_jobs": (
+        # Marca de disparo manual (painel de entregas do admin). Jobs criados
+        # antes desta coluna existir são do pipeline automático — o DEFAULT
+        # 'auto' os classifica corretamente sem backfill.
+        ("triggered_by", "VARCHAR(16)", "'auto'"),
+        ("triggered_by_admin", "VARCHAR(120)", ""),
+        ("triggered_at", "TIMESTAMP", ""),
+    ),
 }
 
 

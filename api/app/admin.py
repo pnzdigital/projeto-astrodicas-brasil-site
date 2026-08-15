@@ -1,7 +1,8 @@
 import hmac
 import logging
 import os
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, time, timedelta, timezone
+from zoneinfo import ZoneInfo
 
 from fastapi import APIRouter, Cookie, Depends, HTTPException, Response, status
 from sqlalchemy import func, select
@@ -270,26 +271,33 @@ def user_readings(
     return {"user_id": user_id, "readings": rows}
 
 
-@router.post("/readings/{reading_id}/regenerate")
-def regenerate_reading(
-    reading_id: str,
-    _admin: str = Depends(require_admin),
-    db: Session = Depends(get_db),
-) -> dict:
-    """Invalida leitura existente e dispara nova geração.
+class ActiveJobConflict(Exception):
+    """Já existe job aberto para (user_id, content_id) — nada a enfileirar.
 
-    Segurança:
-    - Sessão admin obrigatória (require_admin).
-    - Idempotente por job ativo: se já houver job queued/running para
-      (user_id, content_id), retorna 409 em vez de enfileirar duplicata.
-    - Leitura anterior marcada como 'superseded' (não destruída) para auditoria.
-    - Cada ação é registrada em log com admin_id, reading_id e user_id.
+    Não é erro de programa: é o pipeline automático fazendo o trabalho dele. O
+    chamador decide o que fazer (a rota individual devolve 409; o lote pula e
+    conta como skipped).
     """
-    reading = db.get(Reading, reading_id)
-    if not reading:
-        raise HTTPException(status_code=404, detail="Leitura não encontrada.")
 
-    # Bloqueia duplo clique / reenfileiramento enquanto job ativo existe.
+    def __init__(self, job: GenerationJob) -> None:
+        self.job = job
+        super().__init__(f"job ativo ({job.status})")
+
+
+def _regenerate_reading_core(
+    db: Session,
+    reading: Reading,
+    admin_id: str,
+    trigger: str = "manual",
+) -> dict:
+    """Supersede a leitura e enfileira uma nova geração. Fonte única.
+
+    Usada pela rota /readings/{id}/regenerate e pelas rotas de entregas
+    (retry individual e em lote) — a lógica de regeração existe uma vez só.
+
+    Levanta ActiveJobConflict se já existe job queued/running: o disparo manual
+    NUNCA compete com o automático.
+    """
     active_job = db.scalars(
         select(GenerationJob).where(
             GenerationJob.user_id == reading.user_id,
@@ -298,15 +306,13 @@ def regenerate_reading(
         )
     ).first()
     if active_job:
-        raise HTTPException(
-            status_code=409,
-            detail=f"Já existe um job ativo ({active_job.status}) para esta leitura. Aguarde terminar antes de regerar.",
-        )
+        raise ActiveJobConflict(active_job)
 
     user = db.get(User, reading.user_id)
     if not user:
         raise HTTPException(status_code=404, detail="Usuário da leitura não encontrado.")
 
+    old_reading_id = reading.id
     # Preserva leitura anterior como 'superseded' (mantém body_html, source, etc.).
     reading.status = "superseded"
     db.flush()
@@ -339,11 +345,23 @@ def regenerate_reading(
         customer_name=user.name,
     )
 
+    # Marca a procedência do disparo. Feito aqui, e não dentro de
+    # enqueue_generation_job, porque a fila é do pipeline automático e não deve
+    # aprender sobre admin — quem sabe que foi manual é quem apertou o botão.
+    if job and trigger == "manual":
+        marked = db.get(GenerationJob, job.id)
+        if marked is not None:
+            marked.triggered_by = "manual"
+            marked.triggered_by_admin = admin_id
+            marked.triggered_at = datetime.now(timezone.utc)
+            db.commit()
+
     estimated_requests = len(sections) if sections else 1
     logger.info(
-        "admin_regenerate admin=%s reading_id=%s new_reading_id=%s user_id=%s content_id=%s estimated_requests=%d",
-        _admin,
-        reading_id,
+        "admin_regenerate admin=%s trigger=%s reading_id=%s new_reading_id=%s user_id=%s content_id=%s estimated_requests=%d",
+        admin_id,
+        trigger,
+        old_reading_id,
         new_reading.id,
         reading.user_id,
         reading.content_id,
@@ -352,11 +370,41 @@ def regenerate_reading(
 
     return {
         "ok": True,
-        "superseded_reading_id": reading_id,
+        "superseded_reading_id": old_reading_id,
         "new_reading_id": new_reading.id,
         "job_id": job.id if job else None,
         "estimated_requests": estimated_requests,
     }
+
+
+@router.post("/readings/{reading_id}/regenerate")
+def regenerate_reading(
+    reading_id: str,
+    _admin: str = Depends(require_admin),
+    db: Session = Depends(get_db),
+) -> dict:
+    """Invalida leitura existente e dispara nova geração.
+
+    Segurança:
+    - Sessão admin obrigatória (require_admin).
+    - Idempotente por job ativo: se já houver job queued/running para
+      (user_id, content_id), retorna 409 em vez de enfileirar duplicata.
+    - Leitura anterior marcada como 'superseded' (não destruída) para auditoria.
+    - Cada ação é registrada em log com admin_id, reading_id e user_id.
+    """
+    reading = db.get(Reading, reading_id)
+    if not reading:
+        raise HTTPException(status_code=404, detail="Leitura não encontrada.")
+    try:
+        return _regenerate_reading_core(db, reading, _admin)
+    except ActiveJobConflict as conflict:
+        raise HTTPException(
+            status_code=409,
+            detail=(
+                f"Já existe um job ativo ({conflict.job.status}) para esta leitura. "
+                "Aguarde terminar antes de regerar."
+            ),
+        ) from conflict
 
 
 @router.get("/quota")
@@ -698,6 +746,440 @@ def cost_catalog(db=None) -> dict:
         "products": products,
         "weekly_quota": weekly_quota,
     }
+
+
+# ---------------------------------------------------------------------------
+# Acompanhamento de entregas do dia — FALLBACK MANUAL
+# ---------------------------------------------------------------------------
+#
+# Esta tela NÃO é o pipeline. O pipeline automático (worker.py: claim, backoff
+# 1/5/15min, MAX_JOB_ATTEMPTS) continua rodando exatamente como roda — nada
+# aqui o altera. Isto é o olho humano e o botão de emergência para quando o
+# automático já desistiu.
+#
+# Consequência de desenho: o disparo manual jamais compete com o automático.
+# Enquanto houver job aberto (queued/running), inclusive esperando o próximo
+# not_before do backoff, o item aparece como "o automático ainda vai tentar" e
+# o botão avisa antes de enfileirar. Quem precisa de mão humana é o que tem job
+# failed (tentativas esgotadas) ou leitura problemática sem job nenhum.
+
+SP_TIMEZONE = ZoneInfo("America/Sao_Paulo")
+
+# Teto de itens por chamada do lote. Existe por causa da concorrência do
+# MiniMax (ver ARQUITETURA-ESCALA.md): enfileirar o dia inteiro de uma vez
+# afoga a fila e queima cota semanal em minutos.
+RETRY_BATCH_MAX_DEFAULT = 200
+
+# Status de leitura que contam como problema a resolver.
+PROBLEM_READING_STATUSES = ("pending", "in_progress", "queued", "running", "failed", "fallback", "error")
+DONE_READING_STATUSES = ("ready",)
+
+
+def _retry_batch_cap() -> int:
+    raw = os.getenv("ADMIN_RETRY_BATCH_MAX", "").strip()
+    if not raw:
+        return RETRY_BATCH_MAX_DEFAULT
+    try:
+        value = int(raw)
+    except ValueError:
+        return RETRY_BATCH_MAX_DEFAULT
+    return value if value > 0 else RETRY_BATCH_MAX_DEFAULT
+
+
+def _sp_day_bounds(date_str: str | None) -> tuple[datetime, datetime, str]:
+    """Converte AAAA-MM-DD (America/Sao_Paulo) para janela [início, fim) em UTC.
+
+    O dono opera em horário de Brasília; `created_at` é gravado em UTC. Filtrar
+    pelo dia UTC entregaria as leituras das 21h–24h de ontem como se fossem de
+    hoje.
+    """
+    if date_str:
+        try:
+            day = datetime.strptime(date_str.strip(), "%Y-%m-%d").date()
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail="Data inválida. Use AAAA-MM-DD.") from exc
+    else:
+        day = datetime.now(SP_TIMEZONE).date()
+    start_local = datetime.combine(day, time.min, tzinfo=SP_TIMEZONE)
+    end_local = start_local + timedelta(days=1)
+    return start_local.astimezone(timezone.utc), end_local.astimezone(timezone.utc), day.isoformat()
+
+
+def _as_utc(value: datetime | None) -> datetime | None:
+    if value is None:
+        return None
+    return value if value.tzinfo else value.replace(tzinfo=timezone.utc)
+
+
+def _latest_jobs_by_key(db: Session, readings: list[Reading]) -> dict[tuple[str, str], GenerationJob]:
+    """Último job por (user_id, content_id) das leituras informadas.
+
+    Uma consulta só: com centenas de entregas no dia, uma query por linha
+    transformaria a abertura do painel em N+1.
+    """
+    if not readings:
+        return {}
+    user_ids = {r.user_id for r in readings}
+    content_ids = {r.content_id for r in readings}
+    jobs = db.scalars(
+        select(GenerationJob)
+        .where(GenerationJob.user_id.in_(user_ids), GenerationJob.content_id.in_(content_ids))
+        .order_by(GenerationJob.created_at)
+    ).all()
+    latest: dict[tuple[str, str], GenerationJob] = {}
+    for job in jobs:
+        latest[(job.user_id, job.content_id)] = job  # ordenado asc: o último vence
+    return latest
+
+
+def _delivery_state(reading: Reading, job: GenerationJob | None) -> dict:
+    """Classifica a entrega do ponto de vista de QUEM precisa agir.
+
+    - auto_will_retry: job aberto (queued/running). O worker ainda vai pegar,
+      talvez só depois do not_before do backoff. Mão humana aqui só atrapalha.
+    - auto_gave_up: job failed — tentativas esgotadas. É AQUI que o botão vale.
+    - needs_human: gave_up, ou leitura problemática sem job nenhum (o disparo
+      original se perdeu; ninguém vai tentar sozinho).
+    """
+    delivered = reading.status in DONE_READING_STATUSES
+    job_status = job.status if job else None
+    attempts = job.attempts if job else 0
+    not_before = _as_utc(job.not_before) if job else None
+    now = datetime.now(timezone.utc)
+
+    auto_will_retry = job_status in ("queued", "running")
+    auto_gave_up = job_status == "failed"
+    orphan = job is None and not delivered
+
+    if delivered:
+        bucket = "done"
+    elif auto_gave_up:
+        bucket = "failed"
+    elif orphan:
+        bucket = "orphan"
+    elif auto_will_retry:
+        bucket = "pending"
+    else:
+        bucket = "pending"
+
+    if auto_will_retry and not_before and not_before > now:
+        auto_note = f"o automático ainda vai tentar (próxima tentativa após {not_before.isoformat()})"
+    elif auto_will_retry:
+        auto_note = "o automático ainda vai tentar (job na fila)"
+    elif auto_gave_up:
+        auto_note = f"o automático desistiu após {attempts} tentativa(s)"
+    elif orphan:
+        auto_note = "sem job de geração — ninguém vai tentar sozinho"
+    else:
+        auto_note = ""
+
+    return {
+        "bucket": bucket,
+        "delivered": delivered,
+        "auto_will_retry": auto_will_retry,
+        "auto_gave_up": auto_gave_up,
+        "needs_human": auto_gave_up or orphan,
+        "auto_note": auto_note,
+        "job_id": job.id if job else None,
+        "job_status": job_status,
+        "attempts": attempts,
+        "next_attempt_at": not_before.isoformat() if (auto_will_retry and not_before) else None,
+        "triggered_by": (job.triggered_by if job else None),
+        "triggered_by_admin": (job.triggered_by_admin if job else None),
+        "triggered_at": _as_utc(job.triggered_at).isoformat() if (job and job.triggered_at) else None,
+    }
+
+
+def _truncate(text_value: str | None, limit: int = 300) -> str:
+    if not text_value:
+        return ""
+    text_value = str(text_value)
+    return text_value if len(text_value) <= limit else text_value[:limit] + "…"
+
+
+# Ordem de urgência: quem o automático abandonou primeiro, entrega OK por último.
+_BUCKET_RANK = {"failed": 0, "orphan": 1, "pending": 2, "done": 3}
+
+
+def _collect_deliveries(db: Session, date: str | None, product_id: str | None) -> tuple[list[dict], str]:
+    start_utc, end_utc, day_iso = _sp_day_bounds(date)
+    query = (
+        select(Reading, User)
+        .join(User, User.id == Reading.user_id)
+        .where(Reading.created_at >= start_utc, Reading.created_at < end_utc)
+    )
+    if product_id:
+        query = query.where(Reading.product_id == product_id)
+    pairs = db.execute(query).all()
+    readings = [reading for reading, _user in pairs]
+    jobs = _latest_jobs_by_key(db, readings)
+
+    rows: list[dict] = []
+    for reading, user in pairs:
+        job = jobs.get((reading.user_id, reading.content_id))
+        state = _delivery_state(reading, job)
+        created = _as_utc(reading.created_at)
+        rows.append({
+            "reading_id": reading.id,
+            "user_id": reading.user_id,
+            "email": user.email,
+            "name": user.name,
+            "product_id": reading.product_id,
+            "product_title": title_for(reading.product_id, user.locale) if reading.product_id else "—",
+            "content_id": reading.content_id,
+            "content_title": _content_title(reading.content_id),
+            "status": reading.status,
+            "created_at": created.isoformat() if created else None,
+            "sections_done": reading.sections_done,
+            "sections_total": reading.sections_total,
+            "error_message": _truncate(reading.error_message),
+            "last_error": _truncate(job.last_error if job else None),
+            **state,
+        })
+
+    rows.sort(key=lambda r: (_BUCKET_RANK.get(r["bucket"], 9), r["created_at"] or ""))
+    return rows, day_iso
+
+
+@router.get("/deliveries")
+def deliveries(
+    date: str | None = None,
+    product_id: str | None = None,
+    _admin: str = Depends(require_admin),
+    db: Session = Depends(get_db),
+) -> dict:
+    """Entregas de um dia (default: hoje em America/Sao_Paulo), por produto.
+
+    Problemas primeiro: o que o automático abandonou encabeça a lista, depois
+    o órfão sem job, depois o que ainda está em andamento, e por fim o entregue.
+    """
+    rows, day_iso = _collect_deliveries(db, date, product_id)
+
+    groups: dict[str, dict] = {}
+    for row in rows:
+        key = row["product_id"] or "—"
+        group = groups.setdefault(key, {
+            "product_id": key,
+            "product_title": row["product_title"],
+            "total": 0,
+            "done": 0,
+            "pending": 0,
+            "failed": 0,
+            "orphan": 0,
+            "needs_human": 0,
+            "auto_will_retry": 0,
+            "items": [],
+        })
+        group["total"] += 1
+        group[row["bucket"]] += 1
+        if row["needs_human"]:
+            group["needs_human"] += 1
+        if row["auto_will_retry"]:
+            group["auto_will_retry"] += 1
+        group["items"].append(row)
+
+    ordered = sorted(groups.values(), key=lambda g: (-g["needs_human"], -g["failed"], g["product_id"]))
+
+    return {
+        "date": day_iso,
+        "timezone": "America/Sao_Paulo",
+        "product_id": product_id,
+        "total": len(rows),
+        "retry_batch_max": _retry_batch_cap(),
+        "products": ordered,
+    }
+
+
+@router.get("/deliveries/summary")
+def deliveries_summary(
+    date: str | None = None,
+    product_id: str | None = None,
+    _admin: str = Depends(require_admin),
+    db: Session = Depends(get_db),
+) -> dict:
+    """Contagem por produto e por status do dia — alimenta os cards do topo."""
+    rows, day_iso = _collect_deliveries(db, date, product_id)
+
+    totals = {"total": 0, "done": 0, "pending": 0, "failed": 0, "orphan": 0, "needs_human": 0, "auto_will_retry": 0}
+    by_product: dict[str, dict] = {}
+    by_status: dict[str, int] = {}
+
+    for row in rows:
+        totals["total"] += 1
+        totals[row["bucket"]] += 1
+        if row["needs_human"]:
+            totals["needs_human"] += 1
+        if row["auto_will_retry"]:
+            totals["auto_will_retry"] += 1
+
+        key = row["product_id"] or "—"
+        bucket = by_product.setdefault(key, {
+            "product_id": key,
+            "product_title": row["product_title"],
+            "total": 0, "done": 0, "pending": 0, "failed": 0, "orphan": 0,
+            "needs_human": 0, "auto_will_retry": 0,
+        })
+        bucket["total"] += 1
+        bucket[row["bucket"]] += 1
+        if row["needs_human"]:
+            bucket["needs_human"] += 1
+        if row["auto_will_retry"]:
+            bucket["auto_will_retry"] += 1
+
+        by_status[row["status"]] = by_status.get(row["status"], 0) + 1
+
+    return {
+        "date": day_iso,
+        "timezone": "America/Sao_Paulo",
+        "totals": totals,
+        "by_product": list(by_product.values()),
+        "by_status": by_status,
+        "retry_batch_max": _retry_batch_cap(),
+    }
+
+
+@router.post("/deliveries/retry-batch")
+def deliveries_retry_batch(
+    body: dict | None = None,
+    _admin: str = Depends(require_admin),
+    db: Session = Depends(get_db),
+) -> dict:
+    """Redispara em lote as entregas problemáticas do dia.
+
+    Corpo: {date, product_id (opcional), statuses: ["failed","pending"], limit}
+
+    Regras duras:
+    - Teto por chamada (ADMIN_RETRY_BATCH_MAX, default 200). O excedente NÃO é
+      enfileirado; volta em `remaining` para o admin chamar de novo.
+    - Idempotente: item com job aberto (queued/running) é pulado — o automático
+      ainda vai tentar sozinho e duas gerações do mesmo conteúdo é dinheiro
+      queimado em dobro.
+    - Todo job criado aqui fica marcado triggered_by="manual" com admin e hora.
+    """
+    body = body or {}
+    date = body.get("date")
+    product_id = body.get("product_id")
+    statuses = body.get("statuses") or ["failed", "pending"]
+    if not isinstance(statuses, list):
+        raise HTTPException(status_code=400, detail="statuses deve ser uma lista.")
+    wanted = {str(s) for s in statuses}
+
+    cap = _retry_batch_cap()
+    requested_limit = body.get("limit")
+    limit = cap
+    if requested_limit is not None:
+        try:
+            limit = min(cap, max(0, int(requested_limit)))
+        except (TypeError, ValueError) as exc:
+            raise HTTPException(status_code=400, detail="limit deve ser inteiro.") from exc
+
+    rows, day_iso = _collect_deliveries(db, date, product_id)
+    # "pending" na UI cobre tanto o em andamento quanto o órfão sem job.
+    candidates = [
+        row for row in rows
+        if row["bucket"] in wanted or (row["bucket"] == "orphan" and "pending" in wanted)
+    ]
+
+    enqueued: list[dict] = []
+    skipped: list[dict] = []
+    processed = 0
+
+    for row in candidates:
+        if processed >= limit:
+            skipped.append({
+                "reading_id": row["reading_id"],
+                "email": row["email"],
+                "reason": "batch_limit",
+                "detail": f"Teto de {limit} itens por chamada atingido. Rode o lote de novo para continuar.",
+            })
+            continue
+
+        if row["auto_will_retry"]:
+            skipped.append({
+                "reading_id": row["reading_id"],
+                "email": row["email"],
+                "reason": "auto_will_retry",
+                "detail": row["auto_note"],
+            })
+            continue
+
+        reading = db.get(Reading, row["reading_id"])
+        if not reading:
+            skipped.append({"reading_id": row["reading_id"], "email": row["email"], "reason": "not_found", "detail": "Leitura sumiu entre a listagem e o disparo."})
+            continue
+
+        try:
+            result = _regenerate_reading_core(db, reading, _admin)
+        except ActiveJobConflict as conflict:
+            # Corrida: job apareceu entre a listagem e o disparo. Contar como
+            # pulado é o comportamento certo — quem chegou primeiro foi o
+            # automático.
+            skipped.append({
+                "reading_id": row["reading_id"],
+                "email": row["email"],
+                "reason": "auto_will_retry",
+                "detail": f"Job {conflict.job.status} criado entre a listagem e o disparo.",
+            })
+            continue
+        except HTTPException as exc:
+            skipped.append({"reading_id": row["reading_id"], "email": row["email"], "reason": "error", "detail": str(exc.detail)})
+            continue
+
+        processed += 1
+        enqueued.append({
+            "reading_id": row["reading_id"],
+            "new_reading_id": result["new_reading_id"],
+            "job_id": result["job_id"],
+            "email": row["email"],
+            "estimated_requests": result["estimated_requests"],
+        })
+
+    remaining = sum(1 for s in skipped if s["reason"] == "batch_limit")
+    logger.info(
+        "admin_retry_batch admin=%s date=%s product=%s enqueued=%d skipped=%d limit=%d",
+        _admin, day_iso, product_id, len(enqueued), len(skipped), limit,
+    )
+
+    return {
+        "ok": True,
+        "date": day_iso,
+        "product_id": product_id,
+        "statuses": sorted(wanted),
+        "limit": limit,
+        "batch_max": cap,
+        "candidates": len(candidates),
+        "enqueued_count": len(enqueued),
+        "skipped_count": len(skipped),
+        "remaining": remaining,
+        "estimated_requests": sum(item["estimated_requests"] for item in enqueued),
+        "enqueued": enqueued,
+        "skipped": skipped,
+    }
+
+
+@router.post("/deliveries/{reading_id}/retry")
+def deliveries_retry(
+    reading_id: str,
+    _admin: str = Depends(require_admin),
+    db: Session = Depends(get_db),
+) -> dict:
+    """Redispara UMA entrega. Mesma lógica do regenerate — mesma função."""
+    reading = db.get(Reading, reading_id)
+    if not reading:
+        raise HTTPException(status_code=404, detail="Leitura não encontrada.")
+    try:
+        result = _regenerate_reading_core(db, reading, _admin)
+    except ActiveJobConflict as conflict:
+        raise HTTPException(
+            status_code=409,
+            detail=(
+                f"O automático ainda vai tentar esta entrega (job {conflict.job.status}). "
+                "Aguarde o pipeline terminar antes de forçar."
+            ),
+        ) from conflict
+    result["triggered_by"] = "manual"
+    result["triggered_by_admin"] = _admin
+    return result
 
 
 @router.get("/cost")
