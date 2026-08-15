@@ -629,7 +629,22 @@ def _entitlement_dict(e: "Entitlement", now: datetime) -> dict:
 def readings(request: Request, site_session: str | None = Cookie(default=None), db: Session = Depends(get_db)) -> dict:
     user = current_user(site_session, db, accept_language=request.headers.get("accept-language"))
     rows = db.scalars(select(Reading).where(Reading.user_id == user.id).order_by(Reading.created_at.desc())).all()
-    return {"readings": [reading_to_dict(row, user.locale) for row in rows]}
+    # O gate de PAID_ONLY_CONTENT vale para a listagem também. Sem isto, quem
+    # está em trial e tem uma leitura paga no histórico (gerada antes, por
+    # backfill ou por acesso que já venceu) recebe body_html e sections
+    # inteiros neste JSON — o 403 do POST não protege nada.
+    visible = []
+    paid_cache: dict[str, bool] = {}
+    for row in rows:
+        if row.content_id in PAID_ONLY_CONTENT:
+            product_id = content_product(row.content_id)
+            if product_id:
+                if product_id not in paid_cache:
+                    paid_cache[product_id] = entitlements.active_paid(db, user.id, product_id)
+                if not paid_cache[product_id]:
+                    continue
+        visible.append(row)
+    return {"readings": [reading_to_dict(row, user.locale) for row in visible]}
 
 
 @app.get("/api/me/alerts")
