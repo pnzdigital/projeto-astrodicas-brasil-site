@@ -553,10 +553,163 @@ SINASTRIA_SEM_PARCEIRO_SECTIONS: list[tuple[str, str]] = [
 
 _SINASTRIA_CONTENT_ID = "site:content:mapa_do_amor_sinastria"
 
+# Versões en español rioplatense de todas as seções seccionadas.
+# Mantidas separadas do dict pt-BR para não quebrar chamada existente (locale
+# default continua pt-BR). Subtítulos do horoscopo_diario DEVEM casar com as
+# chaves de _SCOPE_NARROWING em _section_prompt (comparação em lowercase):
+#   "El día te refleja"  → "el día te refleja"   (chave já existia)
+#   "Lo que pide atención" → "lo que pide atención" (chave já existia)
+#   "Cómo actuar hoy"   → "cómo actuar hoy"      (chave adicionada em _section_prompt)
+SECTIONS_BY_CONTENT_ID_ES_AR: dict[str, list[tuple[str, str]]] = {
+    "site:content:horoscopo_diario": [
+        ("Identificación", "El día te refleja"),
+        ("Vínculos y Trabajo", "Lo que pide atención"),
+        ("Dirección Práctica", "Cómo actuar hoy"),
+    ],
+    "site:content:mapa_astral_completo": [
+        ("Introducción", "Tu mapa de alma"),
+        ("Sol", "Identidad y propósito"),
+        ("Luna", "Emociones y seguridad"),
+        ("Ascendente", "Cómo te ve el mundo"),
+        ("Mercurio", "Mente y comunicación"),
+        ("Venus", "Afecto, placer y valores"),
+        ("Marte", "Acción y coraje"),
+        ("Júpiter", "Expansión y fe"),
+        ("Saturno", "Límite y construcción"),
+        ("Urano", "Cambio y libertad"),
+        ("Neptuno", "Sensibilidad y visión"),
+        ("Plutón", "Transformación profunda"),
+        ("Casas Astrológicas", "Áreas de la vida"),
+        ("Aspectos", "Diálogo entre planetas"),
+        ("Mensaje Final", "Tu camino"),
+    ],
+    "site:content:mapa_da_carreira": [
+        ("Introducción a la Carrera", "Propósito en acción"),
+        ("Vocación Central", "Donde brillás"),
+        ("Talentos Naturales", "Fortalezas de base"),
+        ("Mercurio Profesional", "Mente y comunicación"),
+        ("Marte en la Carrera", "Ejecución y ritmo"),
+        ("Júpiter Profesional", "Expansión y oportunidades"),
+        ("Saturno Profesional", "Estructura y legado"),
+        ("Imagen y Autoridad", "Reputación en el mercado"),
+        ("Dinero y Valor", "Remuneración justa"),
+        ("Ambiente de Trabajo", "Donde rendís mejor"),
+        ("Alianzas y Networking", "Alianzas inteligentes"),
+        ("Desafíos Recurrentes", "Puntos de atención"),
+        ("Plan de Evolución", "Próximos ciclos"),
+        ("Mensaje Final", "Carrera con alma"),
+    ],
+    "site:content:guia_do_mes": [
+        ("Panorama del Mes", "El clima general"),
+        ("Sol del Mes", "Hacia dónde apunta la luz"),
+        ("Vínculos y Afecto", "Venus y Marte en tu mapa"),
+        ("Comunicación y Decisiones", "Mercurio en acción"),
+        ("Tránsitos que Piden Atención", "Lo que pide ajuste"),
+        ("Semanas del Mes", "Cuándo cada movimiento pesa más"),
+        ("Área Sensible", "Donde el cuidado rinde más"),
+        ("Mensaje Final", "Cómo atravesar el mes"),
+    ],
+    "site:content:mapa_da_prosperidade": [
+        ("Introducción a la Prosperidad", "Abundancia integral"),
+        ("Relación con el Dinero", "Creencia y comportamiento"),
+        ("Júpiter Financiero", "Dónde expandir"),
+        ("Saturno Financiero", "Base y protección"),
+        ("Venus y Valor", "Precio, placer y equilibrio"),
+        ("Marte y Acción", "Cómo generar ingresos"),
+        ("Diversificación", "Múltiples fuentes"),
+        ("Reserva y Seguridad", "Estabilidad emocional y financiera"),
+        ("Patrones de Escasez", "Qué cortar"),
+        ("Prosperidad y Propósito", "Dinero con sentido"),
+        ("Alianzas de Crecimiento", "Quién suma"),
+        ("Ciclos y Timing", "Cuándo acelerar"),
+        ("Plan de Abundancia", "Práctica mensual"),
+        ("Mensaje Final", "Vos en flujo"),
+    ],
+    "site:content:manual_do_ascendente": [
+        ("Introducción al Ascendente", "Qué es y por qué importa"),
+        ("Ascendente Calculado", "Tu signo en el horizonte"),
+        ("Regente del Ascendente", "El planeta que gobierna tu vida"),
+        ("Presencia y Postura", "Cómo entrás a un espacio"),
+        ("Cuerpo y Vitalidad", "Energía física y salud"),
+        ("Primera Impresión", "Lo que los demás ven primero"),
+        ("Máscara Social", "Persona y esencia"),
+        ("Casa 1 en Acción", "Identidad en movimiento"),
+        ("Casas Angulares", "La estructura de tu vida"),
+        ("Ascendente en los Vínculos", "Cómo te acercás"),
+        ("Ascendente en la Carrera", "Imagen profesional"),
+        ("Desafíos del Ascendente", "Puntos de tensión a observar"),
+        ("Mensaje Final", "Integrando persona y esencia"),
+    ],
+    "site:content:previsao_semanal": [
+        ("Panorama de la Semana", "El clima general de los 7 días"),
+        ("Lunes y Martes", "Inicio de semana"),
+        ("Miércoles y Jueves", "Quiebre de semana"),
+        ("Viernes a Domingo", "Cierre y recarga"),
+        ("Área de Atención", "Lo que pide ajuste"),
+        ("Oportunidad de la Semana", "Dónde actuar con convicción"),
+        ("Mensaje Final", "Cómo atravesar esta semana"),
+    ],
+    "site:content:calendario_lunar": [
+        ("Panorama del Ciclo", "El ritmo lunar del mes"),
+        ("Luna Nueva", "Sembrar intenciones"),
+        ("Luna Creciente", "Construir y expandir"),
+        ("Luna Llena", "Iluminar y cosechar"),
+        ("Luna Menguante", "Liberar y revisar"),
+        ("Luna en Tránsito", "Cuando el ritmo toca tu mapa"),
+        ("Cómo Usar el Calendario", "Práctica mensual concreta"),
+    ],
+    "site:content:guia_dos_retrogrados": [
+        ("Qué es Retrógrado", "Movimiento y significado"),
+        ("Retrógrados en el Cielo Actual", "Lo que está en revisión ahora"),
+        ("Impacto en Tu Mapa", "Cómo estos movimientos tocan tus puntos"),
+        ("Área de Vida en Revisión", "Lo que está siendo reexaminado"),
+        ("Cómo Navegar los Retrógrados", "Práctica sin fatalismo"),
+        ("Timing de Retomada", "Cuándo los planetas se vuelven directos"),
+        ("Mensaje Final", "La revisión como evolución"),
+    ],
+    "site:content:mapa_do_amor_sinastria": [
+        ("Introducción a la Sinastría", "La danza de dos almas"),
+        ("Venus en Compatibilidad", "Estilo de amar"),
+        ("Luna en Compatibilidad", "Seguridad emocional"),
+        ("Marte y Química", "Deseo, impulso y erotismo"),
+        ("Mercurio y Diálogo", "Cómo se entienden"),
+        ("Júpiter en la Pareja", "Expansión y bendiciones"),
+        ("Saturno en la Pareja", "Compromiso y madurez"),
+        ("Neptuno en el Amor", "Encanto e ilusión"),
+        ("Plutón y Transformación", "Intensidad del vínculo"),
+        ("Casas Activadas", "Áreas de la vida en destaque"),
+        ("Puntos de Fricción", "La diferencia como evolución"),
+        ("Patrones Kármicos", "Lo que se repite en el amor"),
+        ("Potencial de Construcción", "Proyecto de vida en pareja"),
+        ("Mensaje Final", "Amor con conciencia"),
+    ],
+}
 
-def sections_for(content_id: str, profile=None) -> list[tuple[str, str]]:
+SINASTRIA_SEM_PARCEIRO_SECTIONS_ES_AR: list[tuple[str, str]] = [
+    ("Guía Amorosa Personal", "Tu mapa sin pareja"),
+    ("Tu Estilo de Amar", "Venus personal"),
+    ("Necesidades Emocionales", "Luna personal"),
+    ("Deseo y Magnetismo", "Marte personal"),
+    ("Comunicación en el Amor", "Mercurio personal"),
+    ("Patrones de Repetición", "Lo que observar"),
+    ("Pareja Compatible", "Perfil que suma"),
+    ("Límites Saludables", "Amor sin autoabandono"),
+    ("Autocuidado Afectivo", "Base de la estabilidad"),
+    ("Ventanas Favorables", "Ciclos de apertura"),
+    ("Sanación de Heridas", "Quirón en el amor"),
+    ("Amor y Propósito", "Vínculo que expande"),
+    ("Preparación Consciente", "Cómo atraer mejor"),
+    ("Mensaje Final", "Tu corazón con dirección"),
+]
+
+
+def sections_for(content_id: str, profile=None, locale: str = "pt-BR") -> list[tuple[str, str]]:
     if content_id == _SINASTRIA_CONTENT_ID and not (profile and getattr(profile, "partner_birth_date", None)):
+        if locale == "es-AR":
+            return SINASTRIA_SEM_PARCEIRO_SECTIONS_ES_AR
         return SINASTRIA_SEM_PARCEIRO_SECTIONS
+    if locale == "es-AR":
+        return SECTIONS_BY_CONTENT_ID_ES_AR.get(content_id, SECTIONS_BY_CONTENT_ID.get(content_id, []))
     return SECTIONS_BY_CONTENT_ID.get(content_id, [])
 
 
@@ -714,7 +867,7 @@ def _prompt(content_id: str, title: str, profile, locale: str, customer_name: st
     # (troca de signo a cada ~2h). Sem esse aviso no prompt, o texto pago
     # afirmaria o Ascendente com certeza que não tem — bug comercial.
     assumed_warning = _assumed_warning_text(locale, bool(context.get("birth_time_assumed")))
-    sections = sections_for(content_id, profile)
+    sections = sections_for(content_id, profile, locale)
     if sections:
         lista_secoes = "\n".join(f"{i:02d}. ## {t} — {s}" for i, (t, s) in enumerate(sections, 1))
         # Aviso de parceiro incompleto: regra herdada do antigo content_rule de
@@ -852,17 +1005,44 @@ _SPANISH_ONLY_LEAK_WORDS = frozenset(
 # reprovação para forçar regeneração.
 _KNOWN_GARBLED_TOKENS = frozenset({"urgeências"})
 
+# Palavras portuguesas que vazam em leituras es-AR. Só inclui palavras que
+# (a) não existem em espanhol legítimo e (b) foram observadas em produção ou
+# são risco óbvio (nomes de planetas que diferem entre os idiomas).
+# "Vênus" e "Plutão" têm ê/ã — capturados pelo guard de caracteres abaixo.
+# "Mercúrio" (ES: Mercurio) e "Netuno" (ES: Neptuno) não têm ã/õ/ê, então
+# precisam de entrada explícita aqui. "innecesária" foi observado em produção
+# (acento português onde o espanhol não usa).
+_PORTUGUESE_LEAK_IN_ES_AR = frozenset({
+    "mercúrio",
+    "netuno",
+    "innecesária",
+})
+
+# Caracteres tipicamente portugueses que NUNCA aparecem em texto espanhol
+# correto: ã (til sobre a), õ (til sobre o), ê (circunflexo sobre e).
+# Qualquer ocorrência num texto es-AR é sinal de vazamento do modelo em PT.
+# Regex de caractere único — rápido e sem risco de falso positivo.
+_PORTUGUESE_CHARS_IN_ES_RE = re.compile(r"[ãõê]")
+
 
 def _foreign_word_regex(locale: str) -> re.Pattern:
     words = set(_ENGLISH_LEAK_WORDS) | _KNOWN_GARBLED_TOKENS
     if locale != "es-AR":
         words |= _SPANISH_ONLY_LEAK_WORDS
+    if locale == "es-AR":
+        words |= _PORTUGUESE_LEAK_IN_ES_AR
     pattern = r"\b(?:" + "|".join(re.escape(word) for word in words) + r")\b"
     return re.compile(pattern, re.IGNORECASE)
 
 
 def _has_foreign_words(text: str, locale: str = "pt-BR") -> bool:
-    """True quando alguma palavra do texto vaza de outro idioma (alfabeto latino)."""
+    """True quando alguma palavra do texto vaza de outro idioma (alfabeto latino).
+
+    Para es-AR inclui: caracteres ã/õ/ê (tipicamente portugueses, nunca
+    espanhóis) e nomes de planetas em PT que diferem do ES.
+    """
+    if locale == "es-AR" and _PORTUGUESE_CHARS_IN_ES_RE.search(text):
+        return True
     return _foreign_word_regex(locale).search(text) is not None
 
 
@@ -1133,7 +1313,7 @@ def _fallback_sections(content_id: str, profile, locale: str) -> list[dict]:
     O texto continua identificável como fallback via ``ReadingResult.source``."""
     template = _fallback_reading(profile, locale)
     paragraphs = re.findall(r"<p>(.*?)</p>", template, re.DOTALL)
-    expected = sections_for(content_id, profile)
+    expected = sections_for(content_id, profile, locale)
     if not expected:
         return []
     sections = []
@@ -1233,6 +1413,11 @@ def _section_prompt(
             "<elegí 1 tránsito del día o 1 aspecto natal dominante del calculated_chart y mostrá cómo resuena "
             "con el momento emocional de la cliente — no recorras la carta entera; "
             "2 párrafos de 70 a 110 palabras cada uno>"
+        ),
+        # es-AR equivalent of "como agir hoje"
+        "cómo actuar hoy": (
+            "<elegí 1 a 2 aspectos o tránsitos del calculated_chart y derivá de ellos orientaciones concretas para el día — "
+            "no recorras la carta entera; directo al consejo práctico en 2 párrafos de 70 a 110 palabras cada uno>"
         ),
     }
     scope_instruction = _SCOPE_NARROWING.get(
@@ -1457,7 +1642,7 @@ def generate_reading(content_id: str, title: str, profile, locale: str = "pt-BR"
         if birth_time_assumed
         else None
     )
-    expected_sections = sections_for(content_id, profile)
+    expected_sections = sections_for(content_id, profile, locale)
     if os.getenv("MINIMAX_API_KEY", "").strip() and expected_sections:
         # Seção-a-seção, concorrente, com retry por seção (ver
         # ``_generate_reading_sections`` / ``_generate_section``) — substitui a

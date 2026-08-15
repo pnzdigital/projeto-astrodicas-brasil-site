@@ -958,7 +958,7 @@ def run_daily_pregen(db: Session) -> dict:
 
             try:
                 title = _PREGEN_TITLES.get(content_id, content_id)
-                expected_sections = sections_for(content_id)
+                expected_sections = sections_for(content_id, profile, locale)
                 snapshot = _pregen_snapshot_for(content_id, profile, locale)
                 reading = Reading(
                     user_id=user.id,
