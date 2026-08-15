@@ -1212,12 +1212,26 @@
         return;
       }
       if (!reading || reading.status === 'in_progress') {
-        heroKicker.textContent = IS_ARGENTINA ? 'Preparando tu cielo de hoy' : 'Preparando seu céu de hoje';
-        heroStatus.textContent = IS_ARGENTINA
-          ? 'Estamos leyendo tu mapa para escribir el horóscopo de hoy. Esto lleva solo unos instantes.'
-          : 'Estamos lendo seu mapa para escrever o horóscopo de hoje. Isso leva só alguns instantes.';
-        headline.textContent = IS_ARGENTINA ? 'Leyendo tu carta para hoy…' : 'Lendo seu mapa para hoje…';
-        body.textContent = IS_ARGENTINA ? 'No hace falta recargar la página — avisamos apenas esté lista.' : 'Não precisa recarregar a página — avisamos assim que estiver pronta.';
+        const _inProgressCreatedAt = reading?.created_at ? new Date(reading.created_at) : null;
+        const _inProgressAgeMin = _inProgressCreatedAt ? (Date.now() - _inProgressCreatedAt.getTime()) / 60000 : 0;
+        const _inProgressStale = _inProgressAgeMin >= 30;
+        if (_inProgressStale) {
+          heroKicker.textContent = IS_ARGENTINA ? 'Finalizando tu lectura' : 'Finalizando sua leitura';
+          heroStatus.textContent = IS_ARGENTINA
+            ? 'Estamos finalizando tu lectura. Si tarda más de lo esperado, contactá al soporte.'
+            : 'Estamos finalizando sua leitura. Se demorar mais que o esperado, fale com o suporte.';
+          headline.textContent = IS_ARGENTINA ? 'Tu lectura está casi lista.' : 'Sua leitura está quase pronta.';
+          body.textContent = IS_ARGENTINA
+            ? 'Estamos finalizando tu lectura. Si tarda más de lo esperado, contactá al soporte.'
+            : 'Estamos finalizando sua leitura. Se demorar mais que o esperado, fale com o suporte.';
+        } else {
+          heroKicker.textContent = IS_ARGENTINA ? 'Preparando tu cielo de hoy' : 'Preparando seu céu de hoje';
+          heroStatus.textContent = IS_ARGENTINA
+            ? 'Estamos leyendo tu mapa para escribir el horóscopo de hoy. Esto lleva solo unos instantes.'
+            : 'Estamos lendo seu mapa para escrever o horóscopo de hoje. Isso leva só alguns instantes.';
+          headline.textContent = IS_ARGENTINA ? 'Leyendo tu carta para hoy…' : 'Lendo seu mapa para hoje…';
+          body.textContent = IS_ARGENTINA ? 'No hace falta recargar la página — avisamos apenas esté lista.' : 'Não precisa recarregar a página — avisamos assim que estiver pronta.';
+        }
         tags.innerHTML = '';
         setCta(IS_ARGENTINA ? 'Leyendo…' : 'Lendo…', true);
         heroCta.dataset.dailyAction = 'open'; cta.dataset.dailyAction = 'open';
@@ -1470,6 +1484,9 @@
         'novo': 'nuevo',
         'aguardando acesso': 'esperando acceso',
         'gerando leitura…': 'generando lectura…',
+        'Finalizando sua leitura': 'Finalizando tu lectura',
+        'Estamos finalizando sua leitura. Se demorar mais que o esperado, fale com o suporte.': 'Estamos finalizando tu lectura. Si tarda más de lo esperado, contactá al soporte.',
+        'Sua leitura está quase pronta.': 'Tu lectura está casi lista.',
         'Esqueceu a senha?': '¿Olvidaste tu contraseña?',
         'Voltar para minha biblioteca': 'Volver a mi biblioteca',
         'Baixar PDF completo': 'Descargar PDF completo',
