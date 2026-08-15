@@ -322,7 +322,10 @@ _LONG_CONTENT_IDS = frozenset({
 # esgotarem (uma má sorte seguida da outra); 3 tentativas reduz essa
 # probabilidade sem custo relevante (cada tentativa extra é ~1800 tokens,
 # não 7000).
-_SECTION_MAX_ATTEMPTS_DEFAULT = "5"
+# 8 e não 5: cada tentativa agora carrega a correção do erro anterior, então as
+# tentativas extras têm chance real de acertar. Custo de requisição não é
+# restrição aqui (decisão da dona) — perder um mapa pago, sim.
+_SECTION_MAX_ATTEMPTS_DEFAULT = "8"
 
 # Per-section timeout: medição de 13/08 (27 chamadas reais) mostrou mediana de
 # 22s e cauda de 40s para chamadas que completam. 40s cobre todas as respostas
@@ -854,7 +857,10 @@ def _language_lock_text(locale: str) -> str:
         )
         + " no meio da frase. Termos técnicos de astrologia (Ascendente, retrógrado, orbe, sextil, "
         "trígono, quadratura, nomes de signo) seguem sempre a grafia do idioma da leitura. Revise "
-        "mentalmente cada frase antes de escrevê-la: se uma palavra não é claramente desse idioma, troque-a."
+        "mentalmente cada frase antes de escrevê-la: se uma palavra não é claramente desse idioma, troque-a. "
+        "Use exclusivamente caracteres do alfabeto latino: nenhum ideograma (chinês, japonês, coreano) "
+        "e nenhum outro alfabeto (cirílico, árabe, grego, hebraico) pode aparecer no texto, nem solto no "
+        "meio de uma palavra."
     )
 
 
@@ -948,6 +954,40 @@ def _foreign_sample(text: str, limit: int = 5) -> str:
             if len(seen) >= limit:
                 break
     return "".join(seen)
+
+
+# Quantos caracteres estrangeiros ainda contam como "ruído" e não como "outro
+# idioma". Um ideograma solto no meio de um parágrafo pt-BR impecável é lapso
+# de tokenização do MiniMax; um texto inteiro em cirílico é outra coisa.
+# O limite absoluto é quem decide na prática (uma seção real tem centenas de
+# caracteres); o relativo é rede de segurança para respostas muito curtas,
+# onde 3 caracteres estrangeiros já seriam parte grande do texto.
+_FOREIGN_NOISE_MAX_CHARS = 3
+_FOREIGN_NOISE_MAX_RATIO = 0.02
+
+
+def _sanitize_foreign_script(text: str) -> tuple[str, bool]:
+    """Corta caractere estrangeiro isolado em vez de jogar a seção fora.
+
+    Motivo (15/08/2026): o laço de `_generate_section` descartava a seção
+    inteira por UM ideograma e refazia com o prompt idêntico — cinco vezes,
+    até cair em fallback. Perder um mapa pago por um caractere de ruído é
+    caro; perder o idioma é inaceitável. Então cortamos só o ruído.
+
+    Retorna ``(texto, aproveitável)``. Quando ``aproveitável`` é False o
+    chamador deve refazer a seção: é outro idioma, não ruído.
+    """
+    if not _has_foreign_script(text):
+        return text, True
+    estrangeiros = [c for c in text if not _ALLOWED_TEXT.match(c)]
+    total = len(estrangeiros)
+    if total > _FOREIGN_NOISE_MAX_CHARS or total > max(1, len(text)) * _FOREIGN_NOISE_MAX_RATIO:
+        return text, False
+    limpo = "".join(c for c in text if _ALLOWED_TEXT.match(c))
+    # O corte deixa espaço duplo quando o caractere estava cercado de espaços.
+    limpo = re.sub(r"[ \t]{2,}", " ", limpo)
+    limpo = re.sub(r" +([,.;:!?])", r"\1", limpo)
+    return limpo.strip(), True
 
 
 # Segundo guard, complementar ao de cima. _has_foreign_script só pega
@@ -1349,6 +1389,7 @@ def _section_prompt(
     sibling_titles: list[str],
     context: dict,
     locale: str,
+    correction: str | None = None,
 ) -> str:
     """Prompt de UMA seção só. Carrega o mesmo ``calculated_chart`` e a lista
     dos títulos irmãos (para não repetir conteúdo entre seções geradas em
@@ -1357,6 +1398,15 @@ def _section_prompt(
     today = date.today().isoformat()
     assumed_warning = _assumed_warning_text(locale, bool(context.get("birth_time_assumed")))
     language_lock = _language_lock_text(locale)
+    # Retry corretivo: sem isto o laço de tentativas reenviava o prompt
+    # IDÊNTICO depois de reprovar por idioma/truncamento, e o modelo repetia o
+    # mesmo erro até estourar as tentativas (caso Luciola, 15/08/2026).
+    correction_text = (
+        f"\n\nATENÇÃO — sua resposta anterior a este mesmo pedido foi REPROVADA: {correction}. "
+        "Reescreva a seção do zero corrigindo exatamente isso."
+        if correction
+        else ""
+    )
     outras = ", ".join(t for t in sibling_titles if t != section_title)
     # O label "natal premium" confunde o modelo para leituras de trânsito.
     # Cada tipo recebe o label correto; o default cobre os mapas natais.
@@ -1444,7 +1494,7 @@ Use o nome do cliente com naturalidade no máximo uma vez nesta seção. Use som
 Ascendente, Lua, casas, aspectos, trânsitos ou posições planetárias que não tenham sido calculados. Quando faltar
 cálculo astronômico, declare a limitação com linguagem acolhedora. Não faça diagnóstico médico, promessa financeira nem previsão
 fatalista. Não cite inteligência artificial. TERMINE a última frase de forma completa — nunca corte no meio; se estiver \
-perto do limite, feche a frase atual e pare.{language_lock}{assumed_warning}"""
+perto do limite, feche a frase atual e pare.{language_lock}{correction_text}{assumed_warning}"""
 
 
 def _fallback_section(content_id: str, profile, locale: str, order: int) -> dict:
@@ -1475,7 +1525,13 @@ def _generate_section(
     de uma reprovação (idioma ou truncamento) é ~550 tokens, não 7000."""
     attempts = max(1, int(os.getenv("MINIMAX_SECTION_MAX_ATTEMPTS", _SECTION_MAX_ATTEMPTS_DEFAULT)))
     timeout = float(os.getenv("MINIMAX_SECTION_TIMEOUT_SECONDS", _SECTION_TIMEOUT_SECONDS_DEFAULT))
-    prompt = _section_prompt(content_id, general_title, section_title, subtitle, order, total, sibling_titles, context, locale)
+    def _build_prompt(correction: str | None = None) -> str:
+        return _section_prompt(
+            content_id, general_title, section_title, subtitle, order, total,
+            sibling_titles, context, locale, correction=correction,
+        )
+
+    prompt = _build_prompt()
 
     # Roteamento M3 x M2.7 (ver /tmp/claude-1000/roteamento-minimax.md,
     # seção 3): content_ids "longos" (mapa_astral_completo, mapa_da_carreira,
@@ -1508,7 +1564,9 @@ def _generate_section(
         _BUDGET_ESCALATION = [0, 750, 1500, 2000, 2500]
         timeout_limit = max(1, int(os.getenv("MINIMAX_SECTION_TIMEOUT_CONSECUTIVE_LIMIT", _SECTION_TIMEOUT_CONSECUTIVE_LIMIT_DEFAULT)))
         consecutive_timeouts = 0
+        correction: str | None = None
         for attempt in range(1, attempts + 1):
+            prompt = _build_prompt(correction)
             escalated_budget = min(
                 budget + _BUDGET_ESCALATION[min(attempt - 1, len(_BUDGET_ESCALATION) - 1)],
                 budget * 2,
@@ -1540,21 +1598,47 @@ def _generate_section(
             body_text = parsed[0]["content"] if parsed else raw.strip()
 
             if _has_foreign_script(body_text):
-                logger.warning(
-                    "MiniMax (%s) devolveu caractere fora do alfabeto latino (%s) na seção '%s', tentativa %d/%d budget=%d; refazendo só esta seção.",
-                    model_name, _foreign_sample(body_text), section_title, attempt, attempts, escalated_budget,
-                )
-                continue
+                observado = _foreign_sample(body_text)
+                limpo, aproveitavel = _sanitize_foreign_script(body_text)
+                if aproveitavel:
+                    # Ruído isolado: cortamos o caractere e seguimos. Descartar
+                    # a seção aqui era o que levava mapas pagos ao fallback.
+                    logger.info(
+                        "MiniMax (%s) trouxe caractere isolado fora do alfabeto latino (%s) na seção '%s'; cortado e texto aproveitado.",
+                        model_name, observado, section_title,
+                    )
+                    body_text = limpo
+                else:
+                    logger.warning(
+                        "MiniMax (%s) devolveu caractere fora do alfabeto latino (%s) na seção '%s', tentativa %d/%d budget=%d; refazendo só esta seção.",
+                        model_name, observado, section_title, attempt, attempts, escalated_budget,
+                    )
+                    correction = (
+                        f"o texto veio com caracteres fora do alfabeto latino ({observado}). "
+                        "Escreva usando apenas o alfabeto latino"
+                    )
+                    continue
             if _has_foreign_words(body_text, locale):
+                # Palavra estrangeira NÃO é cortada: remover "insights" do meio
+                # da frase muda o sentido. Aqui só refazer resolve.
+                vazadas = _foreign_word_sample(body_text, locale)
                 logger.warning(
                     "MiniMax (%s) vazou palavra de outro idioma (%s) na seção '%s', tentativa %d/%d budget=%d; refazendo só esta seção.",
-                    model_name, _foreign_word_sample(body_text, locale), section_title, attempt, attempts, escalated_budget,
+                    model_name, vazadas, section_title, attempt, attempts, escalated_budget,
+                )
+                correction = (
+                    f"você usou palavras de outro idioma ({vazadas}) no meio do texto. "
+                    "Substitua cada uma pelo equivalente natural no idioma da leitura"
                 )
                 continue
             if _looks_truncated(body_text):
                 logger.warning(
                     "MiniMax (%s) truncou a seção '%s' (tentativa %d/%d budget=%d); refazendo só esta seção. Final observado: %r",
                     model_name, section_title, attempt, attempts, escalated_budget, body_text[-40:],
+                )
+                correction = (
+                    "o texto foi cortado no meio de uma frase. Escreva menos parágrafos se "
+                    "preciso, mas termine todas as frases"
                 )
                 continue
             if not body_text:
