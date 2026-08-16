@@ -459,6 +459,20 @@ def fulfill_order(db: Session, order: Order) -> User:
         }
     db.commit()
 
+    if granted_now:
+        # Late import: main.py importa checkout no topo do módulo, então
+        # checkout não pode importar main em nível de módulo (circular) —
+        # mesmo padrão já usado por worker.run_job para chamar de volta em main.
+        from .main import enqueue_map_generation
+
+        try:
+            enqueue_map_generation(db, user, granted_now)
+        except Exception:
+            # Entitlement já está liberado e committado acima — falha aqui não
+            # pode reverter a compra. Fica só o log; o clique manual no card
+            # ainda funciona como caminho de recuperação.
+            logger.exception("enqueue_map_generation falhou para order=%s user=%s", order.id, user.id)
+
     if not already_notified:
         delivery = send_purchase_confirmation(
             email=user.email,

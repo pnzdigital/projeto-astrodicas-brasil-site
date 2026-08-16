@@ -350,23 +350,11 @@
       menu.querySelectorAll('a').forEach(a=>a.addEventListener('click',closeMenu));
     })();
   </script>
-  <script>
-    window.chatwootSettings = {
-      position: 'right',
-      type: 'expanded_bubble',
-      launcherTitle: (typeof IS_ARGENTINA !== 'undefined' && IS_ARGENTINA) ? 'Soporte' : 'Suporte',
-      locale: (document.documentElement.lang || 'pt').startsWith('es') ? 'es' : 'pt_BR',
-      darkMode: 'auto'
-    };
-    (function (d, t) {
-      var BASE = 'https://atendimento.pnzdigital.com.br';
-      var g = d.createElement(t), s = d.getElementsByTagName(t)[0];
-      g.src = BASE + '/packs/js/sdk.js'; g.defer = true; g.async = true;
-      s.parentNode.insertBefore(g, s);
-      g.onload = function () {
-        window.chatwootSDK.run({ websiteToken: 'oH4bygfwDRAHS5kUBBMB35yz', baseUrl: BASE });
-      };
-    })(document, 'script');
-  </script>
+    <!-- Suporte (Chatwoot, inbox "Suporte AstroDicas" da conta Astro Dicas).
+       Carrega na tela de login e dentro do portal: quem não consegue entrar é
+       justamente quem mais precisa falar com o suporte. O idioma da bolha e as
+       regras de identificação vivem em support-widget.js, um arquivo só para
+       as três páginas — ver o cabeçalho de lá. -->
+  <script src="/support-widget.js"></script>
 </body>
 </html>

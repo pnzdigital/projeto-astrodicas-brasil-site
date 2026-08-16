@@ -879,11 +879,28 @@ def _reading_fresh_for_period(db: Session, user_id: str, content_id: str, period
 
 
 def _job_active(db: Session, user_id: str, content_id: str) -> bool:
+    """Job aberto do período corrente para este conteúdo.
+
+    O filtro por período não é detalhe: sem ele um job que ficou preso em
+    "queued"/"running" (container reiniciado no meio, worker morto) bloqueava a
+    pré-geração desse content_id para SEMPRE — a cliente perdia o horóscopo de
+    todos os dias seguintes e nada no sistema reabria a fila. Escopado ao
+    período, um job velho preso deixa de barrar o dia de hoje.
+    """
+    cadence = _PREGEN_SCHEDULE.get(content_id, "daily")
+    now = _now()
+    if cadence == "monthly":
+        window_start = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+    elif cadence == "weekly":
+        window_start = (now - timedelta(days=now.weekday())).replace(hour=0, minute=0, second=0, microsecond=0)
+    else:
+        window_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
     return bool(db.scalar(
         select(GenerationJob).where(
             GenerationJob.user_id == user_id,
             GenerationJob.content_id == content_id,
             GenerationJob.status.in_(["queued", "running"]),
+            GenerationJob.created_at >= window_start,
         )
     ))
 

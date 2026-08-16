@@ -122,8 +122,18 @@ def test_anchor_absent_on_diario_astral_and_the_other_untouched_skus():
 
 
 def test_anchor_follows_the_same_market_rule_as_the_price():
+    """Preço e âncora AR vêm sempre da mesma fonte.
+
+    Desde o reajuste de 16/08/2026 mapas e combos têm preço próprio em ARS.
+    Onde existe preço próprio TEM que existir âncora própria: se a âncora
+    caísse de volta na conversão BRL_TO_ARS, o riscado deixaria de ter relação
+    com o valor cobrado — foi exatamente isso que este teste passou a vigiar.
+    """
     for sku in pricing.ANCHOR_BRL_MINOR:
-        assert sku not in pricing.PRICES_ARS_MINOR  # nenhum ancorado tem preço AR próprio hoje
+        if sku in pricing.PRICES_ARS_MINOR:
+            assert sku in pricing.ANCHOR_ARS_MINOR, sku
+            assert pricing.anchor_minor(sku, "es-AR") == pricing.ANCHOR_ARS_MINOR[sku]
+            continue
         expected = pricing.ANCHOR_BRL_MINOR[sku] * pricing.BRL_TO_ARS
         assert pricing.anchor_minor(sku, "es-AR") == expected
 
@@ -158,8 +168,8 @@ def test_catalog_exposes_anchor_fields():
 def test_catalog_anchor_label_uses_market_currency():
     rows = {row["product_id"]: row for row in pricing.catalog("es-AR")}
     combo = rows["site:combo_mapa_astral_amor"]
-    assert combo["anchor_label"] == "ARS 24.490"
-    assert combo["price_label"] == "ARS 18.259"
+    assert combo["anchor_label"] == "ARS 26.490"
+    assert combo["price_label"] == "ARS 20.259"
 
 
 def test_catalog_anchor_is_absent_for_every_sku_outside_the_anchor_dict():

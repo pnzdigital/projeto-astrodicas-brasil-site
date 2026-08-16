@@ -8,38 +8,40 @@ import base from "./portal-config.js";
 
 const ARS_PRICES = Object.freeze({
   "site:diario_astral": "ARS 14.900",
-  "site:mapa_astral": "ARS 10.819",
-  "site:mapa_amor_sinastria": "ARS 10.819",
-  "site:mapa_carreira": "ARS 10.819",
-  "site:mapa_prosperidade": "ARS 10.819",
+  "site:mapa_astral": "ARS 12.819",
+  "site:mapa_amor_sinastria": "ARS 12.819",
+  "site:mapa_carreira": "ARS 12.819",
+  "site:mapa_prosperidade": "ARS 12.819",
   "site:diario_astral_completo": "ARS 34.900",
-  "site:combo_mapa_astral_amor": "ARS 18.259",
-  "site:combo_mapa_astral_carreira": "ARS 18.259",
-  "site:combo_mapa_astral_prosperidade": "ARS 18.259",
-  "site:combo_amor_carreira": "ARS 18.259",
-  "site:combo_amor_prosperidade": "ARS 18.259",
-  "site:combo_carreira_prosperidade": "ARS 18.259",
-  "site:combo_diario_astral_mapa_astral": "ARS 15.469",
-  "site:combo_diario_astral_mapa_amor": "ARS 15.469",
-  "site:combo_diario_astral_mapa_prosperidade": "ARS 15.469",
+  "site:combo_mapa_astral_amor": "ARS 20.259",
+  "site:combo_mapa_astral_carreira": "ARS 20.259",
+  "site:combo_mapa_astral_prosperidade": "ARS 20.259",
+  "site:combo_amor_carreira": "ARS 20.259",
+  "site:combo_amor_prosperidade": "ARS 20.259",
+  "site:combo_carreira_prosperidade": "ARS 20.259",
+  "site:combo_diario_astral_mapa_astral": "ARS 17.469",
+  "site:combo_diario_astral_mapa_amor": "ARS 17.469",
+  "site:combo_diario_astral_mapa_prosperidade": "ARS 17.469",
 });
 
-// Precio anclado (tachado): sólo exhibición, espejo de pricing.ANCHOR_BRL_MINOR
-// convertido por BRL_TO_ARS. Nunca se cobra — el monto sale del backend.
+// Precio anclado (tachado): sólo exhibición, espejo de pricing.ANCHOR_ARS_MINOR
+// (mapas y combos ya no salen de la conversión BRL_TO_ARS: tienen precio propio
+// en ARS desde el reajuste del 16/08/2026). Nunca se cobra — el monto sale del
+// backend.
 const ARS_ANCHORS = Object.freeze({
-  "site:mapa_astral": "ARS 14.570",
-  "site:mapa_amor_sinastria": "ARS 14.570",
-  "site:mapa_carreira": "ARS 14.570",
-  "site:mapa_prosperidade": "ARS 14.570",
-  "site:combo_mapa_astral_amor": "ARS 24.490",
-  "site:combo_mapa_astral_carreira": "ARS 24.490",
-  "site:combo_mapa_astral_prosperidade": "ARS 24.490",
-  "site:combo_amor_carreira": "ARS 24.490",
-  "site:combo_amor_prosperidade": "ARS 24.490",
-  "site:combo_carreira_prosperidade": "ARS 24.490",
-  "site:combo_diario_astral_mapa_astral": "ARS 20.770",
-  "site:combo_diario_astral_mapa_amor": "ARS 20.770",
-  "site:combo_diario_astral_mapa_prosperidade": "ARS 20.770",
+  "site:mapa_astral": "ARS 16.570",
+  "site:mapa_amor_sinastria": "ARS 16.570",
+  "site:mapa_carreira": "ARS 16.570",
+  "site:mapa_prosperidade": "ARS 16.570",
+  "site:combo_mapa_astral_amor": "ARS 26.490",
+  "site:combo_mapa_astral_carreira": "ARS 26.490",
+  "site:combo_mapa_astral_prosperidade": "ARS 26.490",
+  "site:combo_amor_carreira": "ARS 26.490",
+  "site:combo_amor_prosperidade": "ARS 26.490",
+  "site:combo_carreira_prosperidade": "ARS 26.490",
+  "site:combo_diario_astral_mapa_astral": "ARS 22.770",
+  "site:combo_diario_astral_mapa_amor": "ARS 22.770",
+  "site:combo_diario_astral_mapa_prosperidade": "ARS 22.770",
 });
 
 const PRODUCT_COPY = Object.freeze({

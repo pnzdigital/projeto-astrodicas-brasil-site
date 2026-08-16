@@ -70,6 +70,43 @@ PRICES_ARS_MINOR: dict[str, int] = {
     "site:diario_astral": 1490000,               # ARS 14.900 pelos 30 dias
     "site:diario_astral_completo": 3490000,  # ARS 34.900 pagamento único
     "site:diario_astral_oferta_saida": 890000,    # ARS 8.900, abaixo do Diário Astral
+    # Reajuste AR de 16/08/2026: +ARS 2.000 em mapas e combos. Só a Argentina
+    # sobe — o BR segue em PRICES_BRL_MINOR, intocado. Diário Astral e Diário
+    # Astral Completo ficam no mesmo preço por decisão da dona.
+    "site:mapa_astral": 1281900,                       # ARS 12.819
+    "site:mapa_amor_sinastria": 1281900,
+    "site:mapa_carreira": 1281900,
+    "site:mapa_prosperidade": 1281900,
+    "site:combo_mapa_astral_amor": 2025900,            # ARS 20.259
+    "site:combo_mapa_astral_carreira": 2025900,
+    "site:combo_mapa_astral_prosperidade": 2025900,
+    "site:combo_amor_carreira": 2025900,
+    "site:combo_amor_prosperidade": 2025900,
+    "site:combo_carreira_prosperidade": 2025900,
+    "site:combo_diario_astral_mapa_astral": 1746900,   # ARS 17.469
+    "site:combo_diario_astral_mapa_amor": 1746900,
+    "site:combo_diario_astral_mapa_prosperidade": 1746900,
+}
+
+# Âncora ("de", riscado) em centavos de ARS, só exibição.
+# Existe porque a âncora argentina não pode mais nascer da conversão: o preço
+# vigente em AR agora tem override próprio, e converter só a âncora pela taxa
+# derrubaria a relação entre os dois números. Sobe junto com o preço (+ARS
+# 2.000), mantendo o mesmo desconto absoluto que a vitrine já anunciava.
+ANCHOR_ARS_MINOR: dict[str, int] = {
+    "site:mapa_astral": 1657000,                       # ARS 16.570
+    "site:mapa_amor_sinastria": 1657000,
+    "site:mapa_carreira": 1657000,
+    "site:mapa_prosperidade": 1657000,
+    "site:combo_mapa_astral_amor": 2649000,            # ARS 26.490
+    "site:combo_mapa_astral_carreira": 2649000,
+    "site:combo_mapa_astral_prosperidade": 2649000,
+    "site:combo_amor_carreira": 2649000,
+    "site:combo_amor_prosperidade": 2649000,
+    "site:combo_carreira_prosperidade": 2649000,
+    "site:combo_diario_astral_mapa_astral": 2277000,   # ARS 22.770
+    "site:combo_diario_astral_mapa_amor": 2277000,
+    "site:combo_diario_astral_mapa_prosperidade": 2277000,
 }
 
 PRODUCT_TITLES: dict[str, dict[str, str]] = {
@@ -180,7 +217,10 @@ def anchor_minor(product_id: str, locale: str | None) -> int | None:
     base = ANCHOR_BRL_MINOR.get(product_id)
     if base is None:
         return None
-    anchor = _to_market_minor(product_id, base, locale)
+    if market_for(locale) == "AR" and product_id in ANCHOR_ARS_MINOR:
+        anchor = ANCHOR_ARS_MINOR[product_id]
+    else:
+        anchor = _to_market_minor(product_id, base, locale)
     return anchor if anchor > amount_minor(product_id, locale) else None
 
 

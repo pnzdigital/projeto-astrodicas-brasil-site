@@ -42,14 +42,17 @@ def _complete_order_via_webhook(client, monkeypatch, order_id, payment_status="a
 
 
 def test_argentine_price_is_the_brazilian_price_converted():
-    """A conversão vale para o catálogo geral. Diário Astral, Completo e a oferta de
-    saída têm preço argentino próprio, definido comercialmente — esses estão em
-    test_pricing_ar_overrides."""
+    """A conversão vale para quem não tem preço AR próprio.
+
+    Desde 16/08/2026 mapas e combos também têm override em ARS (reajuste de
+    +ARS 2.000), então eles saíram deste teste e passaram para
+    test_pricing_ar_overrides. O que sobra aqui é a regra da conversão em si:
+    produto sem override continua saindo de BRL × BRL_TO_ARS."""
     assert pricing.amount_minor("site:mapa_astral", "pt-BR") == 3490
-    assert pricing.amount_minor("site:mapa_astral", "es-AR") == 3490 * 310
-    ratio_mapa = pricing.amount_minor("site:mapa_astral", "es-AR") / pricing.amount_minor("site:mapa_astral", "pt-BR")
-    ratio_combo = pricing.amount_minor("site:combo_mapa_astral_amor", "es-AR") / pricing.amount_minor("site:combo_mapa_astral_amor", "pt-BR")
-    assert ratio_mapa == ratio_combo
+    convertidos = [p for p in pricing.PRICES_BRL_MINOR if p not in pricing.PRICES_ARS_MINOR]
+    assert convertidos, "sem nenhum produto convertido a regra da taxa deixaria de ser testada"
+    for product_id in convertidos:
+        assert pricing.amount_minor(product_id, "es-AR") == pricing.PRICES_BRL_MINOR[product_id] * 310
     # Preços próprios do mercado AR.
     assert pricing.format_amount(pricing.amount_minor("site:diario_astral", "es-AR"), "ARS") == "ARS 14.900"
     assert pricing.format_amount(pricing.amount_minor("site:diario_astral_completo", "es-AR"), "ARS") == "ARS 34.900"

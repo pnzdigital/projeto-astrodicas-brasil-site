@@ -633,7 +633,7 @@
       <div class="sidebar-bottom">
         <div class="nav-label">Ajuda</div>
         <nav class="nav">
-          <a class="nav-link" href="mailto:oi@astrodicas.com.br"><span class="nav-icon">?</span>Central de ajuda</a>
+          <a class="nav-link" href="mailto:oi@astrodicas.com.br" data-support><span class="nav-icon">?</span>Central de ajuda</a>
           <a class="nav-link" href="#" data-dialog="account-dialog"><span class="nav-icon">⚙</span>Configurações</a>
         </nav>
         <div class="support-card">
@@ -653,7 +653,7 @@
           </div>
           <div class="top-actions">
             <button class="icon-button" type="button" aria-label="Notificações" data-toast="Seu horóscopo do dia é gerado toda manhã e fica salvo aqui.">♧<span class="dot"></span></button>
-            <button class="icon-button" type="button" aria-label="Ajuda" data-toast="Fale com nosso suporte: oi@astrodicas.com.br">?</button>
+            <button class="icon-button" type="button" aria-label="Ajuda" data-support data-toast="Fale com nosso suporte: oi@astrodicas.com.br">?</button>
             <button class="avatar" type="button" aria-label="Abrir perfil" data-dialog="account-dialog">AD</button>
           </div>
         </header>
@@ -978,20 +978,20 @@
     });
     const OFFER_COPY_AR = Object.freeze({
       'site:diario_astral': ['Acceso 30 días', 'Diario Astral', 'Horóscopo personalizado, Guía del Mes y Mapa Astral Completo en PDF (regalo).', 'ARS 14.900', '30 días · sin renovación automática', 'Conocer Diario Astral'],
-      'site:mapa_astral': ['Lectura individual', 'Mapa Astral Completo', 'Una lectura profunda para guardar y volver a consultar.', 'Desde ARS 10.819', 'acceso permanente', 'Ver Mapa Astral'],
-      'site:mapa_amor_sinastria': ['Lectura individual', 'Mapa del Amor · Sinastría', 'Dos historias y una lectura cuidadosa sobre el encuentro.', 'Desde ARS 10.819', 'acceso permanente', 'Ver Mapa del Amor'],
-      'site:mapa_carreira': ['Lectura individual', 'Mapa de la Carrera', 'Talentos y dirección para tus próximas decisiones profesionales.', 'Desde ARS 10.819', 'acceso permanente', 'Ver Mapa de la Carrera'],
-      'site:mapa_prosperidade': ['Lectura individual', 'Mapa de la Prosperidad', 'Una nueva mirada sobre recursos, merecimiento y abundancia.', 'Desde ARS 10.819', 'acceso permanente', 'Ver Prosperidad'],
+      'site:mapa_astral': ['Lectura individual', 'Mapa Astral Completo', 'Una lectura profunda para guardar y volver a consultar.', 'Desde ARS 12.819', 'acceso permanente', 'Ver Mapa Astral'],
+      'site:mapa_amor_sinastria': ['Lectura individual', 'Mapa del Amor · Sinastría', 'Dos historias y una lectura cuidadosa sobre el encuentro.', 'Desde ARS 12.819', 'acceso permanente', 'Ver Mapa del Amor'],
+      'site:mapa_carreira': ['Lectura individual', 'Mapa de la Carrera', 'Talentos y dirección para tus próximas decisiones profesionales.', 'Desde ARS 12.819', 'acceso permanente', 'Ver Mapa de la Carrera'],
+      'site:mapa_prosperidade': ['Lectura individual', 'Mapa de la Prosperidad', 'Una nueva mirada sobre recursos, merecimiento y abundancia.', 'Desde ARS 12.819', 'acceso permanente', 'Ver Prosperidad'],
       'site:diario_astral_completo': ['Pago único', 'Diario Astral Premium', 'Un mes de Diario Astral más todos los bonus de lectura.', 'ARS 34.900', 'una vez · acceso a los bonus', 'Desbloquear todo'],
-      'site:combo_mapa_astral_amor': ['Combinación', 'Mapa Astral + Mapa del Amor', 'Tu mapa natal y una lectura de tus encuentros.', 'ARS 18.259', 'pago único', 'Conocer combinación'],
-      'site:combo_mapa_astral_carreira': ['Combinación', 'Mapa Astral + Mapa de la Carrera', 'Identidad y dirección profesional en una sola experiencia.', 'ARS 18.259', 'pago único', 'Conocer combinación'],
-      'site:combo_mapa_astral_prosperidade': ['Combinación', 'Mapa Astral + Mapa de la Prosperidad', 'Tu cielo natal y los caminos de abundancia que revela.', 'ARS 18.259', 'pago único', 'Conocer combinación'],
-      'site:combo_amor_carreira': ['Combinación', 'Mapa del Amor + Mapa de la Carrera', 'Relaciones y dirección profesional en una experiencia.', 'ARS 18.259', 'pago único', 'Conocer combinación'],
-      'site:combo_amor_prosperidade': ['Combinación', 'Mapa del Amor + Mapa de la Prosperidad', 'Relaciones y recursos en dos lecturas complementarias.', 'ARS 18.259', 'pago único', 'Conocer combinación'],
-      'site:combo_carreira_prosperidade': ['Combinación', 'Mapa de la Carrera + Prosperidad', 'Trabajo, talento y abundancia en una jornada única.', 'ARS 18.259', 'pago único', 'Conocer combinación'],
-      'site:combo_diario_astral_mapa_astral': ['Combinación', 'Diario Astral + Mapa Astral', 'Acompañamiento mensual y tu mapa completo.', 'ARS 15.469', 'pago único', 'Conocer combinación'],
-      'site:combo_diario_astral_mapa_amor': ['Combinación', 'Diario Astral + Mapa del Amor', 'Tu cielo diario y una lectura para tus relaciones.', 'ARS 15.469', 'pago único', 'Conocer combinación'],
-      'site:combo_diario_astral_mapa_prosperidade': ['Combinación', 'Diario Astral + Prosperidad', 'Acompañamiento diario y una lectura para prosperar.', 'ARS 15.469', 'pago único', 'Conocer combinación'],
+      'site:combo_mapa_astral_amor': ['Combinación', 'Mapa Astral + Mapa del Amor', 'Tu mapa natal y una lectura de tus encuentros.', 'ARS 20.259', 'pago único', 'Conocer combinación'],
+      'site:combo_mapa_astral_carreira': ['Combinación', 'Mapa Astral + Mapa de la Carrera', 'Identidad y dirección profesional en una sola experiencia.', 'ARS 20.259', 'pago único', 'Conocer combinación'],
+      'site:combo_mapa_astral_prosperidade': ['Combinación', 'Mapa Astral + Mapa de la Prosperidad', 'Tu cielo natal y los caminos de abundancia que revela.', 'ARS 20.259', 'pago único', 'Conocer combinación'],
+      'site:combo_amor_carreira': ['Combinación', 'Mapa del Amor + Mapa de la Carrera', 'Relaciones y dirección profesional en una experiencia.', 'ARS 20.259', 'pago único', 'Conocer combinación'],
+      'site:combo_amor_prosperidade': ['Combinación', 'Mapa del Amor + Mapa de la Prosperidad', 'Relaciones y recursos en dos lecturas complementarias.', 'ARS 20.259', 'pago único', 'Conocer combinación'],
+      'site:combo_carreira_prosperidade': ['Combinación', 'Mapa de la Carrera + Prosperidad', 'Trabajo, talento y abundancia en una jornada única.', 'ARS 20.259', 'pago único', 'Conocer combinación'],
+      'site:combo_diario_astral_mapa_astral': ['Combinación', 'Diario Astral + Mapa Astral', 'Acompañamiento mensual y tu mapa completo.', 'ARS 17.469', 'pago único', 'Conocer combinación'],
+      'site:combo_diario_astral_mapa_amor': ['Combinación', 'Diario Astral + Mapa del Amor', 'Tu cielo diario y una lectura para tus relaciones.', 'ARS 17.469', 'pago único', 'Conocer combinación'],
+      'site:combo_diario_astral_mapa_prosperidade': ['Combinación', 'Diario Astral + Prosperidad', 'Acompañamiento diario y una lectura para prosperar.', 'ARS 17.469', 'pago único', 'Conocer combinación'],
     });
     const OFFER_COPY = IS_ARGENTINA ? OFFER_COPY_AR : OFFER_COPY_BR;
     let LIBRARY_ITEMS = FALLBACK_LIBRARY_ITEMS;
@@ -1100,6 +1100,14 @@
       window.location.href = checkoutUrl(key);
     }
     function profileComplete() { return Boolean(appState.profile?.birth_date && appState.profile?.birth_city); }
+    // Único lugar que decide "esta pessoa tem acesso agora". O backend expõe
+    // `active` já resolvido (status + expires_at); `status` sozinho continua
+    // "available" depois do trial vencer, então checar só status liberava a UI
+    // para quem o /generate recusa com 403.
+    function entitlementActive(entitlement) {
+      if (!entitlement || entitlement.status !== 'available') return false;
+      return entitlement.active !== false;
+    }
     function fallbackState(item) {
       if (DEMO_PAID && item.productId) return ACCESS_STATES.available;
       // Usuário autenticado sem entitlement → bloqueado; USER_ACCESS é só para demo/deslogado.
@@ -1120,16 +1128,22 @@
       // Default seguro: enquanto a assinatura não foi resolvida (ainda carregando
       // ou falhou), tratamos como trial — TRIAL_LOCKED_CONTENT permanece bloqueado.
       const inTrial = !appState.subscriptionResolved || Boolean(appState.subscription?.in_trial);
+      // Ver entitlementActive: acesso vencido mantém status "available".
       LIBRARY_ITEMS.forEach((item) => {
         const reading = appState.readings.get(item.id);
         const entitlement = item.productId && appState.entitlements.get(item.productId);
         if (reading?.status === 'in_progress') item.state = ACCESS_STATES.inProgress;
         else if (reading?.status === 'pending') item.state = ACCESS_STATES.pending;
-        else if (reading?.status === 'ready' || !item.productId || entitlement?.status === 'available') item.state = reading?.status === 'ready' ? ACCESS_STATES.available : (item.productId ? ACCESS_STATES.available : ACCESS_STATES.new);
-        else if (entitlement && entitlement.status !== 'available') item.state = ACCESS_STATES.pending;
+        else if (reading?.status === 'ready' || !item.productId || entitlementActive(entitlement)) item.state = reading?.status === 'ready' ? ACCESS_STATES.available : (item.productId ? ACCESS_STATES.available : ACCESS_STATES.new);
+        else if (entitlement && !entitlementActive(entitlement)) item.state = ACCESS_STATES.pending;
         else item.state = fallbackState(item);
         // Conteúdo pago bloqueado em trial ou enquanto assinatura ainda não carregou.
-        if (inTrial && TRIAL_LOCKED_CONTENT.has(item.id)) item.state = ACCESS_STATES.locked;
+        // O entitlement manda: `paid` vem do backend (ativo E source != "trial"),
+        // que é exatamente o critério do 403 em PAID_ONLY_CONTENT. A assinatura
+        // continua no OR porque cobre o caso de ela nem ter carregado — mas não
+        // é mais a única fonte: quando ela não resolvia, trial e acesso vencido
+        // viam "Guia do seu mês" e "Previsão da semana" como disponíveis.
+        if (TRIAL_LOCKED_CONTENT.has(item.id) && (inTrial || !entitlement?.paid)) item.state = ACCESS_STATES.locked;
         if (item.id === 'site:content:guia_do_mes') {
           // Meta fixo ("Julho · 12 min") mentia sobre o mês pra quem abrisse o
           // portal em qualquer outro mês — usa a data da leitura já gerada, ou
@@ -1197,7 +1211,11 @@
         heroCta.dataset.dailyAction = 'profile'; cta.dataset.dailyAction = 'profile';
         return;
       }
-      if (!entitlement || entitlement.status !== 'available') {
+      // `status === 'available'` não basta: entitlement vencido (trial acabado,
+      // assinatura cancelada) continua com status "available" e só `active`
+      // vira false. Sem checar `active` o painel mostrava o CTA de gerar para
+      // quem já perdeu o acesso, e o POST /generate voltava 403 em silêncio.
+      if (!entitlementActive(entitlement)) {
         heroKicker.textContent = IS_ARGENTINA ? 'Contenido del Diario Astral' : 'Conteúdo do Diário Astral';
         heroStatus.textContent = IS_ARGENTINA
           ? 'El horóscopo diario es parte del Diario Astral: una lectura nueva todos los días, calculada sobre tu mapa.'
@@ -1263,6 +1281,15 @@
         ? (IS_ARGENTINA ? 'Tu cielo de hoy' : 'Seu céu de hoje')
         : (IS_ARGENTINA ? 'Tu última lectura' : 'Sua última leitura');
       heroKicker.textContent = dataLegivel ? `${rotuloCeu} · ${dataLegivel}` : rotuloCeu;
+      // O chip do card vinha da data de hoje, sempre. Quando a leitura era de
+      // outro dia (acesso vencido, geração que não rodou), o card carimbava
+      // hoje em cima de texto antigo — parecia leitura nova gerada hoje.
+      const chipEl = document.querySelector('.date-chip');
+      if (chipEl && dataLeitura) {
+        chipEl.textContent = new Intl.DateTimeFormat(IS_ARGENTINA ? 'es-AR' : 'pt-BR', { day: '2-digit', month: 'short' })
+          .format(dataLeitura).replace('.', '').toUpperCase();
+        chipEl.dateTime = dataLeitura.toISOString().slice(0, 10);
+      }
       heroStatus.textContent = excerptFromHtml(reading.body_html, 180) || (IS_ARGENTINA ? 'Tu lectura de hoy ya está lista.' : 'Sua leitura de hoje já está pronta.');
       headline.textContent = reading.title || item.title;
       body.textContent = excerptFromHtml(reading.body_html, 220);
@@ -1317,7 +1344,7 @@
       const item = LIBRARY_ITEMS.find((entry) => entry.id === 'site:content:horoscopo_diario');
       if (!item || !profileComplete()) return;
       const entitlement = item.productId && appState.entitlements.get(item.productId);
-      if (!entitlement || entitlement.status !== 'available') return;
+      if (!entitlementActive(entitlement)) return;
       const current = appState.readings.get(item.id);
       if (current?.status === 'in_progress') { pollDailyHoroscope(item); return; }
       try {
@@ -2163,6 +2190,16 @@
     document.getElementById('boot-status').textContent = '';
     document.addEventListener('click', (event) => {
       const target = event.target.closest('button, a'); if (!target) return;
+      // Ajuda abre o chat de suporte (Chatwoot). O toast/mailto continua como
+      // rota de fuga: se o SDK não carregou (rede, bloqueador), a cliente ainda
+      // fica com um caminho para falar com a gente em vez de um botão morto.
+      if (target.matches('[data-support]')) {
+        event.preventDefault();
+        if (window.$chatwoot) { try { window.$chatwoot.toggle('open'); return; } catch (e) { /* cai no fallback */ } }
+        if (target.dataset.toast) { showToast(target.dataset.toast); return; }
+        window.location.href = 'mailto:oi@astrodicas.com.br';
+        return;
+      }
       if (target.matches('[data-toast]')) { if (target.getAttribute('href') === '#') event.preventDefault(); showToast(target.dataset.toast); }
       if (target.matches('[data-dialog]')) openDialog(target.dataset.dialog);
       if (target.matches('.dialog-close')) target.closest('dialog')?.close();
@@ -2319,41 +2356,11 @@
 
   </script>
 
-  <!-- Suporte (Chatwoot, inbox "Suporte AstroDicas" da conta Astro Dicas).
+    <!-- Suporte (Chatwoot, inbox "Suporte AstroDicas" da conta Astro Dicas).
        Carrega na tela de login e dentro do portal: quem não consegue entrar é
-       justamente quem mais precisa falar com o suporte. O pré-chat pergunta o
-       problema e exige o e-mail; se a pessoa já está logada, mandamos os dados
-       dela por setUser e ela não precisa digitar nada. -->
-  <script>
-    window.chatwootSettings = {
-      position: 'right',
-      type: 'expanded_bubble',
-      launcherTitle: (typeof IS_ARGENTINA !== 'undefined' && IS_ARGENTINA) ? 'Soporte' : 'Suporte',
-      locale: (document.documentElement.lang || 'pt').startsWith('es') ? 'es' : 'pt_BR',
-      darkMode: 'auto'
-    };
-    (function (d, t) {
-      var BASE = 'https://atendimento.pnzdigital.com.br';
-      var g = d.createElement(t), s = d.getElementsByTagName(t)[0];
-      g.src = BASE + '/packs/js/sdk.js'; g.defer = true; g.async = true;
-      s.parentNode.insertBefore(g, s);
-      g.onload = function () {
-        window.chatwootSDK.run({ websiteToken: 'oH4bygfwDRAHS5kUBBMB35yz', baseUrl: BASE });
-      };
-    })(document, 'script');
-
-    // Identifica o cliente logado. O portal publica window.__astroSupportUser
-    // quando a sessão resolve; se o widget subir antes disso, o evento
-    // chatwoot:ready cobre o outro lado da corrida.
-    function astroIdentifySupport() {
-      var u = window.__astroSupportUser;
-      if (!u || !u.email || !window.$chatwoot) return;
-      try {
-        window.$chatwoot.setUser(u.email, { email: u.email, name: u.name || undefined });
-      } catch (e) { /* suporte nunca pode derrubar o portal */ }
-    }
-    window.addEventListener('chatwoot:ready', astroIdentifySupport);
-    window.astroIdentifySupport = astroIdentifySupport;
-  </script>
+       justamente quem mais precisa falar com o suporte. O idioma da bolha e as
+       regras de identificação vivem em support-widget.js, um arquivo só para
+       as três páginas — ver o cabeçalho de lá. -->
+  <script src="/support-widget.js"></script>
 </body>
 </html>

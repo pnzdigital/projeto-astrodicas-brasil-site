@@ -33,8 +33,8 @@ test('inTrial usa !subscriptionResolved || in_trial (default seguro via resolved
   assert.match(script, /!appState\.subscriptionResolved\s*\|\|\s*Boolean\(appState\.subscription\?\.in_trial\)/);
 });
 
-test('cadeado de trial dispara quando inTrial=true para TRIAL_LOCKED_CONTENT', () => {
-  assert.match(script, /if \(inTrial && TRIAL_LOCKED_CONTENT\.has\(item\.id\)\) item\.state = ACCESS_STATES\.locked/);
+test('cadeado de trial dispara quando inTrial=true ou entitlement.paid=false para TRIAL_LOCKED_CONTENT', () => {
+  assert.match(script, /if \(TRIAL_LOCKED_CONTENT\.has\(item\.id\) && \(inTrial \|\| !entitlement\?\.paid\)\) item\.state = ACCESS_STATES\.locked/);
 });
 
 // ── Caminho 1: 200 com in_trial=true → BLOQUEADO ─────────────────────────────

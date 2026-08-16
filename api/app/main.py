@@ -414,6 +414,61 @@ def _pregen_daily_horoscope(user_id: str, locale: str, customer_name: str) -> No
         db.close()
 
 
+def enqueue_map_generation(db: Session, user: "User", product_ids: list[str]) -> None:
+    """Enfileira a geração dos conteúdos entregues pelos entitlements liberados.
+
+    Chamado por checkout.fulfill_order (via late import — main importa
+    checkout no topo, então checkout não pode importar main em nível de
+    módulo). Antes disso, fulfill_order só criava o Entitlement: quem
+    comprava um Mapa não recebia o conteúdo, a menos que clicasse no card —
+    e se aquele clique falhasse, o card ficava "gerando leitura…" para
+    sempre.
+
+    Silencioso quanto a perfil incompleto: compra sem data/local de
+    nascimento ainda preenchidos só adia a geração — o clique manual no
+    card completa depois, com o profile já pronto. Não duplica: pula
+    content_id com Reading in_progress (job já enfileirado, idempotente
+    via worker.enqueue_generation_job) ou ready/atual (reading_is_current).
+    """
+    profile = db.get(Profile, user.id)
+    if not profile or not profile.birth_date or not profile.birth_city:
+        return
+    snapshot = profile_to_dict(profile)
+    locale = _pick_locale(user.locale)
+    content_ids: set[str] = set()
+    for product_id in product_ids:
+        content_ids.update(products_content_ids(product_id))
+    for content_id in content_ids:
+        existing = db.scalar(
+            select(Reading)
+            .where(
+                Reading.user_id == user.id,
+                Reading.content_id == content_id,
+                Reading.status.in_(["ready", "in_progress"]),
+            )
+            .order_by(Reading.created_at.desc())
+        )
+        if existing:
+            if existing.status == "in_progress":
+                continue
+            if reading_is_current(existing, content_id, snapshot, locale):
+                continue
+        reading = Reading(
+            user_id=user.id,
+            content_id=content_id,
+            product_id=content_product(content_id),
+            status="in_progress",
+            title=content_title(content_id),
+            input_snapshot=snapshot,
+            sections_total=len(sections_for(content_id)),
+        )
+        db.add(reading)
+        db.commit()
+        db.refresh(reading)
+        _worker.enqueue_generation_job(reading.id, content_id, user.id, locale, user.name)
+        logger.info("enqueue_map_generation user=%s content=%s reading=%s", user.id, content_id, reading.id)
+
+
 @app.post("/api/auth/login", dependencies=[Depends(auth_rate_limit)])
 def login(body: LoginBody, request: Request, response: Response, background_tasks: BackgroundTasks, db: Session = Depends(get_db)) -> dict:
     locale = _pick_locale(getattr(body, "locale", None), request.headers.get("accept-language"))
@@ -619,6 +674,12 @@ def _entitlement_dict(e: "Entitlement", now: datetime) -> dict:
         "product_id": e.product_id,
         "status": e.status,
         "active": is_active,
+        # O portal precisa distinguir trial de pago para travar Guia do Mês e
+        # Previsão Semanal (PAID_ONLY_CONTENT). Antes ele só tinha a assinatura
+        # para deduzir isso; quando /api/me/subscription não resolvia, o
+        # conteúdo pago aparecia como "disponível" para quem está em trial.
+        "source": e.source,
+        "paid": is_active and e.source != "trial",
         "expires_at": expires_at.isoformat() if expires_at else None,
         "days_remaining": days_remaining,
         "needs_renewal": needs_renewal,
@@ -776,6 +837,35 @@ def generate(content_id: str, request: Request, response: Response, background_t
         if not checker(db, user.id, product_id):
             msg = "Este conteúdo ainda não está liberado para sua conta." if locale == "pt-BR" else "Este contenido todavía no está disponible para tu cuenta."
             raise HTTPException(status_code=403, detail=msg)
+    stuck = db.scalar(
+        select(Reading)
+        .where(Reading.user_id == user.id, Reading.content_id == content_id, Reading.status == "in_progress")
+        .order_by(Reading.created_at.desc())
+    )
+    if stuck:
+        alive_job = db.scalar(
+            select(GenerationJob).where(
+                GenerationJob.user_id == user.id,
+                GenerationJob.content_id == content_id,
+                GenerationJob.status.in_(["queued", "running"]),
+            )
+        )
+        if alive_job:
+            # Worker ainda está nela — devolve a mesma Reading, sem duplicar job.
+            response.status_code = status.HTTP_202_ACCEPTED
+            return {"reading": reading_to_dict(stuck, user.locale)}
+        created = stuck.created_at
+        if created.tzinfo is None:
+            created = created.replace(tzinfo=timezone.utc)
+        elapsed_minutes = (datetime.now(timezone.utc) - created).total_seconds() / 60
+        if elapsed_minutes >= STUCK_READING_TIMEOUT_MINUTES:
+            # Sem job aberto e velha o bastante: worker morreu ou esgotou tentativas
+            # sem deixar rastro (raro; normalmente _fail_or_retry marca fallback).
+            # Trata como morta para permitir nova tentativa em vez de travar para sempre.
+            stuck.status = "failed"
+            stuck.error_message = "Geração anterior não terminou e foi encerrada. Nova tentativa iniciada."
+            db.commit()
+
     existing = db.scalar(select(Reading).where(Reading.user_id == user.id, Reading.content_id == content_id, Reading.status.in_(["ready", "fallback"])).order_by(Reading.created_at.desc()))
     if existing and existing.status == "ready" and reading_is_current(existing, content_id, snapshot, locale):
         # Já pronta: nada para gerar, devolve 200 de verdade (não 202).
@@ -928,25 +1018,68 @@ PAID_ONLY_CONTENT: frozenset[str] = frozenset({
     "site:content:previsao_semanal",
 })
 
+# Reading presa em "in_progress" sem GenerationJob aberto (worker morreu, ou
+# esgotou as 3 tentativas fora do caminho fail_closed que já marca fallback)
+# passado esse tempo é tratada como morta pelo POST /generate — evita cliente
+# pagante travado para sempre. Referência: JOB_VISIBILITY_TIMEOUT_MINUTES
+# (recuperação de job travado no worker), com folga para cobrir retries+backoff.
+STUCK_READING_TIMEOUT_MINUTES = int(os.getenv("JOB_VISIBILITY_TIMEOUT_MINUTES", "10")) * 3
+
+
+# Fonte única content_id -> product_id. content_product() lê daqui;
+# products_content_ids() (usado pelo fulfill_order do checkout para
+# enfileirar a geração dos mapas comprados) inverte este mesmo dict, para
+# nunca duplicar o mapeamento em dois lugares.
+_CONTENT_PRODUCT_MAP: dict[str, str] = {
+    # trial + pago: horóscopo diário desbloqueado durante os 3 dias grátis
+    "site:content:horoscopo_diario": "site:diario_astral",
+    # Guia do Mês e Previsão Semanal pertencem ao Diário Astral pago.
+    # Exigem active_paid (ver PAID_ONLY_CONTENT): trial não abre, Mapa
+    # Astral avulso (site:mapa_astral) não abre — só quem pagou o Diário.
+    "site:content:guia_do_mes": "site:diario_astral",
+    "site:content:mapa_astral_completo": "site:mapa_astral",
+    "site:content:previsao_semanal": "site:diario_astral",
+    # Círculo Completo (pagamento único / oferta premium)
+    "site:content:mapa_do_amor_sinastria": "site:mapa_amor_sinastria",
+    "site:content:mapa_da_carreira": "site:mapa_carreira",
+    "site:content:mapa_da_prosperidade": "site:mapa_prosperidade",
+    "site:content:calendario_lunar": "site:diario_astral_completo",
+    "site:content:guia_dos_retrogrados": "site:diario_astral_completo",
+    "site:content:manual_do_ascendente": "site:diario_astral_completo",
+}
+
+
+# Conteúdo com cadência própria, entregue por renewal.run_daily_pregen. Nunca
+# entra na geração da hora da compra (ver products_content_ids).
+_PERIODIC_CONTENT: frozenset[str] = frozenset({
+    "site:content:horoscopo_diario",
+    "site:content:guia_do_mes",
+    "site:content:previsao_semanal",
+})
+
 
 def content_product(content_id: str) -> str | None:
-    return {
-        # trial + pago: horóscopo diário desbloqueado durante os 3 dias grátis
-        "site:content:horoscopo_diario": "site:diario_astral",
-        # Guia do Mês e Previsão Semanal pertencem ao Diário Astral pago.
-        # Exigem active_paid (ver PAID_ONLY_CONTENT): trial não abre, Mapa
-        # Astral avulso (site:mapa_astral) não abre — só quem pagou o Diário.
-        "site:content:guia_do_mes": "site:diario_astral",
-        "site:content:mapa_astral_completo": "site:mapa_astral",
-        "site:content:previsao_semanal": "site:diario_astral",
-        # Círculo Completo (pagamento único / oferta premium)
-        "site:content:mapa_do_amor_sinastria": "site:mapa_amor_sinastria",
-        "site:content:mapa_da_carreira": "site:mapa_carreira",
-        "site:content:mapa_da_prosperidade": "site:mapa_prosperidade",
-        "site:content:calendario_lunar": "site:diario_astral_completo",
-        "site:content:guia_dos_retrogrados": "site:diario_astral_completo",
-        "site:content:manual_do_ascendente": "site:diario_astral_completo",
-    }.get(content_id)
+    return _CONTENT_PRODUCT_MAP.get(content_id)
+
+
+def products_content_ids(product_id: str) -> tuple[str, ...]:
+    """content_id(s) entregues por product_id — inverso de content_product().
+
+    Usado pelo fulfill_order (checkout.py) para saber o que enfileirar quando
+    um entitlement é liberado. Conteúdo periódico fica de fora: horóscopo
+    diário, Guia do Mês e Previsão Semanal já nascem do run_daily_pregen
+    (renewal._PREGEN_SCHEDULE), na cadência deles.
+
+    Não é só evitar trabalho repetido — gerar Previsão Semanal aqui sairia com
+    o snapshot sem ``target_iso_week`` (ver o POST /generate), então na
+    primeira visita ao portal ela seria considerada desatualizada e regerada
+    do zero. Uma chamada paga ao modelo por compra, para jogar fora.
+    """
+    return tuple(
+        content_id
+        for content_id, mapped_product in _CONTENT_PRODUCT_MAP.items()
+        if mapped_product == product_id and content_id not in _PERIODIC_CONTENT
+    )
 
 
 def content_title(content_id: str) -> str:
