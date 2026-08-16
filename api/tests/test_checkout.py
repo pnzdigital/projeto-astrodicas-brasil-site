@@ -5,6 +5,9 @@ import pytest
 from sqlalchemy import select
 
 from app import checkout, mercadopago, pricing
+from app.db import SessionLocal
+from app.models import User as UserModel
+from app.security import hash_password, verify_password
 from conftest import register
 
 
@@ -219,6 +222,93 @@ def test_webhook_notification_verifies_signature_and_is_idempotent(client, monke
     duplicate = client.post("/api/webhooks/mercadopago/notify", json=body, headers=headers)
     assert duplicate.json()["duplicate"] is True
     assert len(sent_emails) == 1
+
+
+def test_email_delivery_failure_does_not_burn_the_notification_and_retries_on_next_webhook(client, monkeypatch):
+    """Bug: order.raw_payload["notified_at"] era gravado ANTES do envio do
+    e-mail. Se o SMTP falhasse, a compra ficava marcada como "já notificada"
+    para sempre — cliente pagou, entitlement liberado, mas nunca recebe senha
+    nem link. O MP dispara dois webhooks reais para a mesma compra (topic
+    "payment" e depois "merchant_order"); esse teste usa essa segunda chamada
+    como o retry natural que deve conseguir reenviar o e-mail."""
+    outbox = []
+    attempts = {"n": 0}
+
+    def flaky_send(**kwargs):
+        attempts["n"] += 1
+        if attempts["n"] == 1:
+            return {"sent": False, "error": "smtp timeout"}
+        outbox.append(kwargs)
+        return {"sent": True}
+
+    monkeypatch.setattr(checkout, "send_purchase_confirmation", flaky_send)
+
+    order = client.post(
+        "/api/checkout/order",
+        json={"product_id": "site:mapa_astral", "email": "flaky@cliente.com", "locale": "es-AR"},
+    ).json()
+
+    monkeypatch.setattr(
+        mercadopago,
+        "get_payment",
+        lambda payment_id: {"id": payment_id, "status": "approved", "external_reference": order["order_id"]},
+    )
+    first = client.post(
+        "/api/webhooks/mercadopago/notify",
+        json={"type": "payment", "data": {"id": "111"}},
+    )
+    assert first.status_code == 200 and first.json()["status"] == "paid"
+    assert outbox == []  # e-mail falhou: nada entregue ainda
+
+    second = _complete_order_via_webhook(client, monkeypatch, order["order_id"], payment_id=222, merchant_order_id=f"mo-retry-{order['order_id']}")
+    assert second.status_code == 200 and second.json()["status"] == "paid"
+    assert len(outbox) == 1  # retry natural do MP conseguiu entregar
+    # O reenvio precisa levar senha: a temporária da primeira passagem morreu
+    # numa variável local, e a conta foi criada por esta compra — sem reemitir,
+    # a cliente receberia a confirmação sem credencial e continuaria de fora.
+    reenviado = outbox[0]
+    assert reenviado["temp_password"], "reenvio sem senha deixa a cliente sem como entrar"
+    with SessionLocal() as db:
+        user = db.scalar(select(UserModel).where(UserModel.email == "flaky@cliente.com"))
+        assert verify_password(reenviado["temp_password"], user.password_hash), (
+            "a senha enviada no reenvio tem que ser a que abre a conta"
+        )
+
+
+def test_retry_never_resets_the_password_of_someone_who_was_already_a_client(client, monkeypatch):
+    """Cliente antiga que compra de novo não pode ter a senha estourada.
+
+    A reemissão só vale para conta nascida daquela compra (account_created).
+    Sem essa trava, um webhook repetido de quem já era cliente trocaria a senha
+    dela por uma temporária — e ela perderia o acesso que já usava."""
+    monkeypatch.setattr(checkout, "send_purchase_confirmation", lambda **kw: {"sent": False, "error": "smtp timeout"})
+    monkeypatch.setattr(
+        mercadopago,
+        "create_preference",
+        lambda **kw: {"id": "pref-antiga", "init_point": "https://mp.example/pref-antiga"},
+    )
+
+    with SessionLocal() as db:
+        db.add(UserModel(email="antiga@cliente.com", password_hash=hash_password("senha-escolhida-por-ela"), name="Antiga"))
+        db.commit()
+
+    order = client.post(
+        "/api/checkout/order",
+        json={"product_id": "site:mapa_astral", "email": "antiga@cliente.com", "locale": "es-AR"},
+    ).json()
+    monkeypatch.setattr(
+        mercadopago,
+        "get_payment",
+        lambda payment_id: {"id": payment_id, "status": "approved", "external_reference": order["order_id"]},
+    )
+    client.post("/api/webhooks/mercadopago/notify", json={"type": "payment", "data": {"id": "333"}})
+    client.post("/api/webhooks/mercadopago/notify", json={"type": "payment", "data": {"id": "333"}})
+
+    with SessionLocal() as db:
+        user = db.scalar(select(UserModel).where(UserModel.email == "antiga@cliente.com"))
+        assert verify_password("senha-escolhida-por-ela", user.password_hash), (
+            "a senha da cliente antiga foi sobrescrita por um reenvio"
+        )
 
 
 def test_order_rejected_when_mp_not_enabled_for_ar(client, monkeypatch):

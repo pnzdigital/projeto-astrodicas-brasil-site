@@ -408,6 +408,22 @@ def fulfill_order(db: Session, order: Order) -> User:
         )
         db.add(user)
         db.flush()
+        # Marca que a conta nasceu desta compra. É o que permite reemitir a
+        # senha num reenvio (ver abaixo) sem risco de estourar a senha de
+        # alguém que já era cliente.
+        order.raw_payload = {**(order.raw_payload or {}), "account_created": True}
+    elif (order.raw_payload or {}).get("account_created") and not (order.raw_payload or {}).get("notified_at"):
+        # Retentativa de uma compra cuja conta foi criada aqui e cujo e-mail
+        # nunca saiu: a senha temporária da primeira passagem morreu na
+        # variável local, então reenviar sem ela entregaria uma confirmação
+        # sem credencial — a cliente pagou e continuaria de fora. Reemite.
+        # Seguro: sem aquele e-mail ela nunca teve como entrar, logo não há
+        # senha escolhida por ela para sobrescrever.
+        temp_password = secrets.token_urlsafe(9)
+        user.password_hash = hash_password(temp_password)
+        logger.warning("Reemitindo senha temporária para user=%s order=%s", user.id, order.id)
+        if order_name and not user.name:
+            user.name = order_name
     elif order_name and not user.name:
         # Preenche nome só se estiver vazio — nunca sobrescreve dado existente.
         user.name = order_name
@@ -452,11 +468,6 @@ def fulfill_order(db: Session, order: Order) -> User:
 
     already_notified = bool((order.raw_payload or {}).get("notified_at"))
     order.user_id = user.id
-    if not already_notified:
-        order.raw_payload = {
-            **(order.raw_payload or {}),
-            "notified_at": datetime.now(timezone.utc).isoformat(),
-        }
     db.commit()
 
     if granted_now:
@@ -482,7 +493,16 @@ def fulfill_order(db: Session, order: Order) -> User:
             locale=order.locale,
             temp_password=temp_password or None,
         )
-        if not delivery.get("sent"):
+        if delivery.get("sent"):
+            order.raw_payload = {
+                **(order.raw_payload or {}),
+                "notified_at": datetime.now(timezone.utc).isoformat(),
+            }
+            db.commit()
+        else:
+            # Não marca notified_at: deixa em aberto para a próxima chamada de
+            # fulfill_order (MP dispara webhook "payment" e "merchant_order"
+            # separados para a mesma compra — a segunda tenta reenviar).
             logger.error(
                 "Compra MP confirmada sem e-mail entregue: user=%s product=%s erro=%s",
                 user.id,
