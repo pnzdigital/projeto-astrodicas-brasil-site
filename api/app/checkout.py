@@ -13,6 +13,7 @@ pacote e dispara o e-mail transacional. Nada aqui conhece o Telegram.
 
 from __future__ import annotations
 
+import hmac
 import json
 import logging
 import os
@@ -510,6 +511,90 @@ def fulfill_order(db: Session, order: Order) -> User:
                 delivery.get("error"),
             )
     return user
+
+
+# GG Checkout (Brasil) manda um único webhook por compra — sem o par
+# "payment"/"merchant_order" do Mercado Pago não há segunda passagem natural
+# por fulfill_order. Se o SMTP falhar naquele instante, a cliente paga e
+# nunca recebe a senha, e como a conta só nasce pela compra ela fica de fora
+# para sempre. Este cron cobre os dois provedores (filtra por status="paid"),
+# mas hoje só o BR precisa dele de verdade.
+RESEND_MIN_AGE_MINUTES = 10
+RESEND_MAX_ATTEMPTS = 5
+# Teto de idade: a varredura só olha compras recentes. Sem isso ela alcançaria
+# o histórico inteiro — inclusive Orders anteriores a `notified_at` existir,
+# que não têm o campo simplesmente porque ninguém gravava. Essas clientes
+# receberiam, do nada, um e-mail de uma compra de meses atrás.
+RESEND_MAX_AGE_HOURS = 72
+
+
+def run_resend_purchase_emails(db: Session, now: datetime | None = None) -> dict:
+    """Reenvia o e-mail de compra de Orders pagas sem `notified_at`.
+
+    Idempotente: fulfill_order só marca notified_at após confirmação real de
+    envio, então rodar isto de novo não duplica e-mail para quem já foi
+    entregue. `notify_attempts` limita tentativas (SMTP fora do ar não pode
+    virar loop infinito de reenvio). `RESEND_MIN_AGE_MINUTES` dá tempo para o
+    webhook original terminar antes do cron pegar a mesma Order.
+    """
+    now = now or datetime.now(timezone.utc)
+    stats = {"resent": 0, "skipped_notified": 0, "skipped_too_recent": 0, "skipped_limit": 0, "errors": 0}
+
+    floor = now - timedelta(hours=RESEND_MAX_AGE_HOURS)
+    orders = db.scalars(
+        select(Order).where(Order.status.in_(PAID_STATUSES), Order.created_at >= floor)
+    ).all()
+    for order in orders:
+        payload = order.raw_payload or {}
+        if payload.get("notified_at"):
+            stats["skipped_notified"] += 1
+            continue
+
+        created_at = order.created_at
+        if created_at.tzinfo is None:
+            created_at = created_at.replace(tzinfo=timezone.utc)
+        if now - created_at < timedelta(minutes=RESEND_MIN_AGE_MINUTES):
+            stats["skipped_too_recent"] += 1
+            continue
+
+        attempts = int(payload.get("notify_attempts") or 0)
+        if attempts >= RESEND_MAX_ATTEMPTS:
+            stats["skipped_limit"] += 1
+            continue
+
+        order.raw_payload = {**payload, "notify_attempts": attempts + 1}
+        db.commit()
+        try:
+            fulfill_order(db, order)
+        except Exception:
+            logger.exception("run_resend_purchase_emails falhou para order=%s", order.id)
+            stats["errors"] += 1
+            continue
+
+        db.refresh(order)
+        if (order.raw_payload or {}).get("notified_at"):
+            stats["resent"] += 1
+
+    return stats
+
+
+@router.post("/api/tasks/resend-purchase-emails")
+async def resend_purchase_emails_task(request: Request, db: Session = Depends(get_db)) -> dict:
+    """Cron para reentregar e-mail de compra que ficou sem confirmação de envio.
+
+    Configurar no Coolify: cron a cada ~15min, header x-task-secret. Cobre o
+    caso GG Checkout (BR) sem retentativa de webhook — ver comentário acima
+    de run_resend_purchase_emails.
+    """
+    secret = os.getenv("TASK_SECRET", "").strip()
+    if not secret:
+        raise HTTPException(status_code=503, detail="TASK_SECRET não configurado.")
+    provided = request.headers.get("x-task-secret", "")
+    if not hmac.compare_digest(secret.encode(), provided.encode()):
+        raise HTTPException(status_code=401, detail="Segredo inválido.")
+
+    stats = run_resend_purchase_emails(db)
+    return {"ok": True, **stats}
 
 
 def _merchant_order_status(payments: list) -> str:
