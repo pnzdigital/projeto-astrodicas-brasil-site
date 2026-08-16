@@ -6,8 +6,8 @@ Portal web premium do canal site AstroDicas. O Telegram é um sistema separado.
 
 - Brasil: `/`
 - Argentina: `/es/` com preços em ARS e Mercado Pago como adaptador padrão
-- Ofertas Brasil: `/diario-astral-1` (página V1, R$ 27,90/mês) e `/diario-astral-2` (página V2, R$ 97,00 pagamento único)
-- Ofertas Argentina: `/es/diario-astral-1` (V1, ARS 8.649/mês) e `/es/diario-astral-2` (V2, ARS 30.070 pagamento único), usando as mesmas páginas originais localizadas em espanhol argentino
+- Ofertas Brasil: `/diario-astral-1` e `/diario-astral-2` (páginas V1 e V2 de venda do Diário Astral — R$ 27,90, 30 dias de acesso, pagamento único, não é assinatura)
+- Ofertas Argentina: `/es/diario-astral-1` e `/es/diario-astral-2` (ARS 14.900, mesmo regime não recorrente), usando as mesmas páginas originais localizadas em espanhol argentino
 - As páginas de venda originais ficam em `lp-diario-astral/v1` e `lp-diario-astral/v2`; as quatro rotas públicas apontam diretamente para elas.
 - Área logada exclusiva do portal: `https://dash.astrodicas.pnzdigital.com.br/`
 - As rotas `/diario-astral-*` e `/es/diario-astral-*` existem somente no host público `astrodicas.pnzdigital.com.br`; o host `dash` não serve páginas de venda.
@@ -29,12 +29,12 @@ banco e regras do Telegram não devem ser importados para este banco.
 - `api/`: autenticação, perfil natal, pedidos, permissões e geração de leituras;
 - PostgreSQL: persistência exclusiva do site;
 - MiniMax: geração editorial configurada somente por variáveis do Coolify;
-- Cakto e Mercado Pago: adaptadores de checkout/webhook, trocáveis por produto.
+- GG Checkout (Brasil) e Mercado Pago (Argentina): adaptadores de checkout/webhook, trocáveis por produto via `CHECKOUT_PROVIDER_BR`/`CHECKOUT_PROVIDER_AR`. Cakto é aceito como provider legado (só clientes antigos), não é default de mercado nenhum.
 
 Variáveis de checkout: `MP_ACCESS_TOKEN`, `MP_WEBHOOK_SECRET_AR` (Argentina) e
-`CAKTO_WEBHOOK_SECRET` (Brasil). O site não captura mais cartão: checkout
-é externo (redirect para o checkout do Mercado Pago na Argentina, link do Cakto
-no Brasil) e cliente volta pela back_url.
+`GG_CHECKOUT_SECRET`, `GG_CHECKOUT_URLS`, `GG_PRODUCT_MAP` (Brasil). O site não
+captura mais cartão: checkout é externo (redirect para o checkout do Mercado
+Pago na Argentina, link do GG Checkout no Brasil) e cliente volta pela back_url.
 
 Variáveis de geração: `MINIMAX_API_KEY`, `LLM_BASE_URL`, `LLM_MODEL_TEXT` e
 `MINIMAX_TIMEOUT_SECONDS`. Se o provedor estiver temporariamente indisponível,
@@ -74,9 +74,12 @@ Subir o servidor de desenvolvimento:
 
 `GET /api/health` confirma que subiu. Em produção (`ENV=production`) o app
 recusa iniciar (`RuntimeError` no startup) se faltar `SITE_SECRET_KEY`,
-`MP_WEBHOOK_SECRET`, `CAKTO_WEBHOOK_SECRET`, `ADMIN_PASSWORD` ou se
-`COOKIE_SECURE` não for `1` — não existe fallback inseguro silencioso, e
-`ALLOW_INSECURE_DEV`/`ALLOW_DEMO` são sempre ignorados nesse ambiente.
+`CAKTO_WEBHOOK_SECRET`, `ADMIN_PASSWORD`, ou ambos `MP_WEBHOOK_SECRET_AR` e
+`MP_WEBHOOK_SECRET` (basta um dos dois), ou se `COOKIE_SECURE` não for `1` —
+não existe fallback inseguro silencioso, e `ALLOW_INSECURE_DEV`/`ALLOW_DEMO`
+são sempre ignorados nesse ambiente. Esse guard de startup não cobre
+`GG_CHECKOUT_SECRET`/`GG_CHECKOUT_URLS`/`GG_PRODUCT_MAP`: falta deles não
+impede o boot, só derruba `/api/checkout/order` e o webhook GG em runtime.
 
 ## Rodando a suíte de testes
 

@@ -246,15 +246,15 @@ Auditoria de configuração, deployment, e segredos. Checklist acionável ordena
 
 | Categoria | Status | Contagem |
 |-----------|--------|----------|
-| ✅ Corrigido | COMPLETO | 11 dos 13 |
-| ⚠️ Pendente | BLOQUEADO | 2 (item 2 tests, need team review) |
+| ✅ Corrigido | COMPLETO | 14 de 14 (ver nota abaixo sobre item 2) |
 | 🟢 Informativo | N/A | 0 |
 
 **Detalhes:**
-- 🔴 **Crítico (3):** 1 ✅ CORRIGIDO, 1 ⚠️ PARCIALMENTE, 1 ✅ CORRIGIDO
+- 🔴 **Crítico (3):** 3 ✅ CORRIGIDO (item 2 estava parcial neste audit, fechado depois — ver "Status Final")
 - 🟠 **Alto (7):** 7 ✅ CORRIGIDO
 - 🟡 **Médio (4):** 4 ✅ CORRIGIDO
 - 🟢 **Baixo (2):** 2 ✅ CORRIGIDO
+- **+1** rate limiting, achado fora do escopo original (item 14)
 
 ---
 
@@ -319,15 +319,12 @@ nginx.runtime.conf         [NO HTTPS — assumes reverse proxy]
 8. ✅ `portal-demo/Dockerfile` — Adicionado CMD explícito
 9. ✅ Validação `docker compose config` — Passando (com SITE_SECRET_KEY setado)
 
-### ⚠️ Pendente (1 item bloqueado)
+### ⚠️ Pendente — RESOLVIDO desde então
 
-**Item 2 — Webhook Secret Mismatch (PARCIALMENTE CORRIGIDO):**
-- ✅ `compose.yaml` foi atualizado: `MERCADOPAGO_WEBHOOK_SECRET` → `MP_WEBHOOK_SECRET`
-- ❌ `api/tests/test_webhooks.py` ainda usa `MERCADOPAGO_WEBHOOK_SECRET` (2 referências)
-  - Linha ~? (use `grep "MERCADOPAGO_WEBHOOK_SECRET" api/tests/test_webhooks.py` para localizar exatas)
-  - Bloqueado: Não posso editar tests (outro worker necessário)
-
-**Ação necessária:** Um backend worker precisa atualizar `api/tests/test_webhooks.py` para usar `MP_WEBHOOK_SECRET` em vez de `MERCADOPAGO_WEBHOOK_SECRET` para total consistency.
+**Item 2 — Webhook Secret Mismatch:** totalmente corrigido em revisão posterior
+a este audit (checado em 2026-08-16). `grep MERCADOPAGO_WEBHOOK_SECRET
+api/tests/test_webhooks.py` não retorna nada — o teste já usa
+`MP_WEBHOOK_SECRET`.
 
 ---
 
@@ -386,7 +383,7 @@ nginx.runtime.conf         [NO HTTPS — assumes reverse proxy]
 - ✅ API saudável
 - ✅ Nenhum erro 5xx observado
 - ⚠️ Smoke test com Docker ainda pendente (docker daemon not available)
-- ⚠️ Tests backend pendente (api/tests/test_webhooks.py — MERCADOPAGO_WEBHOOK_SECRET refactor)
+- ✅ Tests backend: `api/tests/test_webhooks.py` já usa `MP_WEBHOOK_SECRET` (ver seção "Status Final")
 
 ---
 

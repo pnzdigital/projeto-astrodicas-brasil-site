@@ -8,7 +8,7 @@ Runbook para deploy em Coolify (ou compose.yaml local).
 - **DNS:** Ambos apontando pro Coolify/reverse proxy
 - **TLS:** Proxy reverso termina HTTPS; containers falam HTTP (nginx.runtime.conf:1-4)
 - **Banco:** PostgreSQL 16+ com acesso de rede ou volume local
-- **Contas externas:** Mercado Pago (Argentina), GG Checkout (Brasil), Resend (e-mail), MiniMax (LLM)
+- **Contas externas:** Mercado Pago (Argentina), GG Checkout (Brasil, provedor padrão — não é mais Cakto), Resend (e-mail), MiniMax (LLM)
 
 ---
 
@@ -35,7 +35,7 @@ Obrigatórias marcar com ⚠️.
 | `CHECKOUT_PROVIDER_BR` | Não | `ggcheckout` (padrão) ou `mercadopago` | GG Checkout é o padrão BR (PIX/cartão nacional); MP exige conta MLB |
 | `MP_STATEMENT_DESCRIPTOR` | Não | `ASTRODICAS` (padrão) ou custom | Nome da loja na fatura do cliente |
 | `TRIAL_DAYS` | Não | `3` (padrão) | Tamanho do teste grátis do Diário Astral (trial local, sem cartão); só vale para trials novos |
-| `CAKTO_WEBHOOK_SECRET` | ⚠️ (se Cakto ligado) | Painel Cakto > Webhooks > Chave secreta | 403 webhook rejeitado; pedido não confirma |
+| `CAKTO_WEBHOOK_SECRET` | ⚠️ (guard de produção exige, mesmo com Cakto desligado — ver nota abaixo) | Painel Cakto > Webhooks > Chave secreta | 403 webhook rejeitado; pedido não confirma. Se Cakto não é usado, ainda assim precisa de algum valor: `validate_production_config()` (`api/app/main.py`) recusa subir em produção sem `CAKTO_WEBHOOK_SECRET` |
 | `GG_CHECKOUT_SECRET` | ⚠️ (se GG Checkout ligado) | Painel GG > Webhooks > Chave secreta | 503 no webhook; pedido não confirma e acesso não é liberado |
 | `GG_CHECKOUT_URLS` | ⚠️ (se GG Checkout ligado) | JSON `{"site:diario_astral": "https://..."}` com URLs de checkout por produto | 503 em `/api/checkout/order` BR; checkout não abre |
 | `GG_PRODUCT_MAP` | ⚠️ (se GG Checkout ligado) | JSON `{"gg-uuid": "site:diario_astral"}` mapeando UID do produto GG ao nosso product_id | 422 no webhook; produto não mapeado e acesso não é liberado |
@@ -50,7 +50,8 @@ Obrigatórias marcar com ⚠️.
 | `GEOCODING_TIMEOUT_SECONDS` | Não | `8` (padrão) | Timeout geocodificação em segundos |
 | `MP_TIMEOUT_SECONDS` | Não | `20` (padrão) | Timeout Mercado Pago em segundos |
 | `GEOCODING_ENABLED` | Não | `1` (ativar) ou `0` (desativar) | Coordenadas de nascimento não resolvem |
-| `ADMIN_PASSWORD` | ⚠️ (se usar /admin) | Gera: senha segura, 16+ chars | `/admin` indisponível; login recusa |
+| `ADMIN_PASSWORD` | ⚠️ | Gera: senha segura, 16+ chars | `/admin` indisponível; login recusa; guard de produção recusa boot sem ela |
+| `TASK_SECRET` | ⚠️ (se cron do Coolify chamar as rotas `/api/tasks/*`) | Gera: `openssl rand -hex 32` | 503 nos crons de renovação/trial (`renewal.py`) e reentrega de e-mail de compra (`checkout.py`); validado por header `x-task-secret` |
 | `ROLE` | Não (interno) | `public` (vitrine) ou `dash` (portal) | Scripts dev; Coolify ignora |
 | `PORT` | Não (interno) | `8080` (padrão) | Scripts dev; Coolify ignora |
 
@@ -91,6 +92,23 @@ automaticamente pelo visibility timeout (padrão 10 min) na próxima inicializa�
 - Porta: 80 (interno); proxy reverso mapeia para HTTPS
 - Hosts: Rotar via nginx.runtime.conf (`Host: astrodicas...` → storefront; `Host: dash...` → index/admin)
 - Roteamento: `/api/` → proxy para api:8000
+
+---
+
+## Crons (Coolify)
+
+Rotas `POST /api/tasks/*`, todas autenticadas por header `x-task-secret` contra
+`TASK_SECRET` (comparação em tempo constante). Sem `TASK_SECRET` setado, cada
+uma responde `503`; secret errado, `401`.
+
+| Rota | Frequência sugerida | O que faz |
+|---|---|---|
+| `/api/tasks/renewal-reminders` | diário | Lembretes 7d/hoje/winback (pago) e trial_ending/trial_winback (trial) — `renewal.py` |
+| `/api/tasks/weekly-forecast` | sábado | Dispara previsão semanal por e-mail — `renewal.py` |
+| `/api/tasks/astro-alerts` | diário | Avisos de lua nova/cheia e início de retrógrado — `renewal.py` |
+| `/api/tasks/push-daily-horoscope` | diário | Push notification do horóscopo do dia — `renewal.py` |
+| `/api/tasks/daily-pregen` | diário (ex.: 07:00 UTC) | Pré-gera horóscopo diário + previsão semanal (se sábado) para clientes ativas — `renewal.py` |
+| `/api/tasks/resend-purchase-emails` | ~15 min | Reentrega e-mail de compra sem confirmação de envio (cobre GG Checkout sem retentativa de webhook) — `checkout.py` |
 
 ---
 
