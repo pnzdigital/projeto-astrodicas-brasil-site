@@ -29,6 +29,7 @@ import logging
 import os
 from datetime import datetime, timedelta, timezone
 from uuid import uuid4
+from zoneinfo import ZoneInfo
 
 from fastapi import APIRouter, Depends, HTTPException, Request
 from sqlalchemy import String, DateTime, UniqueConstraint, select
@@ -814,28 +815,50 @@ _PREGEN_TITLES: dict[str, str] = {
 }
 
 
-def _pregen_period_key(content_id: str, now: datetime) -> str:
-    """Chave de idempotência por período: YYYY-MM-DD, YYYY-Www ou YYYY-MM."""
+def _pregen_locale_tz(locale: str) -> ZoneInfo:
+    """Fuso da cliente para fins de pré-geração — mesma resolução de main._target_iso_week."""
+    from . import horoscope_free
+    tz_locale = locale if locale in horoscope_free.LOCALE_DEFAULTS else "pt-BR"
+    return ZoneInfo(horoscope_free.LOCALE_DEFAULTS[tz_locale][1])
+
+
+def _pregen_period_key(content_id: str, locale: str) -> str:
+    """Chave de idempotência por período: YYYY-MM-DD, YYYY-Www ou YYYY-MM.
+
+    Fechado no dia LOCAL da cliente (pelo locale), não em UTC — mesmo corte que
+    o portal usa (horoscope_free.local_today / main.reading_is_current). Antes
+    disso a pré-geração fechava o dia em UTC enquanto o portal já contava em
+    fuso local: entre 00h e 03h no Brasil/Argentina a cliente via a leitura de
+    ontem, e uma leitura gerada logo após 00:00 UTC nascia com data de ontem.
+    """
+    from . import horoscope_free
     cadence = _PREGEN_SCHEDULE.get(content_id, "daily")
+    tz_locale = locale if locale in horoscope_free.LOCALE_DEFAULTS else "pt-BR"
+    today_local = horoscope_free.local_today(tz_locale)
     if cadence == "monthly":
-        return now.strftime("%Y-%m")
+        return today_local.strftime("%Y-%m")
     if cadence == "weekly":
-        iso = now.isocalendar()
-        return f"{iso.year}-W{iso.week:02d}"
-    return now.strftime("%Y-%m-%d")
+        # Mesma regra de main._target_iso_week: sáb/dom já contam pra semana
+        # que vem, senão a leitura "da semana" nasceria com a semana errada
+        # no fim de semana.
+        return _pregen_target_iso_week(locale)
+    return today_local.strftime("%Y-%m-%d")
 
 
-def _reading_fresh_for_period(db: Session, user_id: str, content_id: str, period_key: str) -> bool:
+def _reading_fresh_for_period(db: Session, user_id: str, content_id: str, period_key: str, locale: str) -> bool:
     """True quando já existe leitura pronta OU em andamento para o período.
 
     'em andamento' (in_progress) basta para não duplicar: o worker vai concluir.
+    Janela calculada no fuso LOCAL da cliente (ver _pregen_period_key) — os
+    limites são convertidos para UTC só para comparar com created_at (que é
+    sempre gravado em UTC), a data que decide o período continua sendo a local.
     """
     cadence = _PREGEN_SCHEDULE.get(content_id, "daily")
-    now = _now()
+    tz = _pregen_locale_tz(locale)
+    now_local = datetime.now(tz)
 
     if cadence == "daily":
-        # Pronto hoje UTC
-        day_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
+        day_start = now_local.replace(hour=0, minute=0, second=0, microsecond=0).astimezone(timezone.utc)
         return bool(db.scalar(
             select(Reading).where(
                 Reading.user_id == user_id,
@@ -846,11 +869,9 @@ def _reading_fresh_for_period(db: Session, user_id: str, content_id: str, period
         ))
 
     if cadence == "weekly":
-        # Pronto na mesma semana ISO
-        iso_year, iso_week, _ = now.isocalendar()
-        week_start = now - timedelta(days=now.weekday())
-        week_start = week_start.replace(hour=0, minute=0, second=0, microsecond=0)
-        week_end = week_start + timedelta(days=7)
+        week_start_local = (now_local - timedelta(days=now_local.weekday())).replace(hour=0, minute=0, second=0, microsecond=0)
+        week_start = week_start_local.astimezone(timezone.utc)
+        week_end = (week_start_local + timedelta(days=7)).astimezone(timezone.utc)
         return bool(db.scalar(
             select(Reading).where(
                 Reading.user_id == user_id,
@@ -862,11 +883,13 @@ def _reading_fresh_for_period(db: Session, user_id: str, content_id: str, period
         ))
 
     # monthly
-    month_start = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
-    if now.month == 12:
-        month_end = now.replace(year=now.year + 1, month=1, day=1, hour=0, minute=0, second=0, microsecond=0)
+    month_start_local = now_local.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+    if now_local.month == 12:
+        month_end_local = now_local.replace(year=now_local.year + 1, month=1, day=1, hour=0, minute=0, second=0, microsecond=0)
     else:
-        month_end = now.replace(month=now.month + 1, day=1, hour=0, minute=0, second=0, microsecond=0)
+        month_end_local = now_local.replace(month=now_local.month + 1, day=1, hour=0, minute=0, second=0, microsecond=0)
+    month_start = month_start_local.astimezone(timezone.utc)
+    month_end = month_end_local.astimezone(timezone.utc)
     return bool(db.scalar(
         select(Reading).where(
             Reading.user_id == user_id,
@@ -878,23 +901,26 @@ def _reading_fresh_for_period(db: Session, user_id: str, content_id: str, period
     ))
 
 
-def _job_active(db: Session, user_id: str, content_id: str) -> bool:
+def _job_active(db: Session, user_id: str, content_id: str, locale: str) -> bool:
     """Job aberto do período corrente para este conteúdo.
 
     O filtro por período não é detalhe: sem ele um job que ficou preso em
     "queued"/"running" (container reiniciado no meio, worker morto) bloqueava a
     pré-geração desse content_id para SEMPRE — a cliente perdia o horóscopo de
     todos os dias seguintes e nada no sistema reabria a fila. Escopado ao
-    período, um job velho preso deixa de barrar o dia de hoje.
+    período, um job velho preso deixa de barrar o dia de hoje. Período no fuso
+    local da cliente, mesma razão de _reading_fresh_for_period.
     """
     cadence = _PREGEN_SCHEDULE.get(content_id, "daily")
-    now = _now()
+    tz = _pregen_locale_tz(locale)
+    now_local = datetime.now(tz)
     if cadence == "monthly":
-        window_start = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+        window_start_local = now_local.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
     elif cadence == "weekly":
-        window_start = (now - timedelta(days=now.weekday())).replace(hour=0, minute=0, second=0, microsecond=0)
+        window_start_local = (now_local - timedelta(days=now_local.weekday())).replace(hour=0, minute=0, second=0, microsecond=0)
     else:
-        window_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
+        window_start_local = now_local.replace(hour=0, minute=0, second=0, microsecond=0)
+    window_start = window_start_local.astimezone(timezone.utc)
     return bool(db.scalar(
         select(GenerationJob).where(
             GenerationJob.user_id == user_id,
@@ -963,13 +989,13 @@ def run_daily_pregen(db: Session) -> dict:
         locale = getattr(user, "locale", "pt-BR") or "pt-BR"
 
         for content_id, cadence in _PREGEN_SCHEDULE.items():
-            period_key = _pregen_period_key(content_id, now)
+            period_key = _pregen_period_key(content_id, locale)
 
-            if _reading_fresh_for_period(db, user.id, content_id, period_key):
+            if _reading_fresh_for_period(db, user.id, content_id, period_key, locale):
                 stats["skipped_ready"] += 1
                 continue
 
-            if _job_active(db, user.id, content_id):
+            if _job_active(db, user.id, content_id, locale):
                 stats["skipped_job"] += 1
                 continue
 
@@ -987,6 +1013,7 @@ def run_daily_pregen(db: Session) -> dict:
                     input_snapshot=snapshot,
                     sections_total=len(expected_sections),
                     sections_done=0,
+                    created_at=now,
                 )
                 db.add(reading)
                 db.commit()
