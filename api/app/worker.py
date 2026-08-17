@@ -33,7 +33,13 @@ POLL_INTERVAL_SECONDS = float(os.getenv("WORKER_POLL_INTERVAL_SECONDS", "2"))
 # 1/3 do timeout: mesmo perdendo um heartbeat, o próximo ainda chega antes do
 # cutoff.
 HEARTBEAT_INTERVAL_SECONDS = max(5.0, (VISIBILITY_TIMEOUT_MINUTES * 60) / 3)
-MAX_CONCURRENCY = int(os.getenv("MINIMAX_MAX_CONCURRENCY", "8"))
+# 16 e não 8 (17/08/2026): a dona liberou textualmente a folga de cota do
+# MiniMax ("limite de requisição não é problema"), e o gargalo da pré-geração
+# em massa passou a ser a nossa própria fila, não o provedor. Com 100 clientes
+# ativas × 4 conteúdos, o dobro de concorrência corta o tempo da janela de
+# madrugada pela metade — que é o que decide se a leitura está pronta quando a
+# cliente acorda.
+MAX_CONCURRENCY = int(os.getenv("MINIMAX_MAX_CONCURRENCY", "16"))
 MAX_JOB_ATTEMPTS = 3
 BACKOFF_MINUTES = [1, 5, 15]
 

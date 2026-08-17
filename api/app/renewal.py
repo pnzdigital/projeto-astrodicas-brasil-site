@@ -954,7 +954,7 @@ def run_daily_pregen(db: Session) -> dict:
     from .engine import sections_for
 
     now = _now()
-    stagger = int(os.getenv("PREGEN_STAGGER_SECONDS", "3"))
+    stagger = int(os.getenv("PREGEN_STAGGER_SECONDS", "1"))
     stats: dict[str, int] = {"enqueued": 0, "skipped_ready": 0, "skipped_job": 0, "skipped_no_profile": 0, "errors": 0}
     order = 0  # contador para escalonamento
 
