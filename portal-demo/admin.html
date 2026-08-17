@@ -22,12 +22,35 @@
     h1,h2,h3{font-family:var(--display);font-weight:500;margin:0}
     .visually-hidden{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
 
-    /* login screen */
-    #login-screen{min-height:100vh;display:grid;place-items:center;padding:24px}
-    .login-card{width:min(360px,100%);padding:34px 30px;border:1px solid var(--line);border-radius:8px;background:rgba(18,14,54,.72);text-align:center}
-    .login-card .brand-mark{display:grid;width:40px;height:40px;margin:0 auto 16px;place-items:center;border:1px solid var(--gold);border-radius:50%;font:600 18px var(--body);color:var(--gold-lit)}
-    .login-card h1{font-size:26px;margin-bottom:6px}
-    .login-card p{color:var(--muted);font-size:13px;margin:0 0 22px}
+    /* login screen — céu escuro, dourado e serifa, como manda a identidade.
+       O painel é ferramenta interna, mas quem abre são as duas equipes todo
+       dia: cartão solto no vazio não dizia nem de que marca era a tela. */
+    #login-screen{position:relative;min-height:100vh;display:grid;place-items:center;padding:24px;overflow:hidden}
+    /* Céu: dois halos de luz difusa, nada de estrelinha de banco de imagem. */
+    #login-screen::before{content:'';position:absolute;inset:0;background:
+      radial-gradient(60% 45% at 50% 8%, rgba(217,172,92,.13), transparent 70%),
+      radial-gradient(45% 40% at 12% 96%, rgba(27,21,75,.85), transparent 72%);
+      pointer-events:none}
+    .login-card{position:relative;width:min(380px,100%);padding:44px 38px 38px;
+      border:1px solid var(--line);border-radius:14px;
+      background:linear-gradient(180deg, rgba(27,21,75,.82), rgba(12,10,38,.92));
+      box-shadow:0 24px 70px rgba(0,0,0,.5), inset 0 1px 0 rgba(244,215,154,.10);
+      text-align:center}
+    /* Fio dourado no topo do cartão: a régua da marca, não um enfeite. */
+    .login-card::before{content:'';position:absolute;top:-1px;left:22%;right:22%;height:1px;
+      background:linear-gradient(90deg, transparent, var(--gold), transparent)}
+    .login-card .brand-mark{display:grid;width:46px;height:46px;margin:0 auto 18px;place-items:center;
+      border:1px solid var(--gold);border-radius:50%;font:600 20px var(--body);color:var(--gold-lit);
+      background:radial-gradient(circle at 50% 40%, rgba(217,172,92,.20), transparent 70%);
+      box-shadow:0 0 0 6px rgba(217,172,92,.05)}
+    .login-card .eyebrow{display:block;margin-bottom:10px;font-size:10px;font-weight:700;
+      letter-spacing:.24em;text-transform:uppercase;color:var(--gold)}
+    .login-card h1{font-size:30px;line-height:1.15;letter-spacing:-.02em;margin-bottom:8px}
+    .login-card p{color:var(--muted);font-size:13px;margin:0 0 26px}
+    .login-card .button{width:100%;margin-top:6px;padding:13px 18px;font-weight:600;letter-spacing:.01em}
+    .login-card input{padding:12px 13px}
+    .login-card input::placeholder{color:rgba(244,239,228,.32)}
+    .login-foot{margin:20px 0 0;font-size:11px;letter-spacing:.06em;color:rgba(244,239,228,.38)}
     .field{text-align:left;margin-bottom:16px}
     label{display:block;margin-bottom:6px;font-size:12px;color:var(--muted)}
     input[type=password]{width:100%;min-height:44px;padding:0 12px;border:1px solid var(--line);border-radius:5px;background:rgba(8,7,25,.6);color:var(--cream)}
@@ -217,8 +240,9 @@
   <section id="login-screen">
     <form class="login-card" id="login-form" aria-labelledby="login-title">
       <div class="brand-mark" aria-hidden="true">✦</div>
+      <span class="eyebrow">AstroDicas</span>
       <h1 id="login-title">Painel administrativo</h1>
-      <p>Acesso restrito à equipe AstroDicas.</p>
+      <p>Acesso restrito à equipe.</p>
       <div class="field">
         <label for="admin-user">Usuário</label>
         <input type="text" id="admin-user" name="username" autocomplete="username" autocapitalize="none" spellcheck="false" placeholder="seu usuário">
@@ -229,6 +253,7 @@
       </div>
       <button class="button" type="submit">Entrar</button>
       <p class="error-msg" id="login-error" role="alert"></p>
+      <p class="login-foot">Seu céu, sempre perto.</p>
     </form>
   </section>
 
