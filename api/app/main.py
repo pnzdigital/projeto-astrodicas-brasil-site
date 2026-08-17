@@ -794,6 +794,21 @@ def _run_generation_job(reading_id: str, content_id: str, title: str, user_id: s
             reading.error_message = "Leitura gerada por modelo editorial padrão. A leitura personalizada está temporariamente indisponível."
             db.commit()
             return
+        # Descarte idempotente: um segundo worker pode ter reclamado este job
+        # via visibility timeout (heartbeat não chegou a tempo, ou o worker
+        # anterior de fato morreu) e já concluído a leitura enquanto esta
+        # geração ainda rodava. Se a Reading já está 'ready', o trabalho deste
+        # worker é redundante — descarta em vez de sobrescrever, e avisa alto
+        # porque cada geração descartada custou tokens reais ao MiniMax.
+        db.refresh(reading)
+        if reading.status == "ready":
+            logger.warning(
+                "geração descartada por concorrência: reading=%s já estava 'ready' "
+                "quando este worker terminou — outra tentativa concluiu primeiro.",
+                reading_id,
+            )
+            return
+
         reading.birth_time_assumed = generated.birth_time_assumed
         reading.ascendant_warning = generated.ascendant_warning or {}
         if generated.source == "fallback":

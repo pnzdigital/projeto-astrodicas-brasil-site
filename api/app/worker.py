@@ -26,6 +26,12 @@ logger = logging.getLogger(__name__)
 
 VISIBILITY_TIMEOUT_MINUTES = int(os.getenv("JOB_VISIBILITY_TIMEOUT_MINUTES", "10"))
 POLL_INTERVAL_SECONDS = float(os.getenv("WORKER_POLL_INTERVAL_SECONDS", "2"))
+# Renova locked_at enquanto o job roda, pra uma geração longa e SAUDÁVEL não
+# ser confundida com travada e reclaimada por um segundo worker (era a causa
+# de leitura gerada 2x — a primeira geração, boa, era descartada em silêncio).
+# 1/3 do timeout: mesmo perdendo um heartbeat, o próximo ainda chega antes do
+# cutoff.
+HEARTBEAT_INTERVAL_SECONDS = max(5.0, (VISIBILITY_TIMEOUT_MINUTES * 60) / 3)
 MAX_CONCURRENCY = int(os.getenv("MINIMAX_MAX_CONCURRENCY", "8"))
 MAX_JOB_ATTEMPTS = 3
 BACKOFF_MINUTES = [1, 5, 15]
@@ -175,6 +181,36 @@ def _claim_next_job(db: Session) -> GenerationJob | None:
 
 
 # ---------------------------------------------------------------------------
+# Heartbeat
+# ---------------------------------------------------------------------------
+
+def _heartbeat_loop(job_id: str, stop: threading.Event) -> None:  # pragma: no cover — exercised via thread in tests
+    """Renova locked_at periodicamente enquanto o job está rodando.
+
+    Sessão própria: não compartilha a sessão do run_job (thread diferente,
+    SQLAlchemy Session não é thread-safe). Guarda por status='running' pra
+    não reviver um job que já terminou (done/failed) por uma corrida de
+    último heartbeat vs. commit final.
+    """
+    while not stop.wait(HEARTBEAT_INTERVAL_SECONDS):
+        hb_db = SessionLocal()
+        try:
+            hb_db.execute(
+                text("""
+                    UPDATE generation_jobs
+                    SET locked_at = :now
+                    WHERE id = :id AND status = 'running'
+                """),
+                {"now": datetime.now(timezone.utc), "id": job_id},
+            )
+            hb_db.commit()
+        except Exception:
+            logger.exception("Heartbeat falhou para job %s", job_id)
+        finally:
+            hb_db.close()
+
+
+# ---------------------------------------------------------------------------
 # Execute
 # ---------------------------------------------------------------------------
 
@@ -207,6 +243,11 @@ def run_job(job_id: str) -> None:
         reading = db.get(Reading, job.reading_id)
         title = reading.title if reading else ""
 
+        stop_heartbeat = threading.Event()
+        hb_thread = threading.Thread(
+            target=_heartbeat_loop, args=(job_id, stop_heartbeat), daemon=True
+        )
+        hb_thread.start()
         try:
             _run_generation_job(
                 job.reading_id,
@@ -221,6 +262,9 @@ def run_job(job_id: str) -> None:
             db.refresh(job)
             _fail_or_retry(db, job, str(exc))
             return
+        finally:
+            stop_heartbeat.set()
+            hb_thread.join(timeout=5)
 
         db.refresh(job)
         job.status = "done"
