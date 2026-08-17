@@ -1026,8 +1026,8 @@ def run_daily_pregen(db: Session) -> dict:
 async def daily_pregen_task(request: Request, db: Session = Depends(get_db)) -> dict:
     """Cron diário para pré-gerar conteúdo do plano de 30 dias para todas as clientes ativas.
 
-    Configurar no Coolify: cron diário às 05:00 UTC (antes do push-daily-horoscope)
-    com header x-task-secret. Gera horóscopo diário + previsão semanal (se semana nova)
+    Agendado no crontab do host às 06:00 UTC (03:00 BR/AR), antes do push-daily-horoscope
+    (10:00 UTC). Autentica com header x-task-secret. Gera horóscopo diário + previsão semanal (se semana nova)
     + guia do mês (se mês novo). Idempotente por período — seguro rodar N vezes.
     """
     secret = os.getenv("TASK_SECRET", "").strip()
