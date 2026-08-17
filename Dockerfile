@@ -35,6 +35,11 @@ RUN pip install --no-cache-dir --no-index --find-links=/wheels -r requirements.t
     && rm -rf /wheels
 
 COPY api/app ./app
+# Scripts de operação (criar conta de admin, validar, gerar leitura na mão)
+# precisam existir DENTRO do container: é lá que estão o banco de produção e as
+# variáveis de ambiente. Sem esta linha, criar a conta de uma operadora exigia
+# copiar arquivo para dentro do container na unha, a cada deploy.
+COPY api/scripts ./scripts
 
 # A pasta inteira, de propósito. A lista manual de páginas ficou para trás toda
 # vez que uma página nova nasceu, e o nginx.runtime.conf já aponta para arquivos

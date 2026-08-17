@@ -1695,7 +1695,7 @@ def _generate_reading_sections(
     pool_size = max(1, int(os.getenv("MINIMAX_SECTION_POOL_SIZE", _SECTION_POOL_SIZE_DEFAULT)))
     total = len(expected_sections)
     results: list[dict | None] = [None] * total
-    fell_back_any = False
+    fell_back_indices: list[int] = []
     with ThreadPoolExecutor(max_workers=min(pool_size, total)) as executor:
         futures = {
             executor.submit(
@@ -1707,12 +1707,31 @@ def _generate_reading_sections(
             idx = futures[future]
             section, fell_back = future.result()
             results[idx] = section
-            fell_back_any = fell_back_any or fell_back
+            if fell_back:
+                fell_back_indices.append(idx)
             if on_section_done:
                 on_section_done()
     if all(r is None for r in results):
         return None
-    return results, fell_back_any  # type: ignore[return-value]
+
+    # Bug real de produção (reading 5a769308, 2026-08-17): o OR binário antigo
+    # marcava a leitura INTEIRA como fallback assim que 1 seção em 15 esgotava
+    # as tentativas — o fail_closed então descartava as outras 14 boas junto.
+    # Se só ALGUMAS (não todas) caíram no template local, vale a pena dar a
+    # cada uma delas uma chance extra isolada — barata (1 seção, não 15) —
+    # antes de aceitar a leitura inteira como fallback. Se a seção realmente
+    # não sair limpa nem nessa chance extra, o fail_closed continua valendo.
+    if fell_back_indices and len(fell_back_indices) < total:
+        for idx in list(fell_back_indices):
+            sec_title, subtitle = expected_sections[idx]
+            section, fell_back = _generate_section(
+                content_id, title, sec_title, subtitle, idx + 1, total, sibling_titles, context, locale, profile,
+            )
+            results[idx] = section
+            if not fell_back:
+                fell_back_indices.remove(idx)
+
+    return results, bool(fell_back_indices)  # type: ignore[return-value]
 
 
 def generate_reading(content_id: str, title: str, profile, locale: str = "pt-BR", customer_name: str = "", on_section_done=None) -> ReadingResult:

@@ -252,9 +252,18 @@ def _fail_or_retry(db: Session, job: GenerationJob, error: str) -> None:
             # em vez de entregar o editorial genérico como se fosse personalizado.
             # Um admin pode forçar nova geração via POST /api/admin/readings/{id}/regenerate.
             if os.getenv("HOROSCOPE_FAIL_CLOSED", "1") == "1" and "fail_closed" in (error or ""):
-                reading.status = "in_progress"
+                # Antes ficava "in_progress" pra sempre — portal e admin liam
+                # isso como "ainda gerando", cliente pagou e via a rodinha
+                # girando sem fim (bug real, 2026-08-17). "failed" é o mesmo
+                # status que o destravamento por tempo do POST /generate já
+                # usa pra "geração morreu sem rastro" (main.py, ~linha 878):
+                # portal/admin já sabem renderizar isso como problema, e o
+                # PRÓXIMO POST /generate do cliente cria uma Reading nova na
+                # hora — sem precisar esperar STUCK_READING_TIMEOUT_MINUTES.
+                reading.status = "failed"
+                reading.error_message = "Geração não conseguiu concluir. Tente novamente."
                 logger.error(
-                    "fail_closed: reading=%s esgotou %d tentativas de job — status in_progress para não entregar fallback.",
+                    "fail_closed: reading=%s esgotou %d tentativas de job — status failed para não entregar fallback nem travar como 'gerando'.",
                     job.reading_id, job.attempts,
                 )
             else:

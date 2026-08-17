@@ -131,9 +131,11 @@ def test_secao_cai_no_fallback_pontual_sem_derrubar_as_outras(monkeypatch):
     result = engine.generate_reading(content_id, "Mapa da Carreira", _profile())
 
     # Roteamento M3 desligado por padrão (MINIMAX_MODEL_LONG vazia): primário
-    # e fallback são o mesmo modelo, então não há segunda rodada — 2 chamadas,
-    # exatamente como antes do roteamento existir.
-    assert calls_by_title[target_title] == 2, "sem roteamento, só as 2 tentativas do modelo único"
+    # e fallback são o mesmo modelo, então não há segunda rodada por modelo —
+    # 2 tentativas. Como só 1 seção em N caiu no fallback local, o fix de
+    # 2026-08-17 (bug real: leitura inteira jogada fora por 1 seção ruim) dá
+    # mais uma rodada isolada nela antes de aceitar — mais 2 chamadas, 4 no total.
+    assert calls_by_title[target_title] == 4, "2 tentativas originais + 2 da rodada extra isolada"
     assert result.source == "fallback", "leitura com 1 seção em fallback precisa continuar identificável como fallback"
     assert len(result.sections) == len(expected)
     fallback_section = next(s for s in result.sections if s["order"] == 1)
@@ -198,7 +200,9 @@ def test_todas_as_secoes_falham_cai_no_fallback_completo(monkeypatch):
 def test_com_roteamento_ligado_seção_tenta_m3_e_depois_o_fallback(monkeypatch):
     """Com MINIMAX_MODEL_LONG setada, a seção que sempre trunca esgota as
     tentativas no M3 e REPETE no fallback M2.7 antes do fallback editorial:
-    2 (M3) + 2 (M2.7) = 4 chamadas."""
+    2 (M3) + 2 (M2.7) = 4 chamadas. Como só essa 1 seção caiu no fallback
+    local, o fix de 2026-08-17 dá mais uma rodada isolada nela (mesmo padrão
+    M3→M2.7 de novo) antes de aceitar — 8 chamadas no total."""
     monkeypatch.setenv("MINIMAX_API_KEY", "chave-de-teste")
     monkeypatch.setenv("MINIMAX_SECTION_MAX_ATTEMPTS", "2")
     monkeypatch.setenv("MINIMAX_MODEL_LONG", "MiniMax-M3")
@@ -220,6 +224,8 @@ def test_com_roteamento_ligado_seção_tenta_m3_e_depois_o_fallback(monkeypatch)
     monkeypatch.setattr(engine, "_call_minimax", _fake)
     engine.generate_reading(content_id, "Mapa da Carreira", _profile())
 
-    assert calls_by_title[target_title] == 4
-    assert modelos[:2] == ["MiniMax-M3", "MiniMax-M3"]
-    assert modelos[2:] == ["MiniMax-M2.7", "MiniMax-M2.7"]
+    assert calls_by_title[target_title] == 8
+    assert modelos == [
+        "MiniMax-M3", "MiniMax-M3", "MiniMax-M2.7", "MiniMax-M2.7",
+        "MiniMax-M3", "MiniMax-M3", "MiniMax-M2.7", "MiniMax-M2.7",
+    ]
