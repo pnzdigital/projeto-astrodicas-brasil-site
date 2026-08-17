@@ -126,11 +126,18 @@ async def test_webhook_async_client_accepts_json_body():
 
 def test_minimax_output_is_escaped_and_formatted(monkeypatch):
     monkeypatch.setenv("MINIMAX_API_KEY", "test-key")
-    monkeypatch.setattr(engine, "_call_minimax", lambda prompt, locale="pt-BR", **kwargs: "Primeiro & direto.\n\nSegundo <seguro>.\n\nTerceiro caminho.")
+    monkeypatch.setattr(
+        engine, "_call_minimax",
+        lambda prompt, locale="pt-BR", **kwargs: (
+            "Primeiro & direto, com texto suficiente para passar do piso mínimo de seção do guard.\n\n"
+            "Segundo <seguro>, continuando a leitura com mais uma frase de contexto sobre o tema.\n\n"
+            "Terceiro caminho, fechando o texto com uma frase final completa e não truncada."
+        ),
+    )
 
     result = engine.generate_reading("site:content:horoscopo_diario", "Horóscopo diário", None)
 
     assert result.body_html.count("<p>") >= 3
-    assert "Primeiro &amp; direto." in result.body_html
-    assert "Segundo &lt;seguro&gt;." in result.body_html
+    assert "Primeiro &amp; direto," in result.body_html
+    assert "Segundo &lt;seguro&gt;," in result.body_html
     assert result.source == "minimax"

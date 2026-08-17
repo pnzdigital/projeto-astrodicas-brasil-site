@@ -1124,6 +1124,88 @@ def _has_language_leak(text: str, locale: str = "pt-BR") -> bool:
     return _has_foreign_script(text) or _has_foreign_words(text, locale)
 
 
+# Guard de RECUSA/META-TEXTO (achado de QA, 20 gerações no commit 8a79304,
+# previsao_semanal pt-BR): o modelo devolveu uma recusa em primeira pessoa
+# ("não posso ajudar com isso") e ela foi persistida e entregue como leitura
+# paga. Nenhum guard existente pega esse caso: fail_closed só cobre o
+# fallback editorial nosso, o guard de script só pega alfabeto errado, o guard
+# de palavra vazada só pega troca de idioma — a recusa está em pt-BR/es-AR
+# corretos, alfabeto latino correto, só que fala SOBRE a tarefa em vez de
+# executá-la.
+#
+# Falso positivo é o risco real aqui, não o falso negativo: uma leitura
+# legítima PODE conter "não posso prever o futuro" como ressalva editorial
+# (o próprio prompt pede "declare a limitação com linguagem acolhedora"), e
+# "sinto" aparece o tempo todo em sentido astrológico ("você sinte que...").
+# Duas defesas contra isso:
+#   1. Os padrões de recusa exigem um VERBO de recusa específico logo depois
+#      ("não posso ajudar/continuar/gerar/escrever/atender/cumprir/fazer
+#      isso"), nunca "não posso" sozinho — "não posso prever o futuro" não
+#      bate porque "prever" não está na lista de verbos de recusa.
+#   2. Os padrões de meta-comentário ("como IA", "sinto muito, mas", "peço
+#      desculpas") só são checados no INÍCIO da seção (primeiros ~400
+#      caracteres) — é onde uma recusa real aparece (ela abre a resposta
+#      recusando; ela não recusa no parágrafo 3 depois de já ter escrito a
+#      leitura). Isso também blinda "sinto" em sentido astrológico, que
+#      aparece espalhado pelo texto, não como abertura de frase.
+_REFUSAL_PATTERNS = [
+    re.compile(p, re.IGNORECASE) for p in [
+        r"\bn[ãa]o posso (ajudar|continuar|prosseguir|realizar|gerar|escrever|criar|atender|cumprir|fazer isso|responder a isso)\b",
+        r"\bno puedo (ayudar|continuar|proceguir|realizar|generar|escribir|crear|atender|cumplir|hacer esto|responder a esto)\b",
+        r"\bn[ãa]o sou capaz de\b",
+        r"\bno soy capaz de\b",
+        r"\bcomo (um |uma )?(modelo de linguagem|intelig[êe]ncia artificial|ia)\b",
+        r"\bcomo (un |una )?(modelo de lenguaje|inteligencia artificial|ia)\b",
+        r"\bcomo assistente( de ia)?\b",
+        r"\bcomo asistente( de ia)?\b",
+        r"\bsinto muito,? mas\b",
+        r"\blo siento,? pero\b",
+        r"\bdesculpe,? (mas )?n[ãa]o (posso|consigo)\b",
+        r"\bdisculp[ae],? (pero )?no (puedo|consigo)\b",
+        r"\bperd[óo]n,? (pero )?no (puedo|consigo)\b",
+        r"\bn[ãa]o tenho informa[çc][õo]es suficientes\b",
+        r"\bno tengo informaci[óo]n suficiente\b",
+        r"\bpe[çc]o desculpas\b",
+        r"\bpido disculpas\b",
+        # pedido de mais dados ao usuário em vez de executar a tarefa
+        r"\bpreciso que voc[êe] (me )?(informe|forne[çc]a|diga|especifique)\b",
+        r"\bnecesito que (me )?(proporciones|indiques|especifiques)\b",
+        r"\bpoder(ia|iam) (me )?(fornecer|informar) mais (dados|informa[çc][õo]es)\b",
+        r"\bpodr[íi]a(s)? (me )?(proporcionar|indicar) m[áa]s (datos|informaci[óo]n)\b",
+    ]
+]
+# Quanto do início da seção é checado pelos padrões de meta-comentário. Uma
+# recusa real recusa já na primeira frase; texto legítimo pode mencionar
+# "sinto" ou "não posso [ressalva]" mais adiante sem risco de falso positivo.
+_REFUSAL_HEAD_CHARS = 400
+
+
+def _looks_like_refusal(text: str) -> bool:
+    """True quando o INÍCIO do texto tem cara de recusa/meta-comentário do assistente."""
+    head = (text or "").strip()[:_REFUSAL_HEAD_CHARS]
+    return any(p.search(head) for p in _REFUSAL_PATTERNS)
+
+
+# Piso de tamanho: uma recusa curta ("Desculpe, não posso ajudar com isso.")
+# passa pelos guards de idioma (alfabeto e palavras corretos) e pode até
+# escapar do guard de padrão acima se for uma formulação não prevista — mas
+# ela SEMPRE é muito mais curta que uma seção real. O prompt pede 2 a 3
+# parágrafos de 70 a 110 palavras cada (`_section_prompt`/`scope_instruction`),
+# ou seja, no mínimo ~140 palavras de corpo. Fixamos o piso bem abaixo disso
+# (não em ~140 palavras) porque seções legítimas às vezes saem mais enxutas
+# sem serem recusa — o piso é rede de segurança contra corpo anormalmente
+# curto, não um verificador de contagem de parágrafo. 100 caracteres cobre
+# frases de recusa típicas (30-90 caracteres) com folga e ainda reprova
+# qualquer coisa muito aquém de um parágrafo real (~400+ caracteres), sem
+# reprovar uma frase legítima isolada um pouco mais longa (130-150 caracteres).
+_MIN_SECTION_CHARS = 100
+
+
+def _looks_too_short(text: str) -> bool:
+    """True quando o corpo da seção está anormalmente curto para ser leitura real."""
+    return len((text or "").strip()) < _MIN_SECTION_CHARS
+
+
 # Guard de truncamento: uma leitura cortada no meio de uma frase por limite de
 # tokens é entregue a um cliente pagante hoje sem qualquer detecção — tão grave
 # quanto o vazamento de idioma acima, e igual a ele em estratégia: detectar e
@@ -1184,7 +1266,21 @@ def _call_minimax(
                 {"role": "system", "content": _system_prompt(locale)},
                 {"role": "user", "content": prompt},
             ],
-            "temperature": 0.85,
+            # Medido em 17/08/2026, 50 gerações por configuração, vazamento
+            # contado no corpo final (fora do bloco <think>, que o modelo usa
+            # para pensar em vários idiomas e nunca chega à cliente):
+            #   temp 0.85 sem top_p → 26% das seções com escrita não-latina
+            #   temp 0.7 + top_p 0.9 → 18%, e palavra de outro idioma cai de 8% para 4%
+            # A cauda da distribuição é onde moram os tokens de outros alfabetos;
+            # top_p a corta antes de o sorteio chegar lá. Não elimina o problema
+            # (por isso o guard e a retentativa continuam), mas reduz quase um
+            # terço das refeitas — cada uma custa segundos na janela em que a
+            # leitura precisa ficar pronta antes de a cliente acordar.
+            # 0.7 e não 0.6: a temperatura mais baixa não melhorou o vazamento de
+            # script e deixa o texto mais parecido entre clientes, o que num
+            # produto de leitura personalizada é um estrago pior.
+            "temperature": 0.7,
+            "top_p": 0.9,
             "max_tokens": max_tokens if max_tokens is not None else _max_tokens_for(_extract_content_id(prompt)),
         }
     ).encode()
@@ -1647,12 +1743,18 @@ def _generate_section(
                     last_reason = "script"
                     if attempt + 1 == attempts and same_reason_streak >= 2:
                         correction = (
-                            f"ATENÇÃO, isto já falhou {same_reason_streak}x pelo mesmo motivo: você "
-                            f"insiste em escrever caracteres fora do alfabeto latino ({observado}). "
-                            f"Escreva ESTA seção inteira, do primeiro ao último caractere, apenas em "
-                            f"{language_name} com alfabeto latino puro (a-z com acentos comuns). Se "
-                            "não tiver certeza de uma palavra, use um sinônimo simples e comum em vez "
-                            "de arriscar outro alfabeto."
+                            # Tom descritivo, não acusatório. A versão anterior dizia
+                            # "ATENÇÃO, isto já falhou 2x: você insiste em..." — texto
+                            # que afirma o que o modelo teria feito antes. Isso tem a
+                            # forma de conteúdo injetado ("você disse X"), e num dos
+                            # testes de produção o modelo tratou o próprio prompt como
+                            # ataque e recusou a tarefa. Pedir o resultado desejado
+                            # funciona; repreender o modelo convida a recusa.
+                            f"Requisito não atendido nas tentativas anteriores: o texto "
+                            f"precisa usar somente o alfabeto latino, e apareceu {observado}. "
+                            f"Escreva esta seção inteira em {language_name}, com alfabeto "
+                            "latino (a-z e acentos comuns). Havendo dúvida sobre uma "
+                            "palavra, prefira um sinônimo simples e comum."
                         )
                     else:
                         correction = (
@@ -1672,17 +1774,44 @@ def _generate_section(
                 last_reason = "words"
                 if attempt + 1 == attempts and same_reason_streak >= 2:
                     correction = (
-                        f"ATENÇÃO, isto já falhou {same_reason_streak}x pelo mesmo motivo: você insiste "
-                        f"em misturar idioma, usando palavras como ({vazadas}) que não são de "
-                        f"{language_name}. Reescreva ESTA seção do zero, frase por frase, em "
-                        f"{language_name} puro — nenhuma palavra de outro idioma, nem de aparência "
-                        "parecida. Prefira frases mais simples e curtas a arriscar vocabulário incerto."
+                        # Mesmo motivo do bloco acima: descrever o requisito, não
+                        # acusar o modelo de insistir no erro.
+                        f"Requisito não atendido nas tentativas anteriores: apareceram palavras "
+                        f"fora de {language_name} ({vazadas}). Escreva esta seção inteira em "
+                        f"{language_name}, frase por frase, sem palavras de outro idioma. "
+                        "Frases simples e curtas são preferíveis a vocabulário incerto."
                     )
                 else:
                     correction = (
                         f"você usou palavras de outro idioma ({vazadas}) no meio do texto. "
                         "Substitua cada uma pelo equivalente natural no idioma da leitura"
                     )
+                continue
+            if _looks_like_refusal(body_text):
+                logger.warning(
+                    "MiniMax (%s) devolveu recusa/meta-comentário na seção '%s' (tentativa %d/%d budget=%d); "
+                    "refazendo só esta seção. Início observado: %r",
+                    model_name, section_title, attempt, attempts, escalated_budget, body_text[:120],
+                )
+                same_reason_streak = same_reason_streak + 1 if last_reason == "refusal" else 1
+                last_reason = "refusal"
+                correction = (
+                    "você respondeu recusando ou comentando sobre a tarefa em vez de escrevê-la. Não fale "
+                    "sobre o pedido, sobre você mesma ou sobre limitações — escreva diretamente o texto da "
+                    "seção, começando pela primeira frase da leitura"
+                )
+                continue
+            if _looks_too_short(body_text):
+                logger.warning(
+                    "MiniMax (%s) devolveu seção anormalmente curta (%d caracteres, piso=%d) em '%s' "
+                    "(tentativa %d/%d budget=%d); refazendo só esta seção. Texto: %r",
+                    model_name, len(body_text.strip()), _MIN_SECTION_CHARS, section_title,
+                    attempt, attempts, escalated_budget, body_text,
+                )
+                correction = (
+                    "sua resposta ficou curta demais para uma seção paga. Escreva os parágrafos completos "
+                    "pedidos no formato, com o tamanho pedido"
+                )
                 continue
             if _looks_truncated(body_text):
                 logger.warning(
@@ -1851,6 +1980,19 @@ def generate_reading(content_id: str, title: str, profile, locale: str = "pt-BR"
                     _foreign_word_sample(guard_text, locale),
                     attempt,
                     attempts,
+                )
+                continue
+
+            if _looks_like_refusal(guard_text):
+                logger.warning(
+                    "MiniMax devolveu recusa/meta-comentário na tentativa %d/%d; refazendo. Início observado: %r",
+                    attempt, attempts, guard_text.strip()[:120],
+                )
+                continue
+            if _looks_too_short(guard_text):
+                logger.warning(
+                    "MiniMax devolveu resposta anormalmente curta (%d caracteres, piso=%d) na tentativa %d/%d; refazendo.",
+                    len(guard_text.strip()), _MIN_SECTION_CHARS, attempt, attempts,
                 )
                 continue
 

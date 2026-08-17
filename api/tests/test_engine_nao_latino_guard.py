@@ -61,7 +61,10 @@ def _generate(monkeypatch, respostas, locale="pt-BR", attempts="8", title="O Sol
 # --- fronteira 1: caractere solto sanitiza, leitura sai --------------------
 
 def test_ideograma_solto_e_sanitizado_e_a_leitura_sai(monkeypatch):
-    sujo = "O Sol em Áries acende a 好vontade de começar. Nada segura esse impulso."
+    sujo = (
+        "O Sol em Áries acende a 好vontade de começar. Nada segura esse impulso, "
+        "que pede ação direta em vez de espera — o momento favorece quem decide."
+    )
     section, caiu_no_fallback, chamadas = _generate(monkeypatch, [sujo])
 
     assert len(chamadas) == 1, "caractere isolado não pode custar uma segunda chamada"
@@ -73,8 +76,17 @@ def test_ideograma_solto_e_sanitizado_e_a_leitura_sai(monkeypatch):
 # --- fronteira 2: palavra/frase em chinês reprova e força nova tentativa ---
 
 def test_palavra_chinesa_reprova_e_forca_nova_tentativa(monkeypatch):
-    contaminado = "Esse posicionamento sugere que成长 pessoal acontece devagar."
-    limpo = "Esse posicionamento sugere que o crescimento pessoal acontece devagar."
+    # "成长发展" (4 ideogramas) força reprova por ultrapassar
+    # _FOREIGN_NOISE_MAX_CHARS=3, independente da razão sobre o tamanho do
+    # texto (que cresceu para passar do piso de seção curta).
+    contaminado = (
+        "Esse posicionamento sugere que成长发展 pessoal acontece devagar, num ritmo "
+        "que respeita as circunstâncias em vez de forçar uma virada abrupta."
+    )
+    limpo = (
+        "Esse posicionamento sugere que o crescimento pessoal acontece devagar, "
+        "num ritmo que respeita as circunstâncias em vez de forçar uma virada abrupta."
+    )
     section, caiu_no_fallback, chamadas = _generate(monkeypatch, [contaminado, limpo])
 
     assert len(chamadas) == 2, "palavra chinesa é outro idioma: tem que refazer, não sanitizar"
@@ -95,8 +107,14 @@ def test_cirilico_real_de_producao_reprova_secao_sol():
 
 def test_cirilico_real_de_producao_reprova_secao_marte(monkeypatch):
     # "добав" na seção Marte, observado em geração real (17/08/2026).
-    contaminado = "Marte impulsiona você a добав ar mais disciplina à rotina diária."
-    limpo = "Marte impulsiona você a somar mais disciplina à rotina diária."
+    contaminado = (
+        "Marte impulsiona você a добав ar mais disciplina à rotina diária, mesmo "
+        "quando a vontade inicial não é suficiente para sustentar o hábito novo."
+    )
+    limpo = (
+        "Marte impulsiona você a somar mais disciplina à rotina diária, mesmo "
+        "quando a vontade inicial não é suficiente para sustentar o hábito novo."
+    )
     section, caiu_no_fallback, chamadas = _generate(
         monkeypatch, [contaminado, limpo], title="Marte e sua energia", subtitle="como você age",
     )
@@ -111,7 +129,8 @@ def test_cirilico_real_de_producao_reprova_secao_marte(monkeypatch):
 def test_pt_br_limpo_com_venus_libra_ascendente_nao_reprova(monkeypatch):
     limpo = (
         "Vênus em Libra ilumina o Ascendente e favorece vínculos afetivos mais "
-        "leves. A energia pede equilíbrio entre dar e receber nesta fase."
+        "leves. A energia pede equilíbrio entre dar e receber nesta fase, sem "
+        "abrir mão da própria vontade em nome da harmonia com o outro."
     )
     section, caiu_no_fallback, chamadas = _generate(monkeypatch, [limpo])
 
@@ -123,7 +142,8 @@ def test_pt_br_limpo_com_venus_libra_ascendente_nao_reprova(monkeypatch):
 def test_es_ar_legitimo_nao_reprova(monkeypatch):
     legitimo = (
         "El sextil entre Venus y Marte favorece decisiones afectivas, aunque "
-        "también pide paciencia hacia el final de la semana."
+        "también pide paciencia hacia el final de la semana, sobre todo en "
+        "conversaciones que vienen postergándose desde hace tiempo."
     )
     section, caiu_no_fallback, chamadas = _generate(monkeypatch, [legitimo], locale="es-AR")
 
@@ -135,7 +155,10 @@ def test_es_ar_legitimo_nao_reprova(monkeypatch):
 # --- fronteira 5: erra nas primeiras, acerta na última = leitura boa -------
 
 def test_secao_erra_nas_primeiras_e_acerta_na_ultima_tentativa(monkeypatch):
-    limpo = "O Sol em Áries acende a vontade de começar. Nada segura esse impulso."
+    limpo = (
+        "O Sol em Áries acende a vontade de começar. Nada segura esse impulso, "
+        "que pede ação direta em vez de espera — o momento favorece quem decide."
+    )
     respostas = [
         "Esse posicionamento sugere que成长 pessoal acontece devagar.",
         "Um aspecto que pode estar стимулируя mudanças na sua rotina.",
