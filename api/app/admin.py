@@ -10,10 +10,10 @@ from sqlalchemy.orm import Session
 
 from . import engine as engine_module
 from .db import get_db
-from .models import Entitlement, GenerationJob, Order, Reading, Subscription, User
-from .pricing import PRICES_BRL_MINOR, format_amount, title_for
+from .models import AdminUser, Entitlement, GenerationJob, Order, Reading, Subscription, User
+from .pricing import PRICES_BRL_MINOR, format_amount, market_for, title_for
 from .ratelimit import auth_rate_limit
-from .security import create_token, decode_token
+from .security import create_token, decode_token, verify_password
 from .worker import enqueue_generation_job
 
 logger = logging.getLogger(__name__)
@@ -24,31 +24,113 @@ COOKIE_NAME = "admin_session"
 PAID_STATUSES = {"paid", "approved"}
 COOKIE_SECURE = os.getenv("COOKIE_SECURE", "1") == "1"
 
+# Mercados existentes. Escopo nulo ("ALL") enxerga BR + AR somados e pode
+# filtrar a visualização à vontade; conta presa a um mercado (ver
+# AdminUser.market) só enxerga o dela. O escopo vem do token, nunca de
+# parâmetro de request — senão bastava editar a URL para ver o outro mercado, e
+# a separação entre as equipes seria enfeite.
+MARKETS = {"BR", "AR"}
 
-def require_admin(admin_session: str | None = Cookie(default=None)) -> str:
+
+class AdminIdentity:
+    def __init__(self, admin_id: str, market: str | None) -> None:
+        self.admin_id = admin_id
+        self.market = market  # None = ALL (acesso da dona)
+
+    @property
+    def scoped(self) -> bool:
+        return self.market is not None
+
+
+def require_admin(admin_session: str | None = Cookie(default=None)) -> AdminIdentity:
     payload = decode_token(admin_session) if admin_session else None
-    if not payload or payload["user_id"] != "admin":
+    if not payload or not str(payload["user_id"]).startswith("admin"):
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="not authenticated")
-    return payload["user_id"]
+    market = payload.get("market")
+    if market not in MARKETS:
+        market = None
+    return AdminIdentity(payload["user_id"], market)
+
+
+def user_ids_for_market(db: Session, market: str | None) -> set[str] | None:
+    """IDs de User cujo locale resolve pro mercado do admin. None = sem filtro (dona).
+
+    User sem locale reconhecido cai em pt-BR via pricing.market_for — mesma
+    regra usada pra preço e moeda, então o mesmo cliente nunca aparece em
+    catálogo BR e painel AR ao mesmo tempo.
+    """
+    if market is None:
+        return None
+    rows = db.execute(select(User.id, User.locale)).all()
+    return {uid for uid, locale in rows if market_for(locale) == market}
+
+
+def _require_owner(admin: "AdminIdentity") -> None:
+    """Cota MiniMax e margem de custo são infra/preço globais, não dado de
+    cliente — não têm quebra por mercado no modelo atual. Em vez de misturar
+    BR+AR sob o nariz da equipe escopada (o que pareceria vazamento), nega
+    o acesso: só a dona (ADMIN_PASSWORD) vê."""
+    if admin.scoped:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Disponível apenas para o acesso da dona.")
+
+
+def _require_user_in_scope(admin: "AdminIdentity", user: User) -> None:
+    """404 (não 403 — não revela que o usuário existe) se o usuário não é do
+    mercado do admin escopado."""
+    if admin.scoped and market_for(user.locale) != admin.market:
+        raise HTTPException(status_code=404, detail="Usuário não encontrado.")
 
 
 @router.post("/login", dependencies=[Depends(auth_rate_limit)])
-def login(body: dict, response: Response) -> dict:
-    admin_password = os.getenv("ADMIN_PASSWORD")
-    if not admin_password:
-        raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="admin login not configured")
+def login(body: dict, response: Response, db: Session = Depends(get_db)) -> dict:
+    """Entra no painel por conta (usuário + senha) ou pela senha de emergência.
+
+    Conta manda: o mercado que a pessoa enxerga é atributo dela, guardado no
+    banco, e vai para dentro do token. A senha solta de ambiente
+    (``ADMIN_PASSWORD``) continua valendo com acesso total — é o caminho para
+    ninguém ficar trancado do lado de fora se as contas derem problema.
+    """
+    username = str(body.get("username") or "").strip().lower()
     password = str(body.get("password") or "")
-    if not hmac.compare_digest(password, admin_password):
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="invalid password")
+
+    admin_password = os.getenv("ADMIN_PASSWORD")
+
+    market: str | None = None
+    admin_id = "admin"
+    matched = False
+
+    if username:
+        account = db.scalar(select(AdminUser).where(AdminUser.username == username))
+        # verify_password roda mesmo sem conta encontrada? Não: aqui o custo de
+        # não rodar é um canal de tempo que distingue "usuário existe" de
+        # "usuário não existe". O rate limit da rota (auth_rate_limit) é a
+        # defesa contra enumeração em massa; manter o código simples aqui vale
+        # mais do que um disfarce parcial.
+        if account and account.active and verify_password(password, account.password_hash):
+            matched = True
+            market = account.market
+            admin_id = f"admin:{account.username}"
+            account.last_login_at = datetime.now(timezone.utc)
+            db.commit()
+    elif admin_password and hmac.compare_digest(password, admin_password):
+        matched = True
+        market = None
+
+    has_accounts = db.scalar(select(AdminUser).limit(1)) is not None
+    if not admin_password and not has_accounts:
+        raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="admin login not configured")
+    if not matched:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="invalid credentials")
+
     response.set_cookie(
         COOKIE_NAME,
-        create_token("admin"),
+        create_token(admin_id, market=market),
         httponly=True,
         secure=COOKIE_SECURE,
         samesite="lax",
         max_age=60 * 60 * 24 * 30,
     )
-    return {"ok": True}
+    return {"ok": True, "market": market or "ALL", "scoped": market is not None}
 
 
 @router.post("/logout")
@@ -60,7 +142,9 @@ def logout(response: Response) -> dict:
 @router.get("/session")
 def session(admin_session: str | None = Cookie(default=None)) -> dict:
     payload = decode_token(admin_session) if admin_session else None
-    return {"authenticated": bool(payload and payload["user_id"] == "admin")}
+    authenticated = bool(payload and str(payload["user_id"]).startswith("admin"))
+    market = payload.get("market") if (authenticated and payload.get("market") in MARKETS) else None
+    return {"authenticated": authenticated, "market": market or "ALL"}
 
 
 @router.get("/sales")
@@ -71,11 +155,15 @@ def sales(
     to: str | None = None,
     limit: int = 50,
     offset: int = 0,
-    _admin: str = Depends(require_admin),
+    _admin: AdminIdentity = Depends(require_admin),
     db: Session = Depends(get_db),
 ) -> dict:
     query = db.query(Order)
-    if market:
+    if _admin.scoped:
+        # Escopo vem do token, não do query param: equipe BR/AR não troca
+        # mercado pela URL. O param `market` é ignorado pra quem é escopado.
+        query = query.filter(Order.market == _admin.market)
+    elif market:
         query = query.filter(Order.market == market)
     if status:
         query = query.filter(Order.status == status)
@@ -107,8 +195,12 @@ def sales(
 
 
 @router.get("/summary")
-def summary(_admin: str = Depends(require_admin), db: Session = Depends(get_db)) -> dict:
-    orders = db.query(Order).all()
+def summary(_admin: AdminIdentity = Depends(require_admin), db: Session = Depends(get_db)) -> dict:
+    query = db.query(Order)
+    if _admin.scoped:
+        query = query.filter(Order.market == _admin.market)
+    orders = query.all()
+    scoped_user_ids = user_ids_for_market(db, _admin.market)
 
     revenue_by_market: dict[str, dict] = {}
     by_product: dict[str, dict] = {}
@@ -161,8 +253,19 @@ def summary(_admin: str = Depends(require_admin), db: Session = Depends(get_db))
 
     daily_series = [{"date": day, "sales_count": count} for day, count in sorted(daily.items())]
 
-    users_count = db.query(func.count(User.id)).scalar() or 0
-    active_entitlements = db.query(func.count(Entitlement.id)).filter(Entitlement.status == "available").scalar() or 0
+    if scoped_user_ids is None:
+        users_count = db.query(func.count(User.id)).scalar() or 0
+        active_entitlements = db.query(func.count(Entitlement.id)).filter(Entitlement.status == "available").scalar() or 0
+    else:
+        users_count = len(scoped_user_ids)
+        active_entitlements = (
+            db.query(func.count(Entitlement.id))
+            .filter(Entitlement.status == "available", Entitlement.user_id.in_(scoped_user_ids))
+            .scalar()
+            or 0
+            if scoped_user_ids
+            else 0
+        )
 
     return {
         "revenue_by_market": revenue_by_market,
@@ -179,7 +282,7 @@ def summary(_admin: str = Depends(require_admin), db: Session = Depends(get_db))
 def trials(
     limit: int = 100,
     offset: int = 0,
-    _admin: str = Depends(require_admin),
+    _admin: AdminIdentity = Depends(require_admin),
     db: Session = Depends(get_db),
 ) -> dict:
     """Lista assinantes em período de trial (provider=none, status=trialing)."""
@@ -189,6 +292,9 @@ def trials(
         .filter(Subscription.status == "trialing")
         .order_by(Subscription.created_at.desc())
     )
+    if _admin.scoped:
+        scoped_user_ids = user_ids_for_market(db, _admin.market)
+        query = query.filter(User.id.in_(scoped_user_ids)) if scoped_user_ids else query.filter(False)
     total = query.count()
     rows_raw = query.offset(offset).limit(limit).all()
     now = datetime.now(timezone.utc)
@@ -217,13 +323,14 @@ def trials(
 @router.get("/users/search")
 def users_search(
     email: str,
-    _admin: str = Depends(require_admin),
+    _admin: AdminIdentity = Depends(require_admin),
     db: Session = Depends(get_db),
 ) -> dict:
     """Localiza usuário por e-mail (busca exata, case-insensitive)."""
     user = db.scalars(select(User).where(func.lower(User.email) == email.strip().lower())).first()
     if not user:
         raise HTTPException(status_code=404, detail="Usuário não encontrado.")
+    _require_user_in_scope(_admin, user)
     return {
         "id": user.id,
         "email": user.email,
@@ -236,13 +343,14 @@ def users_search(
 @router.get("/users/{user_id}/readings")
 def user_readings(
     user_id: str,
-    _admin: str = Depends(require_admin),
+    _admin: AdminIdentity = Depends(require_admin),
     db: Session = Depends(get_db),
 ) -> dict:
     """Lista leituras de um usuário com status, fonte e custo estimado de regeração."""
     user = db.get(User, user_id)
     if not user:
         raise HTTPException(status_code=404, detail="Usuário não encontrado.")
+    _require_user_in_scope(_admin, user)
     readings = (
         db.scalars(
             select(Reading)
@@ -381,7 +489,7 @@ def _regenerate_reading_core(
 @router.post("/readings/{reading_id}/regenerate")
 def regenerate_reading(
     reading_id: str,
-    _admin: str = Depends(require_admin),
+    _admin: AdminIdentity = Depends(require_admin),
     db: Session = Depends(get_db),
 ) -> dict:
     """Invalida leitura existente e dispara nova geração.
@@ -396,8 +504,11 @@ def regenerate_reading(
     reading = db.get(Reading, reading_id)
     if not reading:
         raise HTTPException(status_code=404, detail="Leitura não encontrada.")
+    owner = db.get(User, reading.user_id)
+    if owner:
+        _require_user_in_scope(_admin, owner)
     try:
-        return _regenerate_reading_core(db, reading, _admin)
+        return _regenerate_reading_core(db, reading, _admin.admin_id)
     except ActiveJobConflict as conflict:
         raise HTTPException(
             status_code=409,
@@ -409,9 +520,10 @@ def regenerate_reading(
 
 
 @router.get("/quota")
-def quota(_admin: str = Depends(require_admin), db: Session = Depends(get_db)) -> dict:
+def quota(_admin: AdminIdentity = Depends(require_admin), db: Session = Depends(get_db)) -> dict:
     """Consumo de requisições/tokens MiniMax da semana ISO corrente, por
     modelo, contra o teto configurável (MINIMAX_WEEKLY_REQUEST_LIMIT)."""
+    _require_owner(_admin)
     return engine_module.get_weekly_quota_snapshot(db)
 
 
@@ -902,7 +1014,9 @@ def _truncate(text_value: str | None, limit: int = 300) -> str:
 _BUCKET_RANK = {"failed": 0, "orphan": 1, "pending": 2, "done": 3}
 
 
-def _collect_deliveries(db: Session, date: str | None, product_id: str | None) -> tuple[list[dict], str]:
+def _collect_deliveries(
+    db: Session, date: str | None, product_id: str | None, market: str | None = None
+) -> tuple[list[dict], str]:
     start_utc, end_utc, day_iso = _sp_day_bounds(date)
     query = (
         select(Reading, User)
@@ -912,6 +1026,8 @@ def _collect_deliveries(db: Session, date: str | None, product_id: str | None) -
     if product_id:
         query = query.where(Reading.product_id == product_id)
     pairs = db.execute(query).all()
+    if market is not None:
+        pairs = [(reading, user) for reading, user in pairs if market_for(user.locale) == market]
     readings = [reading for reading, _user in pairs]
     jobs = _latest_jobs_by_key(db, readings)
 
@@ -946,7 +1062,7 @@ def _collect_deliveries(db: Session, date: str | None, product_id: str | None) -
 def deliveries(
     date: str | None = None,
     product_id: str | None = None,
-    _admin: str = Depends(require_admin),
+    _admin: AdminIdentity = Depends(require_admin),
     db: Session = Depends(get_db),
 ) -> dict:
     """Entregas de um dia (default: hoje em America/Sao_Paulo), por produto.
@@ -954,7 +1070,7 @@ def deliveries(
     Problemas primeiro: o que o automático abandonou encabeça a lista, depois
     o órfão sem job, depois o que ainda está em andamento, e por fim o entregue.
     """
-    rows, day_iso = _collect_deliveries(db, date, product_id)
+    rows, day_iso = _collect_deliveries(db, date, product_id, _admin.market)
 
     groups: dict[str, dict] = {}
     for row in rows:
@@ -995,11 +1111,11 @@ def deliveries(
 def deliveries_summary(
     date: str | None = None,
     product_id: str | None = None,
-    _admin: str = Depends(require_admin),
+    _admin: AdminIdentity = Depends(require_admin),
     db: Session = Depends(get_db),
 ) -> dict:
     """Contagem por produto e por status do dia — alimenta os cards do topo."""
-    rows, day_iso = _collect_deliveries(db, date, product_id)
+    rows, day_iso = _collect_deliveries(db, date, product_id, _admin.market)
 
     totals = {"total": 0, "done": 0, "pending": 0, "failed": 0, "orphan": 0, "needs_human": 0, "auto_will_retry": 0}
     by_product: dict[str, dict] = {}
@@ -1042,7 +1158,7 @@ def deliveries_summary(
 @router.post("/deliveries/retry-batch")
 def deliveries_retry_batch(
     body: dict | None = None,
-    _admin: str = Depends(require_admin),
+    _admin: AdminIdentity = Depends(require_admin),
     db: Session = Depends(get_db),
 ) -> dict:
     """Redispara em lote as entregas problemáticas do dia.
@@ -1074,7 +1190,7 @@ def deliveries_retry_batch(
         except (TypeError, ValueError) as exc:
             raise HTTPException(status_code=400, detail="limit deve ser inteiro.") from exc
 
-    rows, day_iso = _collect_deliveries(db, date, product_id)
+    rows, day_iso = _collect_deliveries(db, date, product_id, _admin.market)
     # "pending" na UI cobre tanto o em andamento quanto o órfão sem job.
     candidates = [
         row for row in rows
@@ -1110,7 +1226,7 @@ def deliveries_retry_batch(
             continue
 
         try:
-            result = _regenerate_reading_core(db, reading, _admin)
+            result = _regenerate_reading_core(db, reading, _admin.admin_id)
         except ActiveJobConflict as conflict:
             # Corrida: job apareceu entre a listagem e o disparo. Contar como
             # pulado é o comportamento certo — quem chegou primeiro foi o
@@ -1137,8 +1253,8 @@ def deliveries_retry_batch(
 
     remaining = sum(1 for s in skipped if s["reason"] == "batch_limit")
     logger.info(
-        "admin_retry_batch admin=%s date=%s product=%s enqueued=%d skipped=%d limit=%d",
-        _admin, day_iso, product_id, len(enqueued), len(skipped), limit,
+        "admin_retry_batch admin=%s market=%s date=%s product=%s enqueued=%d skipped=%d limit=%d",
+        _admin.admin_id, _admin.market or "ALL", day_iso, product_id, len(enqueued), len(skipped), limit,
     )
 
     return {
@@ -1161,15 +1277,18 @@ def deliveries_retry_batch(
 @router.post("/deliveries/{reading_id}/retry")
 def deliveries_retry(
     reading_id: str,
-    _admin: str = Depends(require_admin),
+    _admin: AdminIdentity = Depends(require_admin),
     db: Session = Depends(get_db),
 ) -> dict:
     """Redispara UMA entrega. Mesma lógica do regenerate — mesma função."""
     reading = db.get(Reading, reading_id)
     if not reading:
         raise HTTPException(status_code=404, detail="Leitura não encontrada.")
+    owner = db.get(User, reading.user_id)
+    if owner:
+        _require_user_in_scope(_admin, owner)
     try:
-        result = _regenerate_reading_core(db, reading, _admin)
+        result = _regenerate_reading_core(db, reading, _admin.admin_id)
     except ActiveJobConflict as conflict:
         raise HTTPException(
             status_code=409,
@@ -1179,12 +1298,12 @@ def deliveries_retry(
             ),
         ) from conflict
     result["triggered_by"] = "manual"
-    result["triggered_by_admin"] = _admin
+    result["triggered_by_admin"] = _admin.admin_id
     return result
 
 
 @router.get("/pipeline-status")
-def pipeline_status(_admin: str = Depends(require_admin), db: Session = Depends(get_db)) -> dict:
+def pipeline_status(_admin: AdminIdentity = Depends(require_admin), db: Session = Depends(get_db)) -> dict:
     """Status global do pipeline: leituras por status, jobs por status, alertas críticos.
 
     Alertas críticos:
@@ -1192,48 +1311,45 @@ def pipeline_status(_admin: str = Depends(require_admin), db: Session = Depends(
       É o caso "cliente pagou e não recebeu" — o mais urgente da tela.
     - stuck_in_progress: leitura com status=in_progress parada há mais de 30 min
       (updated_at defasado). Indica job travado ou worker morto.
+
+    Escopado: para admin de mercado, todas as contagens (readings, jobs,
+    alertas) consideram só usuários daquele mercado.
     """
-    reading_counts_raw = (
-        db.query(Reading.status, func.count(Reading.id))
-        .group_by(Reading.status)
-        .all()
-    )
-    readings_by_status = {st: cnt for st, cnt in reading_counts_raw}
+    scoped_user_ids = user_ids_for_market(db, _admin.market)
 
-    job_counts_raw = (
-        db.query(GenerationJob.status, func.count(GenerationJob.id))
-        .group_by(GenerationJob.status)
-        .all()
-    )
-    jobs_by_status = {st: cnt for st, cnt in job_counts_raw}
+    reading_q = db.query(Reading.status, func.count(Reading.id))
+    job_q = db.query(GenerationJob.status, func.count(GenerationJob.id))
+    if scoped_user_ids is not None:
+        reading_q = reading_q.filter(Reading.user_id.in_(scoped_user_ids)) if scoped_user_ids else reading_q.filter(False)
+        job_q = job_q.filter(GenerationJob.user_id.in_(scoped_user_ids)) if scoped_user_ids else job_q.filter(False)
 
-    failed_reading_ids = db.scalars(
-        select(GenerationJob.reading_id).where(GenerationJob.status == "failed")
-    ).all()
+    readings_by_status = {st: cnt for st, cnt in reading_q.group_by(Reading.status).all()}
+    jobs_by_status = {st: cnt for st, cnt in job_q.group_by(GenerationJob.status).all()}
+
+    failed_jobs_q = select(GenerationJob.reading_id).where(GenerationJob.status == "failed")
+    if scoped_user_ids is not None:
+        failed_jobs_q = failed_jobs_q.where(GenerationJob.user_id.in_(scoped_user_ids)) if scoped_user_ids else failed_jobs_q.where(False)
+    failed_reading_ids = db.scalars(failed_jobs_q).all()
 
     paid_no_content = 0
     if failed_reading_ids:
-        paid_no_content = (
-            db.query(func.count(Reading.id))
-            .filter(
-                Reading.id.in_(failed_reading_ids),
-                Reading.status != "superseded",
-                func.length(Reading.body_html) == 0,
-            )
-            .scalar()
-            or 0
+        paid_no_content_q = db.query(func.count(Reading.id)).filter(
+            Reading.id.in_(failed_reading_ids),
+            Reading.status != "superseded",
+            func.length(Reading.body_html) == 0,
         )
+        if scoped_user_ids is not None:
+            paid_no_content_q = paid_no_content_q.filter(Reading.user_id.in_(scoped_user_ids)) if scoped_user_ids else paid_no_content_q.filter(False)
+        paid_no_content = paid_no_content_q.scalar() or 0
 
     thirty_min_ago = datetime.now(timezone.utc) - timedelta(minutes=30)
-    stuck_count = (
-        db.query(func.count(Reading.id))
-        .filter(
-            Reading.status == "in_progress",
-            Reading.updated_at < thirty_min_ago,
-        )
-        .scalar()
-        or 0
+    stuck_q = db.query(func.count(Reading.id)).filter(
+        Reading.status == "in_progress",
+        Reading.updated_at < thirty_min_ago,
     )
+    if scoped_user_ids is not None:
+        stuck_q = stuck_q.filter(Reading.user_id.in_(scoped_user_ids)) if scoped_user_ids else stuck_q.filter(False)
+    stuck_count = stuck_q.scalar() or 0
 
     return {
         "readings_by_status": readings_by_status,
@@ -1249,7 +1365,7 @@ def pipeline_status(_admin: str = Depends(require_admin), db: Session = Depends(
 def clients(
     limit: int = 50,
     offset: int = 0,
-    _admin: str = Depends(require_admin),
+    _admin: AdminIdentity = Depends(require_admin),
     db: Session = Depends(get_db),
 ) -> dict:
     """Visão por cliente: entitlements + contagem de leituras por status.
@@ -1263,7 +1379,12 @@ def clients(
     ent_user_ids_q = select(Entitlement.user_id).distinct()
     order_user_ids_q = select(Order.user_id).where(Order.user_id.is_not(None)).distinct()
     all_ids_q = union(ent_user_ids_q, order_user_ids_q)
-    all_user_ids = list(db.scalars(all_ids_q).all())
+    all_user_ids = set(db.scalars(all_ids_q).all())
+
+    scoped_user_ids = user_ids_for_market(db, _admin.market)
+    if scoped_user_ids is not None:
+        all_user_ids &= scoped_user_ids
+    all_user_ids = list(all_user_ids)
 
     if not all_user_ids:
         return {"total": 0, "limit": limit, "offset": offset, "clients": []}
@@ -1336,7 +1457,7 @@ def clients(
 @router.get("/users/{user_id}/detail")
 def user_detail(
     user_id: str,
-    _admin: str = Depends(require_admin),
+    _admin: AdminIdentity = Depends(require_admin),
     db: Session = Depends(get_db),
 ) -> dict:
     """Detalhe completo de um usuário: entitlements + todas as leituras (incluindo supersedidas).
@@ -1348,6 +1469,7 @@ def user_detail(
     user = db.get(User, user_id)
     if not user:
         raise HTTPException(status_code=404, detail="Usuário não encontrado.")
+    _require_user_in_scope(_admin, user)
 
     entitlements = db.scalars(
         select(Entitlement)
@@ -1407,11 +1529,12 @@ def user_detail(
 
 
 @router.get("/cost")
-def cost(_admin: str = Depends(require_admin), db: Session = Depends(get_db)) -> dict:
+def cost(_admin: AdminIdentity = Depends(require_admin), db: Session = Depends(get_db)) -> dict:
     """Análise de custo por conteúdo e produto (ESTIMADO) + consumo real (MEDIDO).
 
     ESTIMADO = cálculo a partir de budget de tokens e preços de tabela MiniMax.
     MEDIDO = weekly_quota snapshot (persistido em site_quota_usage).
     Não misture os dois numa decisão de preço — são fontes distintas.
     """
+    _require_owner(_admin)
     return cost_catalog(db)

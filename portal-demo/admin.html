@@ -40,6 +40,10 @@
 
     /* app shell */
     #app-screen{display:none}
+.market-badge{margin-left:10px;padding:3px 10px;border-radius:999px;font-size:12px;font-weight:700;letter-spacing:.03em;border:1px solid var(--line)}
+.market-badge.market-br{background:#0f3d1f;color:#7fe3a3;border-color:#1e6b3a}
+.market-badge.market-ar{background:#1a2f57;color:#8ab4ff;border-color:#2c4c8c}
+.market-badge.market-all{background:#3a2f0f;color:#f0c96a;border-color:#6b5a1e}
     header.top{position:sticky;top:0;z-index:10;border-bottom:1px solid var(--line);background:rgba(8,7,25,.94)}
     header.top .wrap{display:flex;min-height:64px;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap;padding:10px 0}
     .brand{display:inline-flex;align-items:center;gap:9px;color:var(--gold-lit);font:600 22px var(--display)}
@@ -216,6 +220,10 @@
       <h1 id="login-title">Painel administrativo</h1>
       <p>Acesso restrito à equipe AstroDicas.</p>
       <div class="field">
+        <label for="admin-user">Usuário</label>
+        <input type="text" id="admin-user" name="username" autocomplete="username" autocapitalize="none" spellcheck="false" placeholder="seu usuário">
+      </div>
+      <div class="field">
         <label for="admin-password">Senha</label>
         <input type="password" id="admin-password" name="password" autocomplete="current-password" required>
       </div>
@@ -228,6 +236,12 @@
     <header class="top">
       <div class="wrap">
         <span class="brand"><span class="brand-mark">✦</span>AstroDicas · Admin</span>
+        <span id="market-badge" class="market-badge" hidden></span>
+        <select id="market-scope" class="button secondary small" hidden aria-label="Mercado exibido">
+          <option value="">Tudo (BR + AR)</option>
+          <option value="BR">Só BR</option>
+          <option value="AR">Só AR</option>
+        </select>
         <button class="button secondary small" id="logout-btn" type="button">Sair</button>
       </div>
     </header>
@@ -509,6 +523,33 @@
     const statusMsg = document.getElementById('status-msg');
     const dashboard = document.getElementById('dashboard');
     const loginError = document.getElementById('login-error');
+    const marketBadge = document.getElementById('market-badge');
+
+    // Filtro de visualização de quem tem escopo total. Não é permissão: o
+    // backend só aceita este parâmetro de conta `all`, e ignora de conta presa
+    // a um mercado — então mexer aqui nunca amplia o que se enxerga.
+    const viewState = { market: '' };
+    const marketScopeSel = document.getElementById('market-scope');
+
+    function setMarketBadge(market) {
+      const m = market || 'ALL';
+      marketBadge.textContent = m === 'ALL' ? 'BR + AR' : m;
+      marketBadge.className = 'market-badge market-' + m.toLowerCase();
+      marketBadge.hidden = false;
+      // Só quem tem escopo total escolhe o recorte; conta presa a um mercado
+      // não ganha seletor nenhum, para não sugerir uma troca que o backend vai
+      // recusar de qualquer jeito.
+      const podeFiltrar = m === 'ALL';
+      marketScopeSel.hidden = !podeFiltrar;
+      if (podeFiltrar) marketScopeSel.value = viewState.market;
+    }
+
+    marketScopeSel.addEventListener('change', () => {
+      viewState.market = marketScopeSel.value;
+      marketBadge.textContent = viewState.market || 'BR + AR';
+      marketBadge.className = 'market-badge market-' + (viewState.market || 'all').toLowerCase();
+      loadDashboard();
+    });
 
     const salesState = { limit: 20, offset: 0, market: '', status: '' };
     const clientsState = { limit: 50, offset: 0 };
@@ -517,6 +558,12 @@
     // Core API helper
     // ---------------------------------------------------------------------------
     async function api(path, options = {}) {
+      // Carrega o filtro escolhido em toda chamada, para painel inteiro (listas
+      // e totais) falar do mesmo recorte. Conta escopada manda o param também,
+      // e o backend o descarta — a decisão é dele, não da tela.
+      if (viewState.market && !path.includes('market=')) {
+        path += (path.includes('?') ? '&' : '?') + 'market=' + viewState.market;
+      }
       const response = await fetch(API + path, {
         credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
@@ -547,8 +594,8 @@
 
     async function checkSession() {
       try {
-        const { authenticated } = await api('/session');
-        if (authenticated) { showApp(); loadDashboard(); } else { showLogin(); }
+        const { authenticated, market } = await api('/session');
+        if (authenticated) { setMarketBadge(market); showApp(); loadDashboard(); } else { showLogin(); }
       } catch { showLogin(); }
     }
 
@@ -556,15 +603,20 @@
       ev.preventDefault();
       loginError.textContent = '';
       const password = document.getElementById('admin-password').value;
+      // Usuário vazio = senha de emergência (ADMIN_PASSWORD). O backend
+      // distingue os dois casos; aqui só não mandamos campo vazio.
+      const username = document.getElementById('admin-user').value.trim();
       try {
         const response = await fetch(API + '/login', {
           method: 'POST', credentials: 'include',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ password }),
+          body: JSON.stringify(username ? { username, password } : { password }),
         });
-        if (response.status === 401) { loginError.textContent = 'Senha incorreta.'; return; }
+        if (response.status === 401) { loginError.textContent = 'Usuário ou senha incorretos.'; return; }
         if (response.status === 503) { loginError.textContent = 'Login não configurado no servidor.'; return; }
         if (!response.ok) { loginError.textContent = 'Erro ao entrar. Tente novamente.'; return; }
+        const { market } = await response.json();
+        setMarketBadge(market);
         showApp();
         loadDashboard();
       } catch { loginError.textContent = 'Falha de conexão. Tente novamente.'; }

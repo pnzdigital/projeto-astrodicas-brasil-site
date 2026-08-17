@@ -243,3 +243,29 @@ class GenerationJob(Base):
     triggered_by: Mapped[str] = mapped_column(String(16), default="auto")
     triggered_by_admin: Mapped[str | None] = mapped_column(String(120), nullable=True)
     triggered_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+
+class AdminUser(Base):
+    """Conta de operador do painel, com o mercado que ela enxerga.
+
+    Existe porque BR e AR são atendidos por equipes diferentes: a operadora
+    argentina não deve ver cliente brasileira, e vice-versa. Antes o painel
+    tinha uma senha só, guardada em variável de ambiente — dava para separar
+    times apenas criando mais senhas, e senha compartilhada não diz quem fez o
+    quê nem se revoga sem trocar para todo mundo.
+
+    ``market`` é o escopo da CONTA: "BR" ou "AR" prendem a pessoa àquele
+    mercado, e NULL significa acesso total (a dona), que pode filtrar a
+    visualização à vontade. Essa distinção é o que impede o filtro de tela de
+    virar escalada de acesso: quem tem escopo fixo tem o parâmetro ignorado.
+    """
+
+    __tablename__ = "site_admin_users"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=lambda: str(uuid4()))
+    username: Mapped[str] = mapped_column(String(80), unique=True, index=True)
+    password_hash: Mapped[str] = mapped_column(String(255))
+    market: Mapped[str | None] = mapped_column(String(2), nullable=True)
+    active: Mapped[bool] = mapped_column(Boolean, default=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now_utc)
+    last_login_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)

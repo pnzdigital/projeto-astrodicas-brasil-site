@@ -86,7 +86,7 @@ def test_login_sales_and_summary(admin_client):
     assert login.status_code == 200, login.text
 
     session = admin_client.get("/api/admin/session")
-    assert session.json() == {"authenticated": True}
+    assert session.json() == {"authenticated": True, "market": "ALL"}
 
     sales = admin_client.get("/api/admin/sales")
     assert sales.status_code == 200, sales.text
@@ -124,4 +124,4 @@ def test_login_sales_and_summary(admin_client):
     logout = admin_client.post("/api/admin/logout")
     assert logout.status_code == 200
     after_logout = admin_client.get("/api/admin/session")
-    assert after_logout.json() == {"authenticated": False}
+    assert after_logout.json() == {"authenticated": False, "market": "ALL"}

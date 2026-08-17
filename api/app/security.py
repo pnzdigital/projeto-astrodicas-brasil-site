@@ -36,18 +36,17 @@ SESSION_TTL_SECONDS = SESSION_TTL_DAYS * 24 * 60 * 60
 REFRESH_AFTER_SECONDS = 24 * 60 * 60
 
 
-def create_token(user_id: str, token_epoch: int = 0) -> str:
+def create_token(user_id: str, token_epoch: int = 0, market: str | None = None) -> str:
     issued_at = datetime.now(timezone.utc)
-    return jwt.encode(
-        {
-            "sub": user_id,
-            "iat": issued_at,
-            "exp": issued_at + timedelta(seconds=SESSION_TTL_SECONDS),
-            "ep": token_epoch,
-        },
-        SECRET_KEY,
-        algorithm=ALGORITHM,
-    )
+    claims = {
+        "sub": user_id,
+        "iat": issued_at,
+        "exp": issued_at + timedelta(seconds=SESSION_TTL_SECONDS),
+        "ep": token_epoch,
+    }
+    if market is not None:
+        claims["mkt"] = market
+    return jwt.encode(claims, SECRET_KEY, algorithm=ALGORITHM)
 
 
 def decode_token(token: str) -> dict | None:
@@ -57,6 +56,7 @@ def decode_token(token: str) -> dict | None:
             "user_id": str(payload["sub"]),
             "epoch": int(payload.get("ep", 0)),
             "issued_at": int(payload.get("iat", 0)),
+            "market": payload.get("mkt"),
         }
     except (jwt.PyJWTError, KeyError, TypeError, ValueError):
         return None
