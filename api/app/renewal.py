@@ -483,8 +483,6 @@ def run_weekly_forecast(db: Session) -> dict:
     from .engine import generate_reading
 
     now = _now()
-    # ISO week de referência (YYYY-Www) — chave de idempotência por semana
-    iso_week = f"{now.isocalendar().year}-W{now.isocalendar().week:02d}"
     stats: dict[str, int] = {"sent": 0, "skipped": 0, "no_profile": 0, "errors": 0}
     portal = portal_url()
 
@@ -507,6 +505,16 @@ def run_weekly_forecast(db: Session) -> dict:
         if not user:
             stats["skipped"] += 1
             continue
+
+        # A semana é a MESMA que a pré-geração usou para montar o conteúdo
+        # (_pregen_target_iso_week): dia local da cliente, e sábado/domingo já
+        # contam para a semana seguinte. Antes daqui saía a semana ISO em UTC,
+        # sem a regra de fim de semana — justamente no sábado, que é quando
+        # esta rotina roda. As duas chaves divergiam: o texto era o da semana
+        # que vem e a marca de idempotência era o da semana que está
+        # acabando, então o envio podia repetir ou anunciar a semana errada.
+        locale_semana = getattr(user, "locale", "pt-BR") or "pt-BR"
+        iso_week = _pregen_target_iso_week(locale_semana)
 
         # Idempotência: (user_id, "weekly_forecast", iso_week)
         if _already_sent(db, ent.id, "weekly_forecast", iso_week):
