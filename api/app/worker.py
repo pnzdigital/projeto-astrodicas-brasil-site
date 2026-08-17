@@ -20,6 +20,7 @@ from sqlalchemy import select, text
 from sqlalchemy.orm import Session
 
 from .db import SessionLocal, engine
+from .job_failure_monitor import monitor as failure_monitor
 from .models import GenerationJob, Reading
 
 logger = logging.getLogger(__name__)
@@ -269,6 +270,7 @@ def run_job(job_id: str) -> None:
         db.refresh(job)
         job.status = "done"
         db.commit()
+        failure_monitor.record_success()
 
         # Notificação push: dispara fora da sessão do job para não travar o loop
         try:
@@ -289,6 +291,7 @@ def _fail_or_retry(db: Session, job: GenerationJob, error: str) -> None:
     job.last_error = error[:2000]
     if job.attempts >= MAX_JOB_ATTEMPTS:
         job.status = "failed"
+        failure_monitor.record_failure(error)
         reading = db.get(Reading, job.reading_id)
         if reading and reading.status not in ("ready",):
             # FAIL-CLOSED: quando ativo, não marca 'fallback' — mantém

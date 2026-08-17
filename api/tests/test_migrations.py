@@ -9,12 +9,83 @@ correção chama `migrations.ensure_schema()` no startup, que roda os
 
 from __future__ import annotations
 
-from sqlalchemy import text
+import tempfile
+from pathlib import Path
+
+import pytest
+from sqlalchemy import create_engine, text
+from sqlalchemy.orm import sessionmaker
 
 from app import migrations
-from app.db import engine
+from app.db import Base, engine, get_db
+from app.main import app
 
 from conftest import register
+
+
+def _create_legacy_orders_table(target_engine) -> None:
+    """Simula o schema pré-migração numa engine qualquer (site_orders sem
+    locale/market/customer_email)."""
+    with target_engine.begin() as connection:
+        connection.execute(text("DROP TABLE IF EXISTS site_orders"))
+        connection.execute(
+            text(
+                """
+                CREATE TABLE site_orders (
+                    id VARCHAR(36) PRIMARY KEY,
+                    user_id VARCHAR(36),
+                    provider VARCHAR(40),
+                    external_id VARCHAR(255),
+                    product_id VARCHAR(120),
+                    status VARCHAR(32),
+                    amount_minor INTEGER,
+                    currency VARCHAR(8),
+                    raw_payload TEXT,
+                    created_at TIMESTAMP
+                )
+                """
+            )
+        )
+
+
+@pytest.fixture()
+def isolated_orders_db(monkeypatch):
+    """Banco SQLite dedicado a este teste, isolado do engine global.
+
+    Motivo: este teste dropa/recria `site_orders` com SQL cru. No engine
+    global, compartilhado por toda a suíte via `app.db.engine`, isso corrompe
+    o schema visto por qualquer outra thread/conexão que esteja em voo no
+    mesmo instante (ex.: threads reais de `worker.run_job` disparadas por
+    outros testes) — daí o `OperationalError: table site_orders` intermitente
+    quando a suíte inteira roda, mesmo o teste passando isolado. Uma engine
+    própria elimina a contenção sem enfraquecer a verificação: ainda é uma
+    tabela pré-existente sem as colunas novas, ainda é `ensure_schema()`
+    rodando os `ALTER TABLE` de verdade contra ela.
+    """
+    tmp_dir = Path(tempfile.mkdtemp(prefix="astrodicas-migrations-test-"))
+    test_engine = create_engine(
+        f"sqlite:///{tmp_dir / 'isolated.db'}",
+        connect_args={"check_same_thread": False},
+    )
+    Base.metadata.create_all(test_engine)
+    _create_legacy_orders_table(test_engine)
+
+    TestSessionLocal = sessionmaker(bind=test_engine, autoflush=False, autocommit=False)
+
+    def _override_get_db():
+        db = TestSessionLocal()
+        try:
+            yield db
+        finally:
+            db.close()
+
+    monkeypatch.setattr(migrations, "engine", test_engine)
+    app.dependency_overrides[get_db] = _override_get_db
+    try:
+        yield test_engine
+    finally:
+        del app.dependency_overrides[get_db]
+        test_engine.dispose()
 
 
 def _drop_and_recreate_as_legacy_schema() -> None:
@@ -46,10 +117,11 @@ def _drop_and_recreate_as_legacy_schema() -> None:
         )
 
 
-def test_checkout_order_survives_pre_existing_orders_table_missing_new_columns(client, monkeypatch):
+def test_checkout_order_survives_pre_existing_orders_table_missing_new_columns(
+    client, monkeypatch, isolated_orders_db
+):
     """Reproduz o payload real do portal-demo/checkout.html contra o schema legado."""
     monkeypatch.setenv("CHECKOUT_PROVIDER_BR", "cakto")
-    _drop_and_recreate_as_legacy_schema()
     migrations.ensure_schema()
 
     response = client.post(
