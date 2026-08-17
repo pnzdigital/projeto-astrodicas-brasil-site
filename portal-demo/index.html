@@ -399,6 +399,25 @@
     .upsell-item b { color: var(--gold); font-size: 15px; }
 
     .mobile-nav { display: none; }
+    .pwa-banner {
+      position: fixed;
+      left: 50%;
+      bottom: calc(1rem + env(safe-area-inset-bottom));
+      transform: translateX(-50%);
+      background: var(--surface, #1a1735);
+      border: 1px solid var(--border, #2d2a5e);
+      border-radius: 12px;
+      padding: .75rem 1rem;
+      z-index: 9998;
+      max-width: 360px;
+      width: calc(100% - 2rem);
+      box-shadow: 0 4px 24px rgba(0,0,0,.4);
+    }
+    body.pwa-banner-visible { padding-bottom: var(--pwa-banner-space, 0px); }
+    @media (max-width: 760px) {
+      /* .mobile-nav vira fixed nesta largura — o banner precisa ficar acima dela, não sobreposto. */
+      .pwa-banner { bottom: calc(70px + env(safe-area-inset-bottom)); }
+    }
     .toast {
       position: fixed;
       right: 22px;
@@ -788,7 +807,7 @@
   <div class="toast" role="status" aria-live="polite"></div>
 
   <!-- Banner de instalação como app (Android/Desktop) -->
-  <div id="pwa-install-banner" hidden style="position:fixed;bottom:1rem;left:50%;transform:translateX(-50%);background:var(--surface,#1a1735);border:1px solid var(--border,#2d2a5e);border-radius:12px;padding:.75rem 1rem;display:flex;align-items:center;gap:.75rem;z-index:9998;max-width:360px;width:calc(100% - 2rem);box-shadow:0 4px 24px rgba(0,0,0,.4)">
+  <div id="pwa-install-banner" class="pwa-banner" hidden style="display:flex;align-items:center;gap:.75rem">
     <span style="font-size:1.4rem">✦</span>
     <span style="flex:1;font-size:.9rem">Adicionar AstroDicas à tela de início</span>
     <button id="pwa-install-btn" class="button small" type="button">Instalar</button>
@@ -796,10 +815,10 @@
   </div>
 
   <!-- Instrução para iOS (sem beforeinstallprompt) -->
-  <div id="pwa-ios-hint" hidden style="position:fixed;bottom:1rem;left:50%;transform:translateX(-50%);background:var(--surface,#1a1735);border:1px solid var(--border,#2d2a5e);border-radius:12px;padding:.75rem 1rem;font-size:.85rem;z-index:9998;max-width:360px;width:calc(100% - 2rem);box-shadow:0 4px 24px rgba(0,0,0,.4)"></div>
+  <div id="pwa-ios-hint" class="pwa-banner" hidden style="font-size:.85rem"></div>
 
   <!-- Banner de permissão de notificações push -->
-  <div id="push-permission-banner" hidden style="position:fixed;bottom:1rem;left:50%;transform:translateX(-50%);background:var(--surface,#1a1735);border:1px solid var(--border,#2d2a5e);border-radius:12px;padding:.75rem 1rem;display:flex;flex-direction:column;gap:.6rem;z-index:9997;max-width:360px;width:calc(100% - 2rem);box-shadow:0 4px 24px rgba(0,0,0,.4)">
+  <div id="push-permission-banner" class="pwa-banner" hidden style="display:flex;flex-direction:column;gap:.6rem;z-index:9997">
     <p id="push-permission-msg" style="margin:0;font-size:.9rem"></p>
     <div style="display:flex;gap:.5rem;justify-content:flex-end">
       <button id="push-permission-no" class="button ghost small" type="button">Agora não</button>
@@ -2270,19 +2289,51 @@
     // -----------------------------------------------------------------------
     // PWA / Push — inicializa após showToast estar disponível
     // -----------------------------------------------------------------------
+    // Reserva espaço no fim da página enquanto um banner fixo (pwa-banner)
+    // estiver visível, em vez de deixá-lo flutuar por cima do conteúdo.
+    const PWA_DISMISS_KEY = 'astrodicas_pwa_install_dismissed_at';
+    const PWA_DISMISS_DAYS = 30;
+    function pwaBannerDismissedRecently() {
+      const raw = Number(localStorage.getItem(PWA_DISMISS_KEY) || 0);
+      return raw > 0 && Date.now() - raw < PWA_DISMISS_DAYS * 24 * 60 * 60 * 1000;
+    }
+    function dismissPwaBanner() { localStorage.setItem(PWA_DISMISS_KEY, String(Date.now())); }
+    function showPwaBannerEl(el) {
+      if (!el) return;
+      el.hidden = false;
+      const space = Math.max(...['pwa-install-banner', 'pwa-ios-hint'].map((id) => {
+        const node = document.getElementById(id);
+        return node && !node.hidden ? node.offsetHeight : 0;
+      }));
+      document.documentElement.style.setProperty('--pwa-banner-space', `calc(${space}px + 1rem)`);
+      document.body.classList.add('pwa-banner-visible');
+    }
+    function hidePwaBannerEl(el) {
+      if (!el) return;
+      el.hidden = true;
+      const stillOpen = ['pwa-install-banner', 'pwa-ios-hint'].some((id) => !document.getElementById(id)?.hidden);
+      if (!stillOpen) document.body.classList.remove('pwa-banner-visible');
+    }
+    // Só existe alguma leitura pronta para justificar o convite de instalar
+    // app "vazio". Checa allReadings (populado por refreshPrivateData).
+    function hasAnyReadingReady() {
+      return (appState.allReadings || []).some((r) => r.status === 'ready' || r.status === 'fallback');
+    }
     if (typeof AstroPush !== 'undefined') {
       AstroPush.init(API_BASE, showToast);
 
-      // Banner de instalação — mostra após 3 s se não estiver em standalone
-      if (!AstroPush.isInStandaloneMode()) {
+      // Banner de instalação — mostra após 3 s se não estiver em standalone,
+      // não tiver sido dispensado nos últimos 30 dias, e já existir alguma
+      // leitura pronta (convite pra instalar app vazio é ruído).
+      if (!AstroPush.isInStandaloneMode() && !pwaBannerDismissedRecently()) {
         setTimeout(() => {
+          if (!hasAnyReadingReady()) return;
           if (AstroPush.isIos()) {
             // iOS: instrução manual
             const hint = document.getElementById('pwa-ios-hint');
-            if (hint) AstroPush.showIosInstallHint(hint);
+            if (hint) { AstroPush.showIosInstallHint(hint); showPwaBannerEl(hint); }
           } else if (AstroPush.canPromptInstall()) {
-            const banner = document.getElementById('pwa-install-banner');
-            if (banner) banner.hidden = false;
+            showPwaBannerEl(document.getElementById('pwa-install-banner'));
           }
         }, 3000);
       }
@@ -2290,10 +2341,12 @@
       // Botão "Instalar app"
       document.getElementById('pwa-install-btn')?.addEventListener('click', () => {
         AstroPush.promptInstall();
-        document.getElementById('pwa-install-banner').hidden = true;
+        dismissPwaBanner();
+        hidePwaBannerEl(document.getElementById('pwa-install-banner'));
       });
       document.getElementById('pwa-install-dismiss')?.addEventListener('click', () => {
-        document.getElementById('pwa-install-banner').hidden = true;
+        dismissPwaBanner();
+        hidePwaBannerEl(document.getElementById('pwa-install-banner'));
       });
 
       // Botão de ativar notificações nas configurações de conta

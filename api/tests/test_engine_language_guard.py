@@ -158,6 +158,58 @@ def test_ingles_reprova_em_qualquer_locale():
     assert engine._has_foreign_words(texto, "es-AR")
 
 
+# Trecho real de Previsão Semanal pt-BR (produção, 2026-08-17): "current" e
+# "passing" (inglês) e "cielo" (espanhol) soltos dentro de frase pt-BR — não
+# é concorrência de gerações, é a MESMA geração vazando token de outro
+# idioma. _ENGLISH_LEAK_WORDS/_SPANISH_ONLY_LEAK_WORDS não pegavam nenhum
+# dos três antes desta cobertura.
+TRECHO_PREVISAO_SEMANAL_PT_BR = (
+    "O melhor a fazer nesses dias é evitar confrontos desnecessários e escolher "
+    "com cuidado onde aplicar sua energia. Ao mesmo tempo, Vênus em Libra current "
+    "traz um alívio suave nas relações interpessoais. A Lua passing pelo seu "
+    "cielo também favorece momentos mais leves de conexão com as pessoas próximas."
+)
+
+
+def test_reprova_trecho_real_de_previsao_semanal_pt_br():
+    assert engine._has_foreign_words(TRECHO_PREVISAO_SEMANAL_PT_BR, "pt-BR")
+    assert engine._has_language_leak(TRECHO_PREVISAO_SEMANAL_PT_BR, "pt-BR")
+    amostra = engine._foreign_word_sample(TRECHO_PREVISAO_SEMANAL_PT_BR, "pt-BR")
+    for palavra in ("current", "passing", "cielo"):
+        assert palavra in amostra.lower()
+
+
+def test_espanhol_legitimo_com_vocabulario_ampliado_nao_reprova_em_es_ar():
+    texto = (
+        "Hacia el final de la semana, siempre que Venus aporte energía y "
+        "acompañe tu nacimiento astrológico, el vínculo con tu entorno mejora."
+    )
+    assert not engine._has_foreign_words(texto, "es-AR")
+    assert not engine._has_language_leak(texto, "es-AR")
+
+
+def test_portugues_legitimo_ampliado_nao_reprova_em_pt_br():
+    texto = (
+        "Seu céu natal, na posição de Vênus em Libra, favorece o "
+        "nascimento de vínculos afetivos mais leves nesta semana."
+    )
+    assert not engine._has_foreign_words(texto, "pt-BR")
+    assert not engine._has_language_leak(texto, "pt-BR")
+
+
+def test_espanhol_legitimo_com_a_traves_nao_reprova_em_es_ar():
+    # "a través" é espanhol correto — não pode disparar o guard português.
+    texto = "El aspecto se nota a través de la posición de Venus en Libra esta semana."
+    assert not engine._has_foreign_words(texto, "es-AR")
+    assert not engine._has_language_leak(texto, "es-AR")
+
+
+def test_portugues_vazando_em_es_ar_com_vocabulario_ampliado():
+    texto = "El aspecto favorece que el céu se note en el nascimento de nuevas ideas."
+    assert engine._has_foreign_words(texto, "es-AR")
+    assert engine._has_language_leak(texto, "es-AR")
+
+
 def test_regenera_ate_tres_vezes_quando_palavra_vaza_de_outro_idioma(monkeypatch):
     monkeypatch.setenv("MINIMAX_API_KEY", "chave-de-teste")
     monkeypatch.setenv("MINIMAX_MAX_ATTEMPTS", "3")

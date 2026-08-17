@@ -1027,6 +1027,13 @@ _ENGLISH_LEAK_WORDS = frozenset(
         # lugar do português "essencial", não pega no guard de script (letras
         # latinas) e passava batido porque não estava na lista.
         "essential", "essentially",
+        # Observado em produção (2026-08-17, Previsão Semanal pt-BR): "Vênus
+        # em Libra current traz um alívio..." e "A Lua passing pelo seu
+        # cielo...". "current"/"passing" são função gramatical (adjetivo/
+        # gerúndio) sem uso legítimo em prosa pt-BR/es-AR — sem colisão com
+        # termo astrológico.
+        "current", "passing", "through", "during",
+        "energy", "journey", "chart", "house", "sign",
     }
 )
 
@@ -1035,6 +1042,10 @@ _SPANISH_ONLY_LEAK_WORDS = frozenset(
         "intercambio", "manifestarse", "tambien", "también",
         "aunque", "sino", "segun", "según", "asimismo",
         "ademas", "además", "porque no",
+        # Mesmo caso de produção acima: "cielo" (ES: céu) dentro de frase
+        # pt-BR. "energía"/"nacimiento" só existem em ES (pt-BR: "energia"
+        # sem acento, "nascimento") — acento/grafia isolam do falso positivo.
+        "cielo", "hacia", "siempre", "energía", "nacimiento",
     }
 )
 
@@ -1056,6 +1067,14 @@ _PORTUGUESE_LEAK_IN_ES_AR = frozenset({
     "mercúrio",
     "netuno",
     "innecesária",
+    # "você" já tem ê (guard de caractere pega sozinho) mas "céu" tem só é
+    # (não capturado pelo guard ãõê) e não existe em espanhol.
+    # "nascimento"/"seu"/"sua" não têm acento nenhum, precisam de entrada
+    # explícita — não colidem com palavra espanhola nem termo astrológico.
+    # NÃO inclui "através": "a través" é espanhol legítimo (mesma grafia do
+    # português sem o acento na primeira sílaba) — entraria como falso
+    # positivo em texto es-AR correto.
+    "céu", "nascimento", "seu", "sua",
 })
 
 # Caracteres tipicamente portugueses que NUNCA aparecem em texto espanhol
