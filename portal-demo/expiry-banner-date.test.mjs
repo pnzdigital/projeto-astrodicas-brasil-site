@@ -2,9 +2,10 @@ import { test } from 'node:test';
 import { strict as assert } from 'node:assert';
 
 // Reproduz a lógica de rótulo hoje/amanhã de renderExpiryBanner.
-function expiryDayLabel(isoDate, isArgentina = false) {
+// `nowDate` é injetável pra deixar o teste determinístico em qualquer horário.
+function expiryDayLabel(isoDate, isArgentina = false, nowDate = new Date()) {
   const end = new Date(isoDate);
-  const now = new Date();
+  const now = nowDate;
   const tomorrow = new Date(now);
   tomorrow.setDate(now.getDate() + 1);
   const isToday = end.toDateString() === now.toDateString();
@@ -14,12 +15,12 @@ function expiryDayLabel(isoDate, isArgentina = false) {
 }
 
 // Trial block: janela de 36h — testa que o rótulo é correto dentro dela.
-function msLeft(isoDate) {
-  return new Date(isoDate).getTime() - Date.now();
+function msLeft(isoDate, nowMs = Date.now()) {
+  return new Date(isoDate).getTime() - nowMs;
 }
 
-function inWindow(isoDate) {
-  const ms = msLeft(isoDate);
+function inWindow(isoDate, nowMs = Date.now()) {
+  const ms = msLeft(isoDate, nowMs);
   return ms >= 0 && ms <= 36 * 3600 * 1000;
 }
 
@@ -46,9 +47,14 @@ test('trial vence amanhã às 10:00 → label "mañana" (ES)', () => {
 });
 
 test('trial vence em 9h (hoje) → label "hoje", NÃO "amanhã"', () => {
-  const d = new Date(Date.now() + 9 * 3600 * 1000);
-  assert(inWindow(d.toISOString()), 'deve estar na janela de 36h');
-  const label = expiryDayLabel(d.toISOString());
+  // "Agora" fixo em 08:00 local — vencer em +9h cai às 17:00 do MESMO dia
+  // local em qualquer timezone, então o teste não depende da hora real de
+  // execução (era isso que quebrava à noite: +9h virava dia seguinte).
+  const now = new Date();
+  now.setHours(8, 0, 0, 0);
+  const d = new Date(now.getTime() + 9 * 3600 * 1000);
+  assert(inWindow(d.toISOString(), now.getTime()), 'deve estar na janela de 36h');
+  const label = expiryDayLabel(d.toISOString(), false, now);
   assert.equal(label, 'hoje', `esperado "hoje", obtido "${label}"`);
 });
 

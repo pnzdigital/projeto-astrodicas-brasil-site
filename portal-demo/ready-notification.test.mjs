@@ -62,7 +62,10 @@ function boot(initialResponses) {
   const stubConfig = { default: { content: [], checkout: { defaultProvider: 'gg_checkout', providers: {} } } };
   window.__STUB_CONFIG__ = stubConfig;
 
-  const scriptMatch = html.match(/<script type="module">([\s\S]*?)<\/script>\s*<\/body>/);
+  // Extrai só o <script type="module">, não mais assumindo que ele é o
+  // último elemento antes de </body> (index.html hoje tem support-widget.js
+  // depois dele) — casa pelo próprio fechamento do script, não pelo body.
+  const scriptMatch = html.match(/<script type="module">([\s\S]*?)<\/script>/);
   if (!scriptMatch) throw new Error('module script não encontrado em index.html');
   let body = scriptMatch[1];
   body = body.replace(
