@@ -147,6 +147,11 @@
     const params = new URLSearchParams(location.search);
     const isEs = location.pathname.startsWith('/es');
     const locale = isEs ? 'es-AR' : 'pt-BR';
+    // lang e title assim que o idioma é conhecido, sem esperar o catálogo
+    // carregar: a aba e o leitor de tela mostram o idioma certo desde o
+    // primeiro instante, e não o rótulo pt-BR estático do HTML.
+    document.documentElement.lang = locale;
+    document.title = isEs ? 'AstroDicas · Finalizá tu compra' : 'AstroDicas · Finalize sua compra';
     const copy = COPY[locale];
     const productId = params.get('product') || (isEs ? 'site:diario_astral_completo' : 'site:diario_astral_completo');
     const notice = document.getElementById('notice');
