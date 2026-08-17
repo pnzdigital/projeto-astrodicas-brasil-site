@@ -33,6 +33,9 @@ from .security import (
 )
 
 
+from .logging_config import configure_logging
+
+configure_logging()
 logger = logging.getLogger(__name__)
 
 SITE_ROOT = Path(__file__).resolve().parents[2]

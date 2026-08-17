@@ -328,10 +328,9 @@ def _fail_or_retry(db: Session, job: GenerationJob, error: str) -> None:
 
 def worker_loop() -> None:  # pragma: no cover
     """Loop principal do worker — roda até SIGTERM."""
-    logging.basicConfig(
-        level=logging.INFO,
-        format="%(asctime)s %(levelname)s %(name)s %(message)s",
-    )
+    from .logging_config import configure_logging
+
+    configure_logging()
     logger.info(
         "Worker iniciado. MAX_CONCURRENCY=%d VISIBILITY_TIMEOUT=%dmin",
         MAX_CONCURRENCY,

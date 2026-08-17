@@ -50,10 +50,13 @@ Obrigatórias marcar com ⚠️.
 | `GEOCODING_TIMEOUT_SECONDS` | Não | `8` (padrão) | Timeout geocodificação em segundos |
 | `MP_TIMEOUT_SECONDS` | Não | `20` (padrão) | Timeout Mercado Pago em segundos |
 | `GEOCODING_ENABLED` | Não | `1` (ativar) ou `0` (desativar) | Coordenadas de nascimento não resolvem |
-| `ADMIN_PASSWORD` | ⚠️ | Gera: senha segura, 16+ chars | `/admin` indisponível; login recusa; guard de produção recusa boot sem ela |
+| `ADMIN_PASSWORD` | ⚠️ | Gera: senha segura, 16+ chars | `/admin` indisponível; login recusa; guard de produção recusa boot sem ela. Login com esta senha vê BR + AR somados (acesso da dona) |
+| `ADMIN_PASSWORD_BR` | Não | Gera: senha segura, 16+ chars, diferente de `ADMIN_PASSWORD_AR` | Sem ela, a equipe BR não tem senha própria — usa `ADMIN_PASSWORD` (dona) ou fica sem acesso |
+| `ADMIN_PASSWORD_AR` | Não | Gera: senha segura, 16+ chars, diferente de `ADMIN_PASSWORD_BR` | Sem ela, a equipe AR não tem senha própria. Cada senha loga já escopada pro mercado dela — clientes, pedidos, entitlements, leituras, entregas e receita do outro mercado ficam invisíveis, filtrado no backend pelo token de sessão (não dá pra trocar de mercado pela URL) |
 | `TASK_SECRET` | ⚠️ (se cron do Coolify chamar as rotas `/api/tasks/*`) | Gera: `openssl rand -hex 32` | 503 nos crons de renovação/trial (`renewal.py`) e reentrega de e-mail de compra (`checkout.py`); validado por header `x-task-secret` |
 | `ROLE` | Não (interno) | `public` (vitrine) ou `dash` (portal) | Scripts dev; Coolify ignora |
 | `PORT` | Não (interno) | `8080` (padrão) | Scripts dev; Coolify ignora |
+| `LOG_LEVEL` | Não | `INFO` (padrão) ou `WARNING`/`DEBUG`/`ERROR` | Sem `INFO` (ou nível mais verboso), `logger.info(...)` da app some do log do container — root logger fica em WARNING por padrão do Python. Configurado uma vez por processo em `api/app/logging_config.py`, aplicado tanto no uvicorn (`main.py`) quanto no worker (`worker.py`, processo separado) |
 
 **Em Produção:** ⚠️ todas as variáveis são obrigatórias se o serviço as usa.  
 **NUNCA:** valores reais em `.env.example`, CLAUDE.md, ou histórico Git.
