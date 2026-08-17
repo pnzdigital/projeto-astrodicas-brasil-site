@@ -641,6 +641,19 @@ def save_profile(body: ProfileBody, request: Request, site_session: str | None =
             profile.birth_latitude, profile.birth_longitude = map(str, coordinates)
     db.add(profile)
     db.commit()
+    if profile.birth_date and profile.birth_city:
+        # Fecha o buraco entre "pagou" e "recebeu": quem compra nasce sem
+        # perfil (checkout.fulfill_order cria o User na hora), então
+        # enqueue_map_generation na compra sempre volta cedo por falta de
+        # data/local. Salvar o perfil é o único gatilho que sobra — sem isto
+        # a cliente só recebe conteúdo se voltar ao portal e clicar no card.
+        # Nunca deve derrubar o salvamento do perfil: silencioso em falha.
+        try:
+            product_ids = [e.product_id for e in user.entitlements if entitlements.is_active(e)]
+            if product_ids:
+                enqueue_map_generation(db, user, product_ids)
+        except Exception:
+            logger.exception("enqueue_map_generation (profile save) falhou para user=%s", user.id)
     return {"profile": profile_to_dict(profile), "user": {"name": user.name}}
 
 
