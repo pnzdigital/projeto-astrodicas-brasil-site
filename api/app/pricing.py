@@ -16,6 +16,9 @@ antes de cair na taxa.
 
 from __future__ import annotations
 
+from dataclasses import dataclass
+from typing import Literal
+
 BRL_TO_ARS = 310  # taxa de referência entre catálogos; valores próprios em PRICES_ARS_MINOR escapam dela.
 
 # product_id -> preço em centavos de BRL.
@@ -147,8 +150,10 @@ BUNDLES: dict[str, tuple[str, ...]] = {
         "site:mapa_amor_sinastria",
         "site:mapa_prosperidade",
     ),
-    # Brinde do 1º mês: mapa_astral concedido após a primeira cobrança confirmada.
-    # sync_entitlements (subscriptions.py) garante que bundle items não saem durante o trial.
+    # Brinde do Diário Astral: mapa_astral concedido após a primeira cobrança
+    # confirmada (nunca durante trial — ver sync_entitlements em
+    # subscriptions.py). A política de "só na primeira compra da vida" (não
+    # reconcede em renovação) está em BUNDLE_BONUSES, não aqui.
     "site:diario_astral": ("site:mapa_astral",),
     "site:combo_mapa_astral_amor": ("site:mapa_astral", "site:mapa_amor_sinastria"),
     "site:combo_mapa_astral_carreira": ("site:mapa_astral", "site:mapa_carreira"),
@@ -160,6 +165,46 @@ BUNDLES: dict[str, tuple[str, ...]] = {
     "site:combo_diario_astral_mapa_amor": ("site:diario_astral", "site:mapa_amor_sinastria"),
     "site:combo_diario_astral_mapa_prosperidade": ("site:diario_astral", "site:mapa_prosperidade"),
 }
+
+BonusGrantPolicy = Literal["once", "always"]
+
+
+@dataclass(frozen=True)
+class BundleBonus:
+    """Regra de concessão de um item de BUNDLES que é brinde, não item pago.
+
+    ``policy="once"``: concede uma única vez na vida da cliente. Se o
+    entitlement já existiu antes — ativo, revogado ou expirado, tanto faz —
+    uma nova compra do bundle não reconcede nem reenfileira geração.
+    ``policy="always"`` (o padrão de qualquer item de BUNDLES que não apareça
+    aqui): reconcede/reativa a cada compra, o comportamento comum de bundle.
+    """
+
+    bundle_product_id: str
+    bonus_product_id: str
+    policy: BonusGrantPolicy = "always"
+
+
+# Onde a dona mexe amanhã pra mudar a regra do brinde: trocar o produto do
+# brinde, dar o brinde em toda compra numa promoção (policy="always"), ou
+# adicionar brinde "uma vez só" pra outro bundle. fulfill_order (checkout.py)
+# e sync_entitlements (subscriptions.py) leem a política daqui via
+# bonus_policy() — nenhum dos dois precisa mudar de código pra isso.
+BUNDLE_BONUSES: tuple[BundleBonus, ...] = (
+    # Brinde do Diário Astral: mapa_astral vitalício, só na primeira compra
+    # paga da cliente. Renovação (ou segunda compra depois de cancelar) não
+    # concede de novo.
+    BundleBonus("site:diario_astral", "site:mapa_astral", policy="once"),
+)
+
+
+def bonus_policy(bundle_product_id: str, bonus_product_id: str) -> BonusGrantPolicy:
+    """Política de concessão de ``bonus_product_id`` dentro do bundle de ``bundle_product_id``."""
+    for bonus in BUNDLE_BONUSES:
+        if bonus.bundle_product_id == bundle_product_id and bonus.bonus_product_id == bonus_product_id:
+            return bonus.policy
+    return "always"
+
 
 # Nenhum produto cobra sozinho. Desde 08/08/2026 o Diário Astral é compra de
 # 30 dias de acesso (``checkout.TIMED_ACCESS_PRODUCTS``), não assinatura: o

@@ -322,10 +322,13 @@ _LONG_CONTENT_IDS = frozenset({
 # esgotarem (uma má sorte seguida da outra); 3 tentativas reduz essa
 # probabilidade sem custo relevante (cada tentativa extra é ~1800 tokens,
 # não 7000).
-# 8 e não 5: cada tentativa agora carrega a correção do erro anterior, então as
-# tentativas extras têm chance real de acertar. Custo de requisição não é
-# restrição aqui (decisão da dona) — perder um mapa pago, sim.
-_SECTION_MAX_ATTEMPTS_DEFAULT = "8"
+# 10 e não 8 (revisado 17/08/2026, vazamento real em produção: "реали" na
+# seção Sol, "добав" na seção Marte, ambos cirílico). Cada tentativa agora
+# carrega a correção do erro anterior, então as tentativas extras têm chance
+# real de acertar. Custo de requisição não é restrição aqui (decisão da dona,
+# textual: "limite de requisição não é problema, o MiniMax tem folga de
+# sobra") — perder um mapa pago, sim.
+_SECTION_MAX_ATTEMPTS_DEFAULT = "10"
 
 # Per-section timeout: medição de 13/08 (27 chamadas reais) mostrou mediana de
 # 22s e cauda de 40s para chamadas que completam. 40s cobre todas as respostas
@@ -859,8 +862,8 @@ def _language_lock_text(locale: str) -> str:
         "trígono, quadratura, nomes de signo) seguem sempre a grafia do idioma da leitura. Revise "
         "mentalmente cada frase antes de escrevê-la: se uma palavra não é claramente desse idioma, troque-a. "
         "Use exclusivamente caracteres do alfabeto latino: nenhum ideograma (chinês, japonês, coreano) "
-        "e nenhum outro alfabeto (cirílico, árabe, grego, hebraico) pode aparecer no texto, nem solto no "
-        "meio de uma palavra."
+        "e nenhuma outra escrita (cirílico, árabe, hebraico, grego, tailandês, devanágari) pode aparecer "
+        "no texto, nem solto no meio de uma palavra."
     )
 
 
@@ -1584,6 +1587,14 @@ def _generate_section(
         timeout_limit = max(1, int(os.getenv("MINIMAX_SECTION_TIMEOUT_CONSECUTIVE_LIMIT", _SECTION_TIMEOUT_CONSECUTIVE_LIMIT_DEFAULT)))
         consecutive_timeouts = 0
         correction: str | None = None
+        # Repetir a mesma correção genérica quando o modelo já falhou 2x pelo
+        # MESMO motivo raramente muda o resultado — ele já viu esse aviso e
+        # derrapou de novo. Na ÚLTIMA tentativa, se o motivo se repetiu,
+        # trocamos por instrução mais explícita e nomeando o idioma-alvo
+        # (em vez de reenviar o aviso idêntico pela terceira/quarta vez).
+        last_reason: str | None = None
+        same_reason_streak = 0
+        language_name = "espanhol rioplatense" if locale == "es-AR" else "português do Brasil"
         for attempt in range(1, attempts + 1):
             prompt = _build_prompt(correction)
             escalated_budget = min(
@@ -1632,10 +1643,22 @@ def _generate_section(
                         "MiniMax (%s) devolveu caractere fora do alfabeto latino (%s) na seção '%s', tentativa %d/%d budget=%d; refazendo só esta seção.",
                         model_name, observado, section_title, attempt, attempts, escalated_budget,
                     )
-                    correction = (
-                        f"o texto veio com caracteres fora do alfabeto latino ({observado}). "
-                        "Escreva usando apenas o alfabeto latino"
-                    )
+                    same_reason_streak = same_reason_streak + 1 if last_reason == "script" else 1
+                    last_reason = "script"
+                    if attempt + 1 == attempts and same_reason_streak >= 2:
+                        correction = (
+                            f"ATENÇÃO, isto já falhou {same_reason_streak}x pelo mesmo motivo: você "
+                            f"insiste em escrever caracteres fora do alfabeto latino ({observado}). "
+                            f"Escreva ESTA seção inteira, do primeiro ao último caractere, apenas em "
+                            f"{language_name} com alfabeto latino puro (a-z com acentos comuns). Se "
+                            "não tiver certeza de uma palavra, use um sinônimo simples e comum em vez "
+                            "de arriscar outro alfabeto."
+                        )
+                    else:
+                        correction = (
+                            f"o texto veio com caracteres fora do alfabeto latino ({observado}). "
+                            "Escreva usando apenas o alfabeto latino"
+                        )
                     continue
             if _has_foreign_words(body_text, locale):
                 # Palavra estrangeira NÃO é cortada: remover "insights" do meio
@@ -1645,10 +1668,21 @@ def _generate_section(
                     "MiniMax (%s) vazou palavra de outro idioma (%s) na seção '%s', tentativa %d/%d budget=%d; refazendo só esta seção.",
                     model_name, vazadas, section_title, attempt, attempts, escalated_budget,
                 )
-                correction = (
-                    f"você usou palavras de outro idioma ({vazadas}) no meio do texto. "
-                    "Substitua cada uma pelo equivalente natural no idioma da leitura"
-                )
+                same_reason_streak = same_reason_streak + 1 if last_reason == "words" else 1
+                last_reason = "words"
+                if attempt + 1 == attempts and same_reason_streak >= 2:
+                    correction = (
+                        f"ATENÇÃO, isto já falhou {same_reason_streak}x pelo mesmo motivo: você insiste "
+                        f"em misturar idioma, usando palavras como ({vazadas}) que não são de "
+                        f"{language_name}. Reescreva ESTA seção do zero, frase por frase, em "
+                        f"{language_name} puro — nenhuma palavra de outro idioma, nem de aparência "
+                        "parecida. Prefira frases mais simples e curtas a arriscar vocabulário incerto."
+                    )
+                else:
+                    correction = (
+                        f"você usou palavras de outro idioma ({vazadas}) no meio do texto. "
+                        "Substitua cada uma pelo equivalente natural no idioma da leitura"
+                    )
                 continue
             if _looks_truncated(body_text):
                 logger.warning(
@@ -1790,8 +1824,10 @@ def generate_reading(content_id: str, title: str, profile, locale: str = "pt-BR"
         prompt = _prompt(content_id, title, profile, locale, customer_name)
         # O drift de idioma é estocástico: a mesma chamada repetida costuma sair
         # limpa. Preferimos gastar uma segunda chamada a entregar uma leitura
-        # paga com ideograma no meio da frase.
-        attempts = max(1, int(os.getenv("MINIMAX_MAX_ATTEMPTS", "3")))
+        # paga com ideograma no meio da frase. 5 e não 3 (revisado 17/08/2026,
+        # mesmo motivo do _SECTION_MAX_ATTEMPTS_DEFAULT acima): a dona liberou
+        # requisição extra sem limite prático de custo.
+        attempts = max(1, int(os.getenv("MINIMAX_MAX_ATTEMPTS", "5")))
         for attempt in range(1, attempts + 1):
             try:
                 raw = _call_minimax(prompt, locale)

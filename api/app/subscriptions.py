@@ -14,10 +14,12 @@ Três decisões que sustentam isso:
    mesmo que o primeiro tenha vencido. O guard verifica qualquer subscription
    do produto, independente do status.
 
-3. **Brinde do 1º mês vitalício.** O Mapa Astral Completo (``site:mapa_astral``)
-   é concedido UMA vez, quando a primeira cobrança confirma — não durante o
-   trial, e não a cada renovação. PDF entregue é da assinante para sempre.
-   ``sync_entitlements`` faz essa distinção via ``_had_first_payment``.
+3. **Brinde do Diário Astral, uma vez na vida.** O Mapa Astral Completo
+   (``site:mapa_astral``) é concedido quando a primeira cobrança confirma —
+   nunca durante o trial. A política de "só na primeira compra, nunca de
+   novo numa renovação" vem de ``pricing.bonus_policy`` (mesma fonte que
+   ``checkout.fulfill_order`` usa) — ``sync_entitlements`` só decide QUANDO
+   considerar pago via ``_had_first_payment``.
 """
 
 from __future__ import annotations
@@ -142,22 +144,28 @@ def _had_first_payment(subscription: Subscription) -> bool:
     return period_end > trial_end
 
 
-def sync_entitlements(db: Session, subscription: Subscription) -> None:
+def sync_entitlements(db: Session, subscription: Subscription) -> list[str]:
     """Espelha o prazo da assinatura nos entitlements do plano.
 
     Regras:
     - Produto base (site:diario_astral): expires_at = current_period_end, sempre
       atualizado. Cancelamento não apaga — acesso dura até o fim do período.
     - Bundle items (site:mapa_astral e similares): só após primeira cobrança
-      confirmada, sem expires_at (vitalício). Renovações não sobrescrevem o
-      expires_at já nulo — PDF entregue é da assinante para sempre.
+      confirmada. A política de concessão (uma vez na vida da cliente, ou a
+      cada compra) vem de ``pricing.bonus_policy`` — a mesma que ``fulfill_order``
+      (checkout.py) aplica, para o caminho de assinatura não contornar a regra.
     - Durante trial (sem cobrança confirmada): apenas o produto base é concedido.
+
+    Retorna a lista de product_ids recém-concedidos (criados ou reativados
+    nesta chamada) para quem for enfileirar geração de conteúdo.
     """
     expires_at = _aware(subscription.current_period_end)
     paid = _had_first_payment(subscription)
+    granted_now: list[str] = []
 
     for product_id in pricing.granted_products(subscription.product_id):
         is_bundle_item = product_id != subscription.product_id
+        policy = pricing.bonus_policy(subscription.product_id, product_id) if is_bundle_item else "always"
 
         if is_bundle_item and not paid:
             continue  # brinde só após primeira cobrança
@@ -169,7 +177,15 @@ def sync_entitlements(db: Session, subscription: Subscription) -> None:
             )
         )
         if entitlement:
-            entitlement.status = "available"
+            if is_bundle_item and policy == "once":
+                # Já teve este entitlement antes — ativo, revogado ou expirado
+                # não importa. Brinde de uma vez só não reconcede nem
+                # reenfileira geração numa renovação.
+                continue
+            if entitlement.status != "available":
+                entitlement.status = "available"
+                if is_bundle_item:
+                    granted_now.append(product_id)
             if not is_bundle_item:
                 # Produto base: atualiza prazo a cada renovação.
                 entitlement.expires_at = expires_at
@@ -186,6 +202,30 @@ def sync_entitlements(db: Session, subscription: Subscription) -> None:
                 expires_at=None if is_bundle_item else expires_at,
             )
         )
+        if is_bundle_item:
+            granted_now.append(product_id)
+
+    return granted_now
+
+
+def _enqueue_bonus_generation(db: Session, user_id: str, granted_now: list[str]) -> None:
+    """Enfileira geração de conteúdo dos bundle items recém-concedidos (ex.: mapa_astral).
+
+    Mesmo padrão de checkout.fulfill_order: falha aqui não pode reverter a
+    liberação do entitlement, já committado. Late import por causa do ciclo
+    main -> subscriptions.
+    """
+    if not granted_now:
+        return
+    from .main import enqueue_map_generation
+
+    user = db.get(User, user_id)
+    if not user:
+        return
+    try:
+        enqueue_map_generation(db, user, granted_now)
+    except Exception:
+        logger.exception("enqueue_map_generation falhou para user=%s", user_id)
 
 
 def active_subscription(db: Session, user_id: str) -> Subscription | None:
@@ -461,8 +501,9 @@ async def subscription_notification(request: Request, db: Session = Depends(get_
         already_notified = bool((subscription.raw_payload or {}).get("notified_at"))
         is_new_account = bool((subscription.raw_payload or {}).get("new_account"))
         subscription.raw_payload = {**_digest(preapproval), "new_account": is_new_account}
-        sync_entitlements(db, subscription)
+        granted_now = sync_entitlements(db, subscription)
         db.commit()
+        _enqueue_bonus_generation(db, subscription.user_id, granted_now)
 
         if just_authorized and not already_notified:
             user = db.get(User, subscription.user_id)
@@ -503,7 +544,10 @@ async def subscription_notification(request: Request, db: Session = Depends(get_
         subscription.current_period_end = base + timedelta(days=30)
         if subscription.status == "trialing":
             subscription.status = "active"
-        sync_entitlements(db, subscription)
+        granted_now = sync_entitlements(db, subscription)
+        db.commit()
+        _enqueue_bonus_generation(db, subscription.user_id, granted_now)
+        return {"ok": True, "subscription_id": subscription.id, "status": subscription.status}
     db.commit()
     return {"ok": True, "subscription_id": subscription.id, "status": subscription.status}
 

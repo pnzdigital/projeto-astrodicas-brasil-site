@@ -432,6 +432,8 @@ def fulfill_order(db: Session, order: Order) -> User:
     granted_now = []
     timed = order.product_id in TIMED_ACCESS_PRODUCTS
     for product_id in pricing.granted_products(order.product_id):
+        is_bonus_item = product_id != order.product_id
+        policy = pricing.bonus_policy(order.product_id, product_id) if is_bonus_item else "always"
         entitlement = db.scalar(
             select(Entitlement).where(Entitlement.user_id == user.id, Entitlement.product_id == product_id)
         )
@@ -452,6 +454,11 @@ def fulfill_order(db: Session, order: Order) -> User:
             new_expires_at = base + timedelta(days=DIARIO_ASTRAL_ACCESS_DAYS)
 
         if entitlement:
+            if policy == "once":
+                # Já teve este entitlement antes — ativo, revogado ou expirado
+                # não importa. Brinde de uma vez só não reconcede nem
+                # reenfileira geração numa renovação/segunda compra.
+                continue
             if entitlement.status != "available":
                 entitlement.status = "available"
                 granted_now.append(product_id)

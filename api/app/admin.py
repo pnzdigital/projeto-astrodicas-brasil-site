@@ -560,7 +560,7 @@ _PRODUCT_CYCLE_PLAN: dict[str, list[tuple[str, int, bool]]] = {
         ("site:content:horoscopo_diario", 30, True),
         ("site:content:guia_do_mes", 1, True),
         ("site:content:previsao_semanal", 4, True),
-        ("site:content:mapa_astral_completo", 1, False),  # brinde do 1º mês
+        ("site:content:mapa_astral_completo", 1, False),  # brinde: só na 1ª compra da vida
     ],
     "site:mapa_astral": [
         ("site:content:mapa_astral_completo", 1, False),
