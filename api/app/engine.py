@@ -39,7 +39,16 @@ def _record_quota_usage(model: str, completion_tokens: int | None) -> None:
             logger.info("minimax_quota bucket=m3_tokens_month delta=%d total=%d", tokens, _QUOTA_COUNTERS["m3_tokens"])
         else:
             _QUOTA_COUNTERS["m2_7_requests"] += 1
-            logger.info("minimax_quota bucket=m2_7_requests_week delta=1 total=%d", _QUOTA_COUNTERS["m2_7_requests"])
+            # Rótulo por COTA, não por modelo: o balde é "requisições por semana"
+            # e vale para qualquer modelo que não seja o M3 (cobrado em tokens/mês).
+            # Dizia "m2_7" e continuou dizendo isso depois da troca para o
+            # Text-01 — log que nomeia modelo errado manda o leitor investigar
+            # a coisa errada. A chave do dict fica como está para não quebrar
+            # quem já lê o snapshot.
+            logger.info(
+                "minimax_quota bucket=requests_week model=%s delta=1 total=%d",
+                model, _QUOTA_COUNTERS["m2_7_requests"],
+            )
 
 
 def get_quota_counters() -> dict:
