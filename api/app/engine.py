@@ -418,9 +418,53 @@ _MINIMAX_MAX_INFLIGHT = max(1, int(os.getenv("MINIMAX_MAX_INFLIGHT", "8")))
 # tentativa de uma seção de leitura paga. A 60 rpm um Mapa Astral (15 seções)
 # leva 15s de piso, e a pré-geração de 100 clientes × 3 seções drena em 5 min —
 # folgado dentro da janela da madrugada.
+# 60 rpm foi o palpite calibrado no teste isolado, e a produção o desmentiu na
+# primeira rajada: 45 chamadas em 91s (~30 rpm de média) ainda tomaram três
+# 429. O teto da conta é mais baixo do que a sonda de 20 requisições sugeriu, e
+# provavelmente sensível a pico, não só a média.
+#
+# Por isso o ritmo não é mais um número fixo escolhido por mim: ele se ajusta
+# sozinho. Começa no teto configurado, DOBRA o espaçamento a cada recusa por
+# volume e volta a acelerar devagar quando o provedor está aceitando. É o
+# desenho clássico de controle de congestionamento — desce rápido, sobe devagar
+# — e é o que sobrevive a mudança de plano, mudança de limite do fornecedor e
+# crescimento de cliente sem ninguém reajustar constante na mão.
 _MINIMAX_DEFAULT_MAX_RPM = 60.0
 _MINIMAX_MAX_RPM = max(1.0, float(os.getenv("MINIMAX_MAX_RPM", _MINIMAX_DEFAULT_MAX_RPM)))
-_MINIMAX_MIN_INTERVAL = 60.0 / _MINIMAX_MAX_RPM
+# Piso de ritmo: nem sob recusa contínua desce abaixo disso, senão a fila da
+# madrugada nunca drena e a leitura não fica pronta antes de a cliente acordar.
+_MINIMAX_MIN_RPM = max(1.0, float(os.getenv("MINIMAX_MIN_RPM", "6")))
+_MINIMAX_BASE_INTERVAL = 60.0 / _MINIMAX_MAX_RPM
+_MINIMAX_MAX_INTERVAL = 60.0 / _MINIMAX_MIN_RPM
+# Valor VIVO, ajustado em runtime. Módulo mantém o nome antigo porque é o que o
+# porteiro lê a cada chamada.
+_MINIMAX_MIN_INTERVAL = _MINIMAX_BASE_INTERVAL
+
+
+def _minimax_slow_down() -> None:
+    """Recusa por volume: dobra o espaçamento entre disparos, até o piso."""
+    global _MINIMAX_MIN_INTERVAL
+    with _MINIMAX_PACE_LOCK:
+        antes = _MINIMAX_MIN_INTERVAL
+        _MINIMAX_MIN_INTERVAL = min(_MINIMAX_MIN_INTERVAL * 2, _MINIMAX_MAX_INTERVAL)
+        mudou = _MINIMAX_MIN_INTERVAL != antes
+    if mudou:
+        logger.warning(
+            "minimax_ritmo diminuiu rpm=%.0f (era %.0f) — provedor recusou por volume",
+            60.0 / _MINIMAX_MIN_INTERVAL, 60.0 / antes,
+        )
+
+
+def _minimax_speed_up() -> None:
+    """Chamada aceita: recupera 5% do espaçamento, nunca além do teto pedido.
+
+    Devagar de propósito. Voltar de uma vez ao ritmo que acabou de ser recusado
+    é reencontrar a mesma recusa no minuto seguinte."""
+    global _MINIMAX_MIN_INTERVAL
+    with _MINIMAX_PACE_LOCK:
+        if _MINIMAX_MIN_INTERVAL <= _MINIMAX_BASE_INTERVAL:
+            return
+        _MINIMAX_MIN_INTERVAL = max(_MINIMAX_BASE_INTERVAL, _MINIMAX_MIN_INTERVAL * 0.95)
 _MINIMAX_GATE = threading.Semaphore(_MINIMAX_MAX_INFLIGHT)
 _MINIMAX_PACE_LOCK = threading.Lock()
 _MINIMAX_NEXT_SLOT = [0.0]
@@ -1464,6 +1508,7 @@ def _call_minimax(
         with _MinimaxGate():
             with urlopen(request, timeout=effective_timeout) as response:
                 result = json.loads(response.read().decode("utf-8"))
+            _minimax_speed_up()
     except (HTTPError, URLError, TimeoutError, ValueError, ConnectionError, OSError) as exc:
         # ConnectionError/OSError cobrem RemoteDisconnected e outros hiccups de
         # rede que NÃO são URLError/TimeoutError — observado em produção
@@ -1495,6 +1540,10 @@ def _call_minimax(
                 except (TypeError, ValueError):
                     espera = 0.0
                 _minimax_cooldown(espera if espera > 0 else _MINIMAX_COOLDOWN_DEFAULT_SECONDS)
+                # Cooldown resolve o AGORA; o ritmo resolve o DEPOIS. Sem
+                # diminuir o ritmo, passado o cooldown a fila volta a bater na
+                # mesma parede daqui a um minuto.
+                _minimax_slow_down()
         raise RuntimeError(f"MiniMax indisponível: {detalhe}") from exc
 
     usage = result.get("usage") or {} if isinstance(result, dict) else {}

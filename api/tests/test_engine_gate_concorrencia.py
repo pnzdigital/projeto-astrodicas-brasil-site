@@ -135,3 +135,36 @@ def test_ritmo_padrao_respeita_o_rpm_medido_do_provedor():
     )
     # _MINIMAX_MIN_INTERVAL não entra na asserção: a fixture deste módulo zera
     # o ritmo para os outros testes não dormirem.
+
+
+def test_ritmo_desce_rapido_e_sobe_devagar(monkeypatch):
+    """Produção desmentiu o número fixo: 45 chamadas em 91s (~30 rpm) ainda
+    tomaram 429. Ritmo tem que se ajustar sozinho, senão vira reajuste na mão a
+    cada mudança de plano ou de limite do fornecedor."""
+    monkeypatch.setattr(engine, "_MINIMAX_MIN_INTERVAL", engine._MINIMAX_BASE_INTERVAL)
+
+    engine._minimax_slow_down()
+    dobrou = engine._MINIMAX_MIN_INTERVAL
+    assert dobrou == pytest.approx(engine._MINIMAX_BASE_INTERVAL * 2)
+
+    engine._minimax_speed_up()
+    assert engine._MINIMAX_MIN_INTERVAL < dobrou, "não voltou a acelerar"
+    assert engine._MINIMAX_MIN_INTERVAL > engine._MINIMAX_BASE_INTERVAL, (
+        "recuperou de uma vez — vai reencontrar a mesma recusa no minuto seguinte"
+    )
+
+    for _ in range(500):
+        engine._minimax_speed_up()
+    assert engine._MINIMAX_MIN_INTERVAL == pytest.approx(engine._MINIMAX_BASE_INTERVAL), (
+        "nunca deve acelerar além do teto pedido"
+    )
+
+
+def test_ritmo_tem_piso_para_a_fila_nao_congelar(monkeypatch):
+    """Recusa contínua não pode empurrar o ritmo a zero: leitura da madrugada
+    precisa ficar pronta antes de a cliente acordar."""
+    monkeypatch.setattr(engine, "_MINIMAX_MIN_INTERVAL", engine._MINIMAX_BASE_INTERVAL)
+    for _ in range(50):
+        engine._minimax_slow_down()
+    assert engine._MINIMAX_MIN_INTERVAL <= engine._MINIMAX_MAX_INTERVAL
+    assert 60.0 / engine._MINIMAX_MIN_INTERVAL >= engine._MINIMAX_MIN_RPM
