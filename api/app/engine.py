@@ -4,6 +4,7 @@ import logging
 import os
 import re
 import threading
+import time
 import uuid
 from dataclasses import dataclass
 from datetime import date, datetime, timedelta, timezone
@@ -354,6 +355,12 @@ _LONG_CONTENT_IDS = frozenset({
 # fornecedor atrás de nove repetições silenciosas, que é exatamente o que
 # escondeu essa. Se voltar a errar, o certo é o alerta gritar, não o laço girar.
 _SECTION_MAX_ATTEMPTS_DEFAULT = "4"
+
+# Espera entre tentativas quando o fornecedor recusou por volume (429) ou caiu
+# (5xx). Índice = número da tentativa que falhou. Curto de propósito: a janela
+# da madrugada é apertada, e esperar demais atrasa a leitura que precisa estar
+# pronta quando a cliente acorda.
+_RETRY_BACKOFF_SECONDS = [1.0, 3.0, 8.0, 15.0]
 
 # Per-section timeout: medição de 13/08 (27 chamadas reais) mostrou mediana de
 # 22s e cauda de 40s para chamadas que completam. 40s cobre todas as respostas
@@ -1345,7 +1352,20 @@ def _call_minimax(
         # do laço de retry de _generate_section), em vez de só essa seção
         # cair no fallback pontual como as demais falhas de rede já tratadas
         # aqui.
-        raise RuntimeError(f"MiniMax indisponível: {type(exc).__name__}") from exc
+        # O nome da exceção sozinho não diz NADA acionável: em 18/08/2026 três
+        # mapas caíram em produção com "MiniMax indisponível: HTTPError" repetido,
+        # e não dava para saber se era 429 (concorrência alta demais, culpa
+        # nossa), 400 (payload/modelo recusado) ou 5xx (fornecedor fora). São três
+        # bugs diferentes com três correções diferentes. HTTPError carrega código
+        # e corpo — logar os dois é o que separa "esperar passar" de "consertar".
+        detalhe = type(exc).__name__
+        if isinstance(exc, HTTPError):
+            try:
+                corpo = exc.read()[:300].decode("utf-8", errors="replace").replace("\n", " ")
+            except Exception:  # corpo já consumido ou stream morto
+                corpo = ""
+            detalhe = f"HTTP {exc.code}" + (f" — {corpo}" if corpo else "")
+        raise RuntimeError(f"MiniMax indisponível: {detalhe}") from exc
 
     usage = result.get("usage") or {} if isinstance(result, dict) else {}
     prompt_tokens = usage.get("prompt_tokens")
@@ -1769,6 +1789,19 @@ def _generate_section(
                         model_name, section_title, consecutive_timeouts, timeout_limit,
                     )
                     break
+                # Backoff quando o fornecedor recusou por volume ou caiu.
+                # Sem isto (produção, 18/08/2026) as 4 tentativas de uma seção
+                # queimavam em 1,7s — repetir na mesma janela de rate limit é
+                # gastar as tentativas todas contra a mesma recusa. Só para
+                # 429/5xx: erro de payload não melhora esperando, e timeout já
+                # levou o seu tempo na chamada anterior.
+                if any(f"HTTP {code}" in str(exc) for code in (429, 500, 502, 503, 504)):
+                    espera = _RETRY_BACKOFF_SECONDS[min(attempt - 1, len(_RETRY_BACKOFF_SECONDS) - 1)]
+                    logger.info(
+                        "minimax_backoff model=%s section=%s tentativa=%d espera=%.1fs",
+                        model_name, section_title, attempt, espera,
+                    )
+                    time.sleep(espera)
                 continue
 
             parsed = _parse_markdown_sections(raw)

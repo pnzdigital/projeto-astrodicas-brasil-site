@@ -66,3 +66,30 @@ def test_prompt_exige_signo_e_casa_e_proibe_meta_texto():
     prompt = _prompt("Sol")
     assert "cite o signo E a casa" in prompt
     assert "NÃO escreva meta-texto" in prompt
+
+
+def test_erro_do_fornecedor_registra_codigo_http(monkeypatch):
+    """Em 18/08/2026 três mapas caíram em produção com "HTTPError" repetido e
+    nenhuma pista: 429, 400 e 5xx são bugs diferentes e o log não distinguia."""
+    import io
+    from urllib.error import HTTPError
+
+    def _explode(*_args, **_kwargs):
+        raise HTTPError("https://api.minimax.io/v1/chat/completions", 429, "Too Many Requests", {}, io.BytesIO(b'{"error":"rate limit"}'))
+
+    monkeypatch.setenv("MINIMAX_API_KEY", "chave-de-teste")
+    monkeypatch.setattr(engine, "urlopen", _explode)
+    try:
+        engine._call_minimax("prompt qualquer")
+    except RuntimeError as exc:
+        assert "HTTP 429" in str(exc)
+        assert "rate limit" in str(exc)
+    else:
+        raise AssertionError("deveria ter levantado RuntimeError")
+
+
+def test_backoff_existe_e_e_curto():
+    """Sem espera, as 4 tentativas de uma seção queimavam em 1,7s — todas dentro
+    da mesma janela de rate limit. Longo demais estoura a janela da madrugada."""
+    assert engine._RETRY_BACKOFF_SECONDS[0] >= 1.0
+    assert sum(engine._RETRY_BACKOFF_SECONDS) <= 30.0
