@@ -293,6 +293,23 @@ def _max_tokens_for(content_id: str) -> int:
 #
 # Teto maior não custa cota (a do M2.7 é por REQUISIÇÃO) nem latência (que segue
 # os tokens realmente gerados) — só remove o piso onde a geração batia.
+# Modelo padrão: MiniMax-Text-01, o mesmo que o canal do Telegram usa desde
+# sempre — e que nunca teve o problema de idioma que o site tinha.
+#
+# Medido em 18/08/2026, Mapa Astral Completo, 15 seções por modelo, MESMO prompt:
+#   MiniMax-M2.7 → 9 das 15 seções com escrita não-latina no corpo entregue
+#     ("模糊ando os contornos", "限制am seu crescimento", "regenerações происходят",
+#      "أرض الواقع"), 100% das chamadas gastando tokens em <think>, 348s no total.
+#   MiniMax-Text-01 → 0 das 15 (0 em 35 seções contando os dois idiomas),
+#     nenhum <think>, 148s no total, 1/4 dos tokens de saída.
+# O M2.x é modelo de raciocínio: pensa em vários idiomas dentro do <think> e
+# derrapa para o alfabeto do raciocínio no meio da frase em português. Era ISSO
+# que enchia a fila de retentativa e empurrava leitura paga para o fallback.
+# Nenhuma defesa some por causa disso (guard, retry corretivo e fail_closed
+# continuam) — elas só param de ser acionadas o tempo todo.
+# Para voltar ao anterior sem tocar em código: MINIMAX_MODEL=MiniMax-M2.7.
+_DEFAULT_MODEL = "MiniMax-Text-01"
+
 _SECTION_TOKEN_BUDGET = int(os.getenv("MINIMAX_SECTION_MAX_TOKENS", "5000"))
 
 # Budget per section when primary model is M3. M3 reasoning block (<think>) consumes
@@ -328,7 +345,15 @@ _LONG_CONTENT_IDS = frozenset({
 # real de acertar. Custo de requisição não é restrição aqui (decisão da dona,
 # textual: "limite de requisição não é problema, o MiniMax tem folga de
 # sobra") — perder um mapa pago, sim.
-_SECTION_MAX_ATTEMPTS_DEFAULT = "10"
+#
+# REVISTO em 18/08/2026, de volta para 4. O número alto era curativo: tentativa
+# existia porque o M2.7 vazava alfabeto em ~60% das seções. Trocado o modelo
+# para MiniMax-Text-01 (ver _DEFAULT_MODEL), o vazamento foi a ZERO em 35 seções
+# nos dois idiomas — retentativa passa a cobrir só o que ela deve cobrir: falha
+# de rede e azar isolado. Manter 10 aqui esconderia uma regressão futura do
+# fornecedor atrás de nove repetições silenciosas, que é exatamente o que
+# escondeu essa. Se voltar a errar, o certo é o alerta gritar, não o laço girar.
+_SECTION_MAX_ATTEMPTS_DEFAULT = "4"
 
 # Per-section timeout: medição de 13/08 (27 chamadas reais) mostrou mediana de
 # 22s e cauda de 40s para chamadas que completam. 40s cobre todas as respostas
@@ -817,14 +842,32 @@ def _profile_context(profile, customer_name: str = "") -> dict:
     }
 
 
-def _assumed_warning_text(locale: str, birth_time_assumed: bool) -> str:
+# Seções em que o aviso de hora assumida faz sentido: são as que falam do
+# Ascendente (o dado que muda de signo a cada ~2h). Nas outras catorze o aviso
+# só ocupa espaço — e pior, CONVIDA meta-texto: medido em 18/08/2026, a seção
+# "Sol" gastou o terceiro parágrafo inteiro explicando que o Ascendente não pôde
+# ser calculado, em vez de interpretar o Sol. O aviso vira ruído no lugar do
+# produto.
+_ASCENDANT_SECTION_MARKERS = ("ascendente", "ascendiente", "como o mundo te vê", "cómo te ve el mundo", "introdu", "introducción")
+
+
+def _assumed_warning_text(locale: str, birth_time_assumed: bool, section_title: str | None = None) -> str:
     """Aviso injetado no prompt quando a hora de nascimento foi assumida.
 
     Extraído de ``_prompt`` para ser reaproveitado por ``_section_prompt``
     (geração seção-a-seção) sem duplicar o texto.
+
+    ``section_title`` só é passado no caminho seção-a-seção: ali o aviso vai
+    apenas para as seções que realmente falam do Ascendente (ver
+    ``_ASCENDANT_SECTION_MARKERS``). Sem ele — caminho do documento inteiro —
+    o comportamento é o de sempre.
     """
     if not birth_time_assumed:
         return ""
+    if section_title is not None:
+        alvo = section_title.strip().lower()
+        if not any(marker in alvo for marker in _ASCENDANT_SECTION_MARKERS):
+            return ""
     if locale == "es-AR":
         return (
             "\n\nATENCIÓN: la hora de nacimiento NO fue informada. El backend asumió 00:00 "
@@ -1255,7 +1298,7 @@ def _call_minimax(
     # ``model`` explícito é usado pelo roteamento M3/M2.7 seção-a-seção (ver
     # _LONG_CONTENT_IDS / _generate_section); quando ausente, cai no modelo
     # padrão da conta inteira.
-    model = model or os.getenv("MINIMAX_MODEL", os.getenv("LLM_MODEL_TEXT", "MiniMax-M2.7"))
+    model = model or os.getenv("MINIMAX_MODEL", os.getenv("LLM_MODEL_TEXT", _DEFAULT_MODEL))
     # ``max_tokens`` explícito é usado pela geração seção-a-seção (budget bem
     # menor, ~550 tokens, em vez do documento inteiro); quando ausente, cai no
     # comportamento antigo (budget por content_id extraído do próprio prompt).
@@ -1514,7 +1557,9 @@ def _section_prompt(
     paralelo, já que nenhuma seção vê o texto das outras)."""
     language = "espanhol rioplatense natural" if locale == "es-AR" else "português brasileiro natural"
     today = date.today().isoformat()
-    assumed_warning = _assumed_warning_text(locale, bool(context.get("birth_time_assumed")))
+    assumed_warning = _assumed_warning_text(
+        locale, bool(context.get("birth_time_assumed")), section_title=section_title,
+    )
     language_lock = _language_lock_text(locale)
     # Retry corretivo: sem isto o laço de tentativas reenviava o prompt
     # IDÊNTICO depois de reprovar por idioma/truncamento, e o modelo repetia o
@@ -1609,8 +1654,14 @@ Formato obrigatório da resposta — markdown, só esta seção, nada além dela
 {scope_instruction}
 
 Use o nome do cliente com naturalidade no máximo uma vez nesta seção. Use somente os dados fornecidos. Não invente
-Ascendente, Lua, casas, aspectos, trânsitos ou posições planetárias que não tenham sido calculados. Quando faltar
-cálculo astronômico, declare a limitação com linguagem acolhedora. Não faça diagnóstico médico, promessa financeira nem previsão
+Ascendente, Lua, casas, aspectos, trânsitos ou posições planetárias que não tenham sido calculados.
+POSIÇÕES: quando esta seção tratar de um planeta ou ponto do mapa, cite o signo E a casa dele exatamente como estão
+em calculated_chart, e derive a interpretação daquela combinação — não do signo solar genérico. Se a seção tiver
+aspecto listado envolvendo esse planeta, use pelo menos um deles. Trocar o signo, o grau ou a casa de um planeta é
+erro grave: a cliente vê a roda astrológica calculada ao lado do seu texto e percebe a contradição.
+NÃO escreva meta-texto: nada de comentar o que faltou nos dados, o que você não pôde calcular, o que é limitação
+desta leitura ou o tamanho da seção — exceto se uma instrução ATENÇÃO abaixo pedir esse aviso explicitamente.
+Escreva a interpretação e só ela. Não faça diagnóstico médico, promessa financeira nem previsão
 fatalista. Não cite inteligência artificial. TERMINE a última frase de forma completa — nunca corte no meio; se estiver \
 perto do limite, feche a frase atual e pare.{language_lock}{correction_text}{assumed_warning}"""
 
@@ -1663,7 +1714,7 @@ def _generate_section(
     # MINIMAX_MODEL_LONG setada, produção continua 100% no modelo de sempre.
     # Para ligar: MINIMAX_MODEL_LONG=MiniMax-M3. Para desligar: apagar a env.
     is_long_content = content_id in _LONG_CONTENT_IDS
-    default_model = os.getenv("MINIMAX_MODEL", os.getenv("LLM_MODEL_TEXT", "MiniMax-M2.7"))
+    default_model = os.getenv("MINIMAX_MODEL", os.getenv("LLM_MODEL_TEXT", _DEFAULT_MODEL))
     modelo_longo = os.getenv("MINIMAX_MODEL_LONG", "").strip()
     if is_long_content and modelo_longo:
         primary_model = modelo_longo

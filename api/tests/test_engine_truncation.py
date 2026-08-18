@@ -226,6 +226,6 @@ def test_com_roteamento_ligado_seção_tenta_m3_e_depois_o_fallback(monkeypatch)
 
     assert calls_by_title[target_title] == 8
     assert modelos == [
-        "MiniMax-M3", "MiniMax-M3", "MiniMax-M2.7", "MiniMax-M2.7",
-        "MiniMax-M3", "MiniMax-M3", "MiniMax-M2.7", "MiniMax-M2.7",
+        "MiniMax-M3", "MiniMax-M3", engine._DEFAULT_MODEL, engine._DEFAULT_MODEL,
+        "MiniMax-M3", "MiniMax-M3", engine._DEFAULT_MODEL, engine._DEFAULT_MODEL,
     ]

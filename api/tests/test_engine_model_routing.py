@@ -237,5 +237,5 @@ def test_sem_env_roteamento_fica_desligado(monkeypatch):
 
     assert calls, "nenhuma seção gerada"
     for call in calls:
-        assert call["model"] == "MiniMax-M2.7", "sem env, não pode escapar pro M3"
+        assert call["model"] == engine._DEFAULT_MODEL, "sem env, não pode escapar pro M3"
         assert call["max_tokens"] == engine._SECTION_TOKEN_BUDGET
