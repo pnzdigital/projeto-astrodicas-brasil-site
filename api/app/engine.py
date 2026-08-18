@@ -371,6 +371,94 @@ _SECTION_MAX_ATTEMPTS_DEFAULT = "4"
 # pronta quando a cliente acorda.
 _RETRY_BACKOFF_SECONDS = [1.0, 3.0, 8.0, 15.0]
 
+
+# ---------------------------------------------------------------------------
+# Porteiro do MiniMax: teto GLOBAL de chamadas em voo e ritmo de disparo.
+#
+# Por que existe: o teto de concorrência morava em dois lugares que se
+# MULTIPLICAM — MINIMAX_MAX_CONCURRENCY (16 jobs no worker) vezes
+# MINIMAX_SECTION_POOL_SIZE (4 seções por leitura) = até 64 chamadas
+# simultâneas ao provedor, e ninguém contava esse produto. Em 18/08/2026 três
+# regenerações disparadas juntas derrubaram as três com erro HTTP repetido em
+# 1,7s, que é a cara de recusa por volume.
+#
+# Com 100 clientes e quatro conteúdos cada, esse número só cresce. O teto tem
+# que ficar onde a chamada realmente sai, não onde o trabalho é agendado: aqui
+# ninguém escapa, venha de job da madrugada, compra na hora ou regeneração
+# manual do admin.
+#
+# NÃO é rate limit da nossa API (isso é ratelimit.py, protege o site de abuso).
+# É o contrário: protege o PROVEDOR de nós, para ele não nos recusar.
+#
+# Limitação conhecida: o contador é do PROCESSO. Hoje o worker é um só
+# (ver ARQUITETURA-ESCALA.md, item 2.1), então isso basta. No dia em que rodar
+# mais de um worker, este teto precisa virar compartilhado (uma linha no
+# Postgres serve; Redis não é necessário para esse volume).
+# 8, e não 12 ou 16, porque a evidência aponta baixo: a rajada que derrubou os
+# três mapas em 18/08/2026 eram 3 jobs × pool de 4 = ~12 chamadas simultâneas,
+# e uma geração sozinha (4 em voo) passou limpa duas vezes seguidas no mesmo
+# dia. 16 simultâneas passaram num teste direto contra a API, mas teste que
+# passa uma vez não é teto seguro para a madrugada inteira. Subir isto é uma
+# variável de ambiente e uma medição; descer depois de perder leitura paga é
+# caro. Ver ARQUITETURA-ESCALA.md.
+_MINIMAX_MAX_INFLIGHT = max(1, int(os.getenv("MINIMAX_MAX_INFLIGHT", "8")))
+_MINIMAX_MIN_INTERVAL = 1.0 / max(0.1, float(os.getenv("MINIMAX_MAX_RPS", "6")))
+_MINIMAX_GATE = threading.Semaphore(_MINIMAX_MAX_INFLIGHT)
+_MINIMAX_PACE_LOCK = threading.Lock()
+_MINIMAX_NEXT_SLOT = [0.0]
+# Quando o provedor recusa por volume, de nada adianta cada thread descobrir
+# isso sozinha: a recusa é da CONTA, não da chamada. Uma thread que toma 429
+# fecha a porta para todas até este instante — é o que transforma 64 recusas
+# simultâneas em uma espera só.
+_MINIMAX_COOLDOWN_UNTIL = [0.0]
+# Quanto segurar quando o provedor recusa sem dizer por quanto tempo (sem
+# Retry-After). Curto: a janela da madrugada é apertada e a fila drena sozinha.
+_MINIMAX_COOLDOWN_DEFAULT_SECONDS = float(os.getenv("MINIMAX_COOLDOWN_SECONDS", "20"))
+_MINIMAX_COOLDOWN_LOCK = threading.Lock()
+
+
+def _minimax_cooldown(seconds: float) -> None:
+    """Fecha a porta para TODAS as threads por ``seconds``."""
+    until = time.monotonic() + seconds
+    with _MINIMAX_COOLDOWN_LOCK:
+        if until > _MINIMAX_COOLDOWN_UNTIL[0]:
+            _MINIMAX_COOLDOWN_UNTIL[0] = until
+            logger.warning(
+                "minimax_cooldown segundos=%.1f — provedor recusou por volume; segurando todas as chamadas",
+                seconds,
+            )
+
+
+class _MinimaxGate:
+    """Context manager: espera a vez, respeita o cooldown e o ritmo."""
+
+    def __enter__(self):
+        _MINIMAX_GATE.acquire()
+        try:
+            while True:
+                with _MINIMAX_COOLDOWN_LOCK:
+                    falta = _MINIMAX_COOLDOWN_UNTIL[0] - time.monotonic()
+                if falta <= 0:
+                    break
+                time.sleep(min(falta, 5.0))
+            # Espaçamento entre disparos: sem isto as 12 vagas saem no mesmo
+            # milissegundo e o provedor vê um pico, não um fluxo.
+            with _MINIMAX_PACE_LOCK:
+                agora = time.monotonic()
+                alvo = max(agora, _MINIMAX_NEXT_SLOT[0])
+                _MINIMAX_NEXT_SLOT[0] = alvo + _MINIMAX_MIN_INTERVAL
+            atraso = alvo - agora
+            if atraso > 0:
+                time.sleep(atraso)
+        except BaseException:
+            _MINIMAX_GATE.release()
+            raise
+        return self
+
+    def __exit__(self, *_exc):
+        _MINIMAX_GATE.release()
+        return False
+
 # Per-section timeout: medição de 13/08 (27 chamadas reais) mostrou mediana de
 # 22s e cauda de 40s para chamadas que completam. 40s cobre todas as respostas
 # válidas observadas e falha 20s mais rápido quando a API trava (timeout real,
@@ -1351,8 +1439,13 @@ def _call_minimax(
     )
     effective_timeout = timeout if timeout is not None else float(os.getenv("MINIMAX_TIMEOUT_SECONDS", "120"))
     try:
-        with urlopen(request, timeout=effective_timeout) as response:
-            result = json.loads(response.read().decode("utf-8"))
+        # Porteiro global: teto de chamadas em voo + ritmo + cooldown coletivo.
+        # Fica AQUI, na saída, e não no agendamento do trabalho, porque é aqui
+        # que job da madrugada, compra na hora e regeneração do admin viram a
+        # mesma coisa aos olhos do provedor.
+        with _MinimaxGate():
+            with urlopen(request, timeout=effective_timeout) as response:
+                result = json.loads(response.read().decode("utf-8"))
     except (HTTPError, URLError, TimeoutError, ValueError, ConnectionError, OSError) as exc:
         # ConnectionError/OSError cobrem RemoteDisconnected e outros hiccups de
         # rede que NÃO são URLError/TimeoutError — observado em produção
@@ -1374,6 +1467,16 @@ def _call_minimax(
             except Exception:  # corpo já consumido ou stream morto
                 corpo = ""
             detalhe = f"HTTP {exc.code}" + (f" — {corpo}" if corpo else "")
+            # Recusa por volume é da CONTA, não desta chamada: sem fechar a
+            # porta para todas as threads, as outras 11 em voo tomam o mesmo
+            # 429 no mesmo segundo e gastam as tentativas de todas contra a
+            # mesma janela. Retry-After manda quando o provedor o envia.
+            if exc.code == 429:
+                try:
+                    espera = float(exc.headers.get("Retry-After") or 0)
+                except (TypeError, ValueError):
+                    espera = 0.0
+                _minimax_cooldown(espera if espera > 0 else _MINIMAX_COOLDOWN_DEFAULT_SECONDS)
         raise RuntimeError(f"MiniMax indisponível: {detalhe}") from exc
 
     usage = result.get("usage") or {} if isinstance(result, dict) else {}
