@@ -1021,7 +1021,19 @@ def _collect_deliveries(
     query = (
         select(Reading, User)
         .join(User, User.id == Reading.user_id)
-        .where(Reading.created_at >= start_utc, Reading.created_at < end_utc)
+        .where(
+            Reading.created_at >= start_utc,
+            Reading.created_at < end_utc,
+            # 'superseded' é versão ANTIGA, substituída de propósito por uma
+            # regeneração — a cliente já tem a nova. Sem este filtro cada
+            # regeneração deixava uma linha eterna em "pendente" no painel:
+            # medido em 18/08/2026, 12 pendentes falsas contra 4 entregas
+            # reais depois de uma bateria de testes. Painel de operação que
+            # mostra alarme falso deixa de ser lido, e aí some o alarme
+            # verdadeiro junto. As demais rotas do admin (pipeline-status,
+            # clients) já excluíam; esta ficou para trás.
+            Reading.status != "superseded",
+        )
     )
     if product_id:
         query = query.where(Reading.product_id == product_id)

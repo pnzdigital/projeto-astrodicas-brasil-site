@@ -451,3 +451,26 @@ def test_retry_batch_ignores_yesterday(authed_admin, skip_auto_run):
 def test_retry_batch_rejects_bad_statuses(authed_admin):
     r = authed_admin.post("/api/admin/deliveries/retry-batch", json={"statuses": "failed"})
     assert r.status_code == 400
+
+
+def test_leitura_substituida_nao_conta_como_entrega_pendente(authed_admin):
+    """'superseded' é versão antiga trocada de propósito por uma regeneração —
+    a cliente já tem a nova. Medido em produção (18/08/2026): uma bateria de
+    regenerações deixou 12 pendentes falsas contra 4 entregas reais. Painel de
+    operação com alarme falso deixa de ser lido, e some o alarme verdadeiro
+    junto."""
+    _seed("substituida@example.com", product_id=MAPA, content_id=CONTENT_MAPA,
+          reading_status="superseded", job_status="done")
+    _seed("entregue@example.com", product_id=MAPA, content_id=CONTENT_MAPA,
+          reading_status="ready", job_status="done")
+
+    r = authed_admin.get("/api/admin/deliveries/summary")
+    assert r.status_code == 200, r.text
+    totais = r.json()["totals"]
+    assert totais["pending"] == 0, "leitura substituída não é entrega pendente"
+    assert totais["done"] == 1
+
+    linhas = authed_admin.get("/api/admin/deliveries").json()
+    emails = [it["email"] for p in linhas["products"] for it in p["items"]]
+    assert "substituida@example.com" not in emails
+    assert "entregue@example.com" in emails
