@@ -402,7 +402,25 @@ _RETRY_BACKOFF_SECONDS = [1.0, 3.0, 8.0, 15.0]
 # variável de ambiente e uma medição; descer depois de perder leitura paga é
 # caro. Ver ARQUITETURA-ESCALA.md.
 _MINIMAX_MAX_INFLIGHT = max(1, int(os.getenv("MINIMAX_MAX_INFLIGHT", "8")))
-_MINIMAX_MIN_INTERVAL = 1.0 / max(0.1, float(os.getenv("MINIMAX_MAX_RPS", "6")))
+# O limite do provedor é RPM — medido em 18/08/2026 contra a conta real, com
+# requisições de 1 token para não queimar cota:
+#   60 rpm  → 0 recusa em 20
+#   120 rpm → 1 recusa em 20
+#   180 rpm → 1 recusa em 20
+#   240 rpm → 9 recusas em 20
+# O erro devolvido é explícito: "rate limit exceeded(RPM) (1002)".
+#
+# E o balde é da CONTA, não do modelo: com o Text-01 saturado, o M2.7 tomou 429
+# nas 6 sondagens seguidas. Trocar de modelo para desviar do limite não
+# funciona — só ritmo funciona (ou plano maior / segunda chave).
+#
+# 60 e não 120: 120 já recusou no teste, e cada recusa em produção custa uma
+# tentativa de uma seção de leitura paga. A 60 rpm um Mapa Astral (15 seções)
+# leva 15s de piso, e a pré-geração de 100 clientes × 3 seções drena em 5 min —
+# folgado dentro da janela da madrugada.
+_MINIMAX_DEFAULT_MAX_RPM = 60.0
+_MINIMAX_MAX_RPM = max(1.0, float(os.getenv("MINIMAX_MAX_RPM", _MINIMAX_DEFAULT_MAX_RPM)))
+_MINIMAX_MIN_INTERVAL = 60.0 / _MINIMAX_MAX_RPM
 _MINIMAX_GATE = threading.Semaphore(_MINIMAX_MAX_INFLIGHT)
 _MINIMAX_PACE_LOCK = threading.Lock()
 _MINIMAX_NEXT_SLOT = [0.0]

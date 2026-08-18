@@ -123,3 +123,15 @@ def test_vaga_e_devolvida_quando_a_chamada_explode(monkeypatch):
 
     assert engine._MINIMAX_GATE.acquire(timeout=2), "vaga não voltou: semáforo vazou"
     engine._MINIMAX_GATE.release()
+
+
+def test_ritmo_padrao_respeita_o_rpm_medido_do_provedor():
+    """Medido na conta real em 18/08/2026: 60 rpm passa limpo, 120 já recusa.
+    O erro do provedor é explícito — "rate limit exceeded(RPM)". E o balde é da
+    CONTA: com o Text-01 saturado, o M2.7 tomou 429 nas 6 sondagens seguidas,
+    então trocar de modelo não desvia do limite."""
+    assert engine._MINIMAX_MAX_RPM <= 60.0, (
+        f"ritmo de {engine._MINIMAX_MAX_RPM:.0f} rpm passa do que a conta aguenta"
+    )
+    # _MINIMAX_MIN_INTERVAL não entra na asserção: a fixture deste módulo zera
+    # o ritmo para os outros testes não dormirem.
