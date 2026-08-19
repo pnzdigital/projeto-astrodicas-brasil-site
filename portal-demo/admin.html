@@ -115,6 +115,13 @@
     /* filters row */
     .filters-row{display:flex;flex-wrap:wrap;gap:12px;margin-bottom:18px;align-items:end}
     .filters-row .field{margin:0;min-width:150px}
+    /* Saída do gerador de link: campo largo porque URL com UTM é comprida, e ler
+       o link inteiro antes de colar no anúncio evita campanha publicada com
+       parâmetro errado — que só se descobre quando o relatório vem vazio. */
+    .link-out{display:flex;gap:8px;margin-top:12px}
+    .link-out input{flex:1;min-width:0;padding:10px;font-family:ui-monospace,Menlo,monospace;font-size:13px}
+    .preset-label{align-self:center;font-size:13px;opacity:.75}
+    #link-presets .btn{font-size:13px}
     select{min-height:38px;padding:0 10px;border:1px solid var(--line);border-radius:5px;background:rgba(8,7,25,.6)}
     .pager{display:flex;justify-content:flex-end;gap:8px;margin-top:14px}
 
@@ -279,6 +286,7 @@
           <button class="tab-btn" role="tab" aria-selected="false" aria-controls="tab-clientes" data-tab="clientes">Clientes</button>
           <button class="tab-btn" role="tab" aria-selected="false" aria-controls="tab-entregas" data-tab="entregas">Entregas do dia</button>
           <button class="tab-btn" role="tab" aria-selected="false" aria-controls="tab-suporte" data-tab="suporte">Suporte</button>
+          <button class="tab-btn" role="tab" aria-selected="false" aria-controls="tab-origem" data-tab="origem">Origem das vendas</button>
           <button class="tab-btn" role="tab" aria-selected="false" aria-controls="tab-cota" data-tab="cota">Cota MiniMax</button>
         </nav>
 
@@ -495,6 +503,88 @@
                 <tbody id="quota-model-rows"></tbody>
               </table>
             </div>
+          </section>
+        </div>
+
+        <!-- ================================================================== -->
+        <!-- TAB: ORIGEM DAS VENDAS                                              -->
+        <!-- ================================================================== -->
+        <div class="tab-pane" id="tab-origem" role="tabpanel">
+
+          <section class="panel" aria-labelledby="origem-title">
+            <h2 id="origem-title">De onde vieram as vendas</h2>
+            <p class="support-info">
+              <strong>Primeira origem</strong> é quem descobriu a cliente — serve para decidir
+              onde investir para atrair. <strong>Última origem</strong> é quem fechou a venda —
+              serve para saber o que converte. Quem vê o anúncio hoje e compra depois pelo Google
+              aparece nas duas, em lugares diferentes.
+            </p>
+            <div class="filters-row">
+              <div class="field"><label for="origem-janela">Creditar</label><select id="origem-janela">
+                  <option value="last">a última origem (quem fechou)</option>
+                  <option value="first">a primeira origem (quem trouxe)</option>
+                </select></div>
+              <div class="field"><label for="origem-de">De</label><input type="date" id="origem-de"></div>
+              <div class="field"><label for="origem-ate">Até</label><input type="date" id="origem-ate"></div>
+              <button class="btn" id="origem-filtrar">Filtrar</button>
+            </div>
+            <div class="table-scroll">
+              <table>
+                <caption class="visually-hidden">Faturamento por origem da venda</caption>
+                <thead>
+                  <tr>
+                    <th scope="col">Origem</th>
+                    <th scope="col">Mídia</th>
+                    <th scope="col">Campanha</th>
+                    <th scope="col">Visitas com pedido</th>
+                    <th scope="col">Vendas</th>
+                    <th scope="col">Conversão</th>
+                    <th scope="col">Faturamento</th>
+                  </tr>
+                </thead>
+                <tbody id="origem-rows"><tr><td colspan="7">carregando…</td></tr></tbody>
+              </table>
+            </div>
+          </section>
+
+          <section class="panel" aria-labelledby="link-title">
+            <h2 id="link-title">Gerar link rastreável</h2>
+            <p class="support-info">
+              Todo link que sair daqui marca a venda. Link sem marcação vira
+              “(direto / sem marcação)” no relatório acima — não dá para saber quem trouxe.
+            </p>
+            <div class="filters-row">
+              <div class="field"><label for="link-destino">Página de destino</label><select id="link-destino">
+                  <option value="/">Storefront (BR)</option>
+                  <option value="/es/">Storefront (AR)</option>
+                  <option value="/diario-astral-1">Landing Diário Astral v1</option>
+                  <option value="/diario-astral-2">Landing Diário Astral v2</option>
+                  <option value="/es/diario-astral-1">Landing Diário Astral v1 (AR)</option>
+                  <option value="/es/diario-astral-2">Landing Diário Astral v2 (AR)</option>
+                  <option value="/horoscopo-gratis.html">Horóscopo grátis</option>
+                </select></div>
+            </div>
+            <div class="filters" id="link-presets">
+              <span class="preset-label">Canal:</span>
+              <button class="btn" data-preset="instagram|bio|">Instagram · bio</button>
+              <button class="btn" data-preset="instagram|story|">Instagram · story</button>
+              <button class="btn" data-preset="instagram|post|">Instagram · post</button>
+              <button class="btn" data-preset="meta|ads|">Meta Ads</button>
+              <button class="btn" data-preset="telegram|canal|">Telegram · canal</button>
+              <button class="btn" data-preset="email|newsletter|">E-mail</button>
+              <button class="btn" data-preset="whatsapp|direto|">WhatsApp</button>
+            </div>
+            <div class="filters-row">
+              <div class="field"><label for="link-source">Origem (utm_source)</label><input type="text" id="link-source" placeholder="instagram"></div>
+              <div class="field"><label for="link-medium">Mídia (utm_medium)</label><input type="text" id="link-medium" placeholder="bio"></div>
+              <div class="field"><label for="link-campaign">Campanha (utm_campaign)</label><input type="text" id="link-campaign" placeholder="lancamento-agosto"></div>
+              <div class="field"><label for="link-content">Criativo (utm_content)</label><input type="text" id="link-content" placeholder="video-hook-1"></div>
+            </div>
+            <div class="link-out">
+              <input type="text" id="link-resultado" readonly aria-label="Link rastreável gerado">
+              <button class="btn primary" id="link-copiar">Copiar</button>
+            </div>
+            <p class="support-info" id="link-aviso" role="status"></p>
           </section>
         </div>
       </div><!-- #dashboard -->
@@ -1524,6 +1614,106 @@
     // ---------------------------------------------------------------------------
     // Dashboard loader
     // ---------------------------------------------------------------------------
+
+    // ================= ORIGEM DAS VENDAS =================
+
+    function pctBonito(fracao) {
+      return (fracao * 100).toFixed(0) + '%';
+    }
+
+    async function loadAttribution() {
+      const corpo = document.getElementById('origem-rows');
+      if (!corpo) return;
+      const janela = document.getElementById('origem-janela').value;
+      const de = document.getElementById('origem-de').value;
+      const ate = document.getElementById('origem-ate').value;
+      let url = '/attribution?janela=' + encodeURIComponent(janela);
+      if (de) url += '&from_=' + encodeURIComponent(de);
+      if (ate) url += '&to=' + encodeURIComponent(ate);
+      try {
+        const dados = await api(url);
+        if (!dados.rows.length) {
+          corpo.innerHTML = '<tr><td colspan="7">Nenhuma venda no período.</td></tr>';
+          return;
+        }
+        corpo.innerHTML = dados.rows.map(function (r) {
+          return '<tr>'
+            + '<td>' + escapeHtml(r.source) + '</td>'
+            + '<td>' + escapeHtml(r.medium || '—') + '</td>'
+            + '<td>' + escapeHtml(r.campaign || '—') + '</td>'
+            + '<td>' + r.orders_count + '</td>'
+            + '<td>' + r.sales_count + '</td>'
+            + '<td>' + pctBonito(r.conversion) + '</td>'
+            + '<td>' + escapeHtml(r.revenue_label) + '</td>'
+            + '</tr>';
+        }).join('');
+      } catch (e) {
+        corpo.innerHTML = '<tr><td colspan="7">Não foi possível carregar a origem das vendas.</td></tr>';
+      }
+    }
+
+    // ================= GERADOR DE LINK RASTREÁVEL =================
+
+    function baseDoSite() {
+      // O painel roda no host do dash; os links vendem no host público. Trocar
+      // o prefixo evita gerar link de campanha apontando para o portal logado,
+      // que devolveria 404 para quem clicasse no anúncio.
+      return window.location.origin.replace('//dash.', '//');
+    }
+
+    function montaLink() {
+      const destino = document.getElementById('link-destino').value;
+      const campos = {
+        utm_source: document.getElementById('link-source').value.trim().toLowerCase(),
+        utm_medium: document.getElementById('link-medium').value.trim().toLowerCase(),
+        utm_campaign: document.getElementById('link-campaign').value.trim().toLowerCase(),
+        utm_content: document.getElementById('link-content').value.trim().toLowerCase()
+      };
+      const aviso = document.getElementById('link-aviso');
+      const saida = document.getElementById('link-resultado');
+      if (!campos.utm_source) {
+        saida.value = '';
+        aviso.textContent = 'Escolha um canal acima ou preencha a origem — sem ela o link não rastreia nada.';
+        return;
+      }
+      const params = new URLSearchParams();
+      Object.keys(campos).forEach(function (k) { if (campos[k]) params.set(k, campos[k]); });
+      saida.value = baseDoSite() + destino + '?' + params.toString();
+      aviso.textContent = 'Pronto. Toda venda vinda deste link aparece como "' + campos.utm_source + '" no relatório acima.';
+    }
+
+    function ligaGeradorDeLink() {
+      const presets = document.getElementById('link-presets');
+      if (!presets) return;
+      presets.addEventListener('click', function (evento) {
+        const botao = evento.target.closest('[data-preset]');
+        if (!botao) return;
+        const partes = botao.getAttribute('data-preset').split('|');
+        document.getElementById('link-source').value = partes[0] || '';
+        document.getElementById('link-medium').value = partes[1] || '';
+        montaLink();
+      });
+      ['link-destino', 'link-source', 'link-medium', 'link-campaign', 'link-content'].forEach(function (id) {
+        const el = document.getElementById(id);
+        if (el) el.addEventListener('input', montaLink);
+        if (el) el.addEventListener('change', montaLink);
+      });
+      document.getElementById('link-copiar').addEventListener('click', async function () {
+        const saida = document.getElementById('link-resultado');
+        if (!saida.value) { montaLink(); return; }
+        try {
+          await navigator.clipboard.writeText(saida.value);
+          document.getElementById('link-aviso').textContent = 'Link copiado.';
+        } catch (e) {
+          // clipboard bloqueado (http, permissão): seleciona para copiar na mão
+          saida.select();
+          document.getElementById('link-aviso').textContent = 'Selecionado — use Ctrl+C.';
+        }
+      });
+      document.getElementById('origem-filtrar').addEventListener('click', loadAttribution);
+      document.getElementById('origem-janela').addEventListener('change', loadAttribution);
+    }
+
     async function loadDashboard() {
       statusMsg.hidden = false;
       dashboard.hidden = true;
@@ -1538,7 +1728,9 @@
           loadSales(),
           loadClients(),
           loadDeliveries(),
+          loadAttribution(),
         ]);
+        ligaGeradorDeLink();
         statusMsg.hidden = true;
         dashboard.hidden = false;
       } catch (error) {

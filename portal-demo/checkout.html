@@ -53,6 +53,7 @@
     .other-email-warning{margin-bottom:14px;padding:11px 14px;border:1px solid rgba(242,180,80,.35);border-radius:5px;color:rgba(242,180,80,.9);font-size:13px}
   </style>
   <script src="/meta-pixel.js"></script>
+  <script src="/assets/attribution.js"></script>
 </head>
 <body>
   <noscript><img height="1" width="1" style="display:none" alt="" src="https://www.facebook.com/tr?id=2812114902493745&amp;ev=PageView&amp;noscript=1"></noscript>
@@ -271,7 +272,13 @@
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           credentials: 'same-origin',
-          body: JSON.stringify(orderBody),
+          // Origem da venda: o que o navegador guardou desde o primeiro clique
+        // marcado (ver assets/attribution.js). Falha aqui nunca pode impedir a
+        // compra — sem origem o pedido continua valendo, só entra no painel
+        // como "direto".
+        body: JSON.stringify(Object.assign({}, orderBody, {
+          attribution: (typeof window.astroAttribution === 'function' ? window.astroAttribution() : {})
+        })),
         });
         const data = await response.json();
         if (!response.ok) throw new Error(data.detail || 'order');

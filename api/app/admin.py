@@ -147,6 +147,84 @@ def session(admin_session: str | None = Cookie(default=None)) -> dict:
     return {"authenticated": authenticated, "market": market or "ALL"}
 
 
+# Rótulo do que chega sem marcação nenhuma. Não é "sem dado": é a resposta
+# "veio direto" — alguém que digitou o endereço, salvou nos favoritos ou clicou
+# num link que ninguém marcou. Misturar isso com origem conhecida esconde
+# justamente o tamanho do que não está sendo medido.
+SEM_ORIGEM = "(direto / sem marcação)"
+
+
+@router.get("/attribution")
+def attribution(
+    janela: str = "last",
+    from_: str | None = None,
+    to: str | None = None,
+    _admin: AdminIdentity = Depends(require_admin),
+    db: Session = Depends(get_db),
+) -> dict:
+    """Faturamento por origem da venda.
+
+    ``janela``: "last" credita quem fechou a venda (o último link clicado),
+    "first" credita quem trouxe a cliente (o primeiro). São perguntas
+    diferentes, e o painel deixa alternar em vez de escolher por quem olha.
+
+    Pedido pendente NÃO conta como receita — mas conta como visita, e é essa
+    diferença que vira a taxa de conversão por canal: o canal que traz muita
+    gente e vende pouco fica visível ao lado do que traz pouca e vende bem.
+    """
+    prefixo = "first" if janela == "first" else "last"
+    query = db.query(Order)
+    if _admin.scoped:
+        query = query.filter(Order.market == _admin.market)
+    if from_:
+        query = query.filter(Order.created_at >= datetime.fromisoformat(from_))
+    if to:
+        query = query.filter(Order.created_at <= datetime.fromisoformat(to))
+
+    por_origem: dict[tuple, dict] = {}
+    for order in query.all():
+        chave = (
+            getattr(order, f"{prefixo}_source", "") or "",
+            getattr(order, f"{prefixo}_medium", "") or "",
+            getattr(order, f"{prefixo}_campaign", "") or "",
+        )
+        linha = por_origem.setdefault(chave, {
+            "source": chave[0] or SEM_ORIGEM,
+            "medium": chave[1],
+            "campaign": chave[2],
+            "orders_count": 0,
+            "sales_count": 0,
+            "revenue_minor_by_currency": {},
+        })
+        linha["orders_count"] += 1
+        if order.status in PAID_STATUSES:
+            linha["sales_count"] += 1
+            moeda = order.currency
+            linha["revenue_minor_by_currency"][moeda] = (
+                linha["revenue_minor_by_currency"].get(moeda, 0) + order.amount_minor
+            )
+
+    linhas = list(por_origem.values())
+    for linha in linhas:
+        linha["conversion"] = (
+            round(linha["sales_count"] / linha["orders_count"], 4) if linha["orders_count"] else 0.0
+        )
+        linha["revenue_label"] = " + ".join(
+            format_amount(valor, moeda) for moeda, valor in sorted(linha["revenue_minor_by_currency"].items())
+        ) or "—"
+    # Ordena por venda paga, não por visita: o painel existe para mostrar o que
+    # dá dinheiro, e canal que traz tráfego sem vender não pode encabeçar.
+    linhas.sort(key=lambda r: (-r["sales_count"], -r["orders_count"], r["source"]))
+
+    return {
+        "janela": prefixo,
+        "from": from_,
+        "to": to,
+        "total_origens": len(linhas),
+        "rows": linhas,
+    }
+
+
 @router.get("/sales")
 def sales(
     market: str | None = None,
@@ -188,6 +266,17 @@ def sales(
             "currency": order.currency,
             "locale": order.locale,
             "market": order.market,
+            # Origem na própria linha da venda: quando a dona olha um pedido
+            # específico ("essa venda de R$ 34,90 veio de onde?"), o relatório
+            # agregado não responde.
+            "first_source": order.first_source or "",
+            "first_campaign": order.first_campaign or "",
+            "last_source": order.last_source or "",
+            "last_medium": order.last_medium or "",
+            "last_campaign": order.last_campaign or "",
+            "last_content": order.last_content or "",
+            "landing_page": order.landing_page or "",
+            "referrer": order.referrer or "",
         }
         for order in orders
     ]

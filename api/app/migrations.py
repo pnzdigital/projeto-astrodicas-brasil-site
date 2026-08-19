@@ -27,6 +27,17 @@ NEW_COLUMNS: dict[str, tuple[tuple[str, str, str], ...]] = {
         ("market", "VARCHAR(2)", "'BR'"),
         ("customer_email", "VARCHAR(320)", "''"),
         ("updated_at", "TIMESTAMP", ""),
+        # Origem da venda (ver Order em models.py): primeira e última.
+        ("first_source", "VARCHAR(80)", "''"),
+        ("first_medium", "VARCHAR(80)", "''"),
+        ("first_campaign", "VARCHAR(120)", "''"),
+        ("first_content", "VARCHAR(120)", "''"),
+        ("last_source", "VARCHAR(80)", "''"),
+        ("last_medium", "VARCHAR(80)", "''"),
+        ("last_campaign", "VARCHAR(120)", "''"),
+        ("last_content", "VARCHAR(120)", "''"),
+        ("landing_page", "VARCHAR(300)", "''"),
+        ("referrer", "VARCHAR(300)", "''"),
     ),
     "site_users": (
         ("token_epoch", "INTEGER", "0"),

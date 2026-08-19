@@ -86,6 +86,32 @@ class Order(Base):
     raw_payload: Mapped[dict] = mapped_column(JSON, default=dict)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now_utc)
 
+    # De onde veio esta venda.
+    #
+    # Duas origens, não uma, porque as duas respondem perguntas diferentes e o
+    # negócio precisa das duas: a PRIMEIRA é quem descobriu a cliente (onde vale
+    # investir para atrair), a ÚLTIMA é quem fechou (o que converte). Guardar só
+    # a última — que é o padrão do Google Analytics — apaga o anúncio que
+    # apresentou a marca para quem voltou pelo Google dois dias depois.
+    #
+    # Colunas separadas em vez de um JSON: relatório de origem é GROUP BY, e
+    # agrupar por campo de JSON é lento no Postgres e impossível no SQLite do
+    # desenvolvimento. Vazio (não NULL) quer dizer "veio direto, sem link
+    # marcado" — que é informação, não ausência dela.
+    first_source: Mapped[str] = mapped_column(String(80), default="", index=True)
+    first_medium: Mapped[str] = mapped_column(String(80), default="")
+    first_campaign: Mapped[str] = mapped_column(String(120), default="")
+    first_content: Mapped[str] = mapped_column(String(120), default="")
+    last_source: Mapped[str] = mapped_column(String(80), default="", index=True)
+    last_medium: Mapped[str] = mapped_column(String(80), default="")
+    last_campaign: Mapped[str] = mapped_column(String(120), default="")
+    last_content: Mapped[str] = mapped_column(String(120), default="")
+    # Página onde a cliente entrou e de onde o navegador disse que ela veio.
+    # Servem quando a origem chega vazia: sem UTM, o referrer ainda distingue
+    # "digitou o endereço" de "veio de um link que alguém compartilhou".
+    landing_page: Mapped[str] = mapped_column(String(300), default="")
+    referrer: Mapped[str] = mapped_column(String(300), default="")
+
 
 class Entitlement(Base):
     __tablename__ = "site_entitlements"

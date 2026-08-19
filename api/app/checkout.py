@@ -55,6 +55,43 @@ class OrderBody(BaseModel):
     # Quando True, o servidor usa o e-mail da sessão autenticada e ignora o campo
     # email do corpo — o cliente não pode forjar o e-mail da conta.
     use_session: bool = False
+    # De onde a cliente veio. O navegador manda o que guardou (ver attribution.js
+    # nas páginas): a PRIMEIRA visita marcada e a ÚLTIMA antes da compra.
+    # Tolerante de propósito — origem faltando ou torta nunca pode impedir uma
+    # venda de acontecer, então nada aqui é obrigatório e tudo é truncado.
+    attribution: dict = Field(default_factory=dict)
+
+
+# Chaves aceitas do corpo, e o tamanho máximo de cada uma. Truncar em vez de
+# recusar: um link com utm_campaign gigante é erro de quem montou o link, e não
+# pode custar a venda.
+_ATTR_CAMPOS: dict[str, int] = {
+    "first_source": 80, "first_medium": 80, "first_campaign": 120, "first_content": 120,
+    "last_source": 80, "last_medium": 80, "last_campaign": 120, "last_content": 120,
+    "landing_page": 300, "referrer": 300,
+}
+
+
+def normaliza_atribuicao(bruto: dict | None) -> dict[str, str]:
+    """Limpa o que o navegador mandou e devolve as colunas do pedido.
+
+    Origem vira minúscula e sem espaço nas pontas porque relatório é GROUP BY:
+    "Instagram", "instagram " e "instagram" seriam três linhas diferentes no
+    painel, e aí o número que a dona olha para decidir onde investir está errado.
+    landing_page e referrer preservam caixa — são URLs, e URL diferencia
+    maiúscula de minúscula no caminho.
+    """
+    bruto = bruto or {}
+    limpo: dict[str, str] = {}
+    for campo, limite in _ATTR_CAMPOS.items():
+        valor = bruto.get(campo)
+        if not isinstance(valor, str):
+            continue
+        valor = valor.strip()[:limite]
+        if campo not in ("landing_page", "referrer"):
+            valor = valor.lower()
+        limpo[campo] = valor
+    return limpo
 
 
 class PaymentBody(BaseModel):
@@ -200,6 +237,7 @@ def open_order(
         market=pricing.market_for(locale),
         customer_email=resolved_email,
         raw_payload={"name": resolved_name},
+        **normaliza_atribuicao(body.attribution),
     )
     db.add(order)
     db.commit()

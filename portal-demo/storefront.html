@@ -65,6 +65,7 @@
     .catalog-group{margin-top:44px}.catalog-group:first-child{margin-top:0}.catalog-group-label{display:flex;align-items:center;gap:10px;margin:0 0 16px;color:var(--gold);font-size:10px;font-weight:700;letter-spacing:.16em;text-transform:uppercase}.catalog-group-label:after{content:"";flex:1;height:1px;background:var(--line)}.catalog-maps{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}.catalog-combos{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}.combo-card{display:flex;flex-direction:column;padding:20px;border:1px solid rgba(244,239,228,.1);background:rgba(14,11,46,.55)}.combo-card:hover{border-color:var(--line)}.combo-card .product-kind{color:var(--gold);font-size:9px;font-weight:700;letter-spacing:.15em;text-transform:uppercase}.combo-card h3{margin:12px 0 8px;font:500 22px/1.1 var(--display)}.combo-card .combo-desc{margin:0 0 auto;color:var(--muted);font-size:13px;line-height:1.5}.combo-foot{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-top:16px;padding-top:14px;border-top:1px solid rgba(244,239,228,.1)}.combo-extra{margin-top:10px}.combo-expand-btn{display:inline-flex;align-items:center;gap:7px;margin-top:14px;padding:0;border:0;background:transparent;color:var(--gold-lit);cursor:pointer;font-size:11px;font-weight:700;letter-spacing:.04em}.combo-expand-btn:hover{text-decoration:underline;text-underline-offset:4px}.combo-expand-btn:focus-visible{outline:2px solid var(--gold-lit);outline-offset:4px}.combo-expand-btn[aria-expanded="false"] .combo-expand-hide,.combo-expand-btn[aria-expanded="true"] .combo-expand-show{display:none}@media(max-width:920px){.catalog-maps{grid-template-columns:1fr}.catalog-combos{grid-template-columns:repeat(2,minmax(0,1fr))}}@media(max-width:620px){.catalog-combos{grid-template-columns:1fr}}
   </style>
   <script src="/meta-pixel.js"></script>
+  <script src="/assets/attribution.js"></script>
 </head>
 <body>
   <noscript><img height="1" width="1" style="display:none" alt="" src="https://www.facebook.com/tr?id=2812114902493745&amp;ev=PageView&amp;noscript=1"></noscript>
@@ -350,11 +351,10 @@
       menu.querySelectorAll('a').forEach(a=>a.addEventListener('click',closeMenu));
     })();
   </script>
-    <!-- Suporte (Chatwoot, inbox "Suporte AstroDicas" da conta Astro Dicas).
-       Carrega na tela de login e dentro do portal: quem não consegue entrar é
-       justamente quem mais precisa falar com o suporte. O idioma da bolha e as
-       regras de identificação vivem em support-widget.js, um arquivo só para
-       as três páginas — ver o cabeçalho de lá. -->
-  <script src="/support-widget.js"></script>
+    <!-- Sem widget de suporte nesta página, de propósito (18/08/2026).
+       A vitrine é onde a visitante decide comprar, e fora do horário de
+       atendimento o Chatwoot exibe "Estamos ausentes / Voltamos amanhã" —
+       lê como loja fechada bem na hora da decisão. O suporte segue no portal
+       (index.html), que é onde fica a tela de login, e em suporte.html. -->
 </body>
 </html>
